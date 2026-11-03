@@ -70,14 +70,25 @@ pub(super) fn gcd(a: u32, b: u32) -> u32 {
     if b == 0 { a } else { gcd(b, a % b) }
 }
 
-/// Sub-bin peak (parabolic) of the whitened row within ±2 bins of `pos`.
-fn peak_near(row: &[f32], pos: f64) -> Option<(f64, f32)> {
+/// Sub-bin peak (parabolic) of the whitened row within ±2 bins of `pos`. A flat top (the whitening clip) reads
+/// as its centre: taking either end biased strong lines by +0.5 bin.
+pub(super) fn peak_near(row: &[f32], pos: f64) -> Option<(f64, f32)> {
     let c = pos.round() as i64;
     let (lo, hi) = ((c - 2).max(1), (c + 2).min(row.len() as i64 - 2));
     if lo > hi {
         return None;
     }
     let i = (lo..=hi).max_by(|&a, &b| row[a as usize].total_cmp(&row[b as usize]))? as usize;
+    let (mut a, mut b) = (i, i);
+    while a > 0 && row[a - 1] == row[i] {
+        a -= 1;
+    }
+    while b + 1 < row.len() && row[b + 1] == row[i] {
+        b += 1;
+    }
+    if b > a {
+        return Some(((a + b) as f64 / 2.0, row[i]));
+    }
     let (a, b, d) = (row[i - 1] as f64, row[i] as f64, row[i + 1] as f64);
     let den = a - 2.0 * b + d;
     let delta = if den < 0.0 {

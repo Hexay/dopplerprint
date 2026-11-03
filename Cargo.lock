@@ -422,6 +422,7 @@ dependencies = [
  "flate2",
  "hound",
  "memmap2",
+ "opus-decoder",
  "parquet",
  "rayon",
  "realfft",
@@ -948,6 +949,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
+name = "opus-decoder"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "15ae32c275dabb0cd2c863460bf349e9abc3568ba2abf0f9eb7b7d2edeeed07e"
+dependencies = [
+ "thiserror",
+]
+
+[[package]]
 name = "ordered-float"
 version = "5.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1435,6 +1445,7 @@ dependencies = [
  "symphonia-codec-vorbis",
  "symphonia-core",
  "symphonia-format-isomp4",
+ "symphonia-format-mkv",
  "symphonia-format-ogg",
  "symphonia-format-riff",
  "symphonia-metadata",
@@ -1526,6 +1537,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "243739585d11f81daf8dac8d9f3d18cc7898f6c09a259675fc364b382c30e0a5"
 dependencies = [
  "encoding_rs",
+ "log",
+ "symphonia-core",
+ "symphonia-metadata",
+ "symphonia-utils-xiph",
+]
+
+[[package]]
+name = "symphonia-format-mkv"
+version = "0.5.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "122d786d2c43a49beb6f397551b4a050d8229eaa54c7ddf9ee4b98899b8742d0"
+dependencies = [
+ "lazy_static",
  "log",
  "symphonia-core",
  "symphonia-metadata",

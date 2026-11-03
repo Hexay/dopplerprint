@@ -7,12 +7,17 @@ The code lives in `crates/dp-core/src/audio/` and `crates/dp-core/src/events/`. 
 ```
 decode_band ─► log-f STFT (wins 0.5/1/2 s) ─► whiten ─► combine_max ─► comb image ─► peel Viterbi paths
   ─► analyze (harmonics, fundamental) ─► split_inconsistent ─► merge_related ─► stitch ─► merge_related
-  ─► finalize (CV fit + validation) ─► same_source_keep ─► events sorted by t_cpa
+  ─► finalize (ridge re-measured on the complex STFT, CV fit, validation) ─► same_source_keep ─► events sorted by t_cpa
 ```
 
 ## Decode (`audio/decode.rs`, `audio/resample.rs`)
 
-- Symphonia decodes mp3, aac/m4a, flac, wav/pcm/adpcm and ogg/vorbis. Gapless decoding is on.
+- Symphonia demuxes and decodes mp3, aac/m4a, flac, wav/pcm/adpcm, ogg/vorbis and mkv/webm. Gapless decoding is on.
+- **Opus** (Ogg or WebM; YouTube itag 251) is decoded by the pure-Rust `opus-decoder` crate (`audio/packet.rs`), because symphonia 0.5 has no Opus codec. It needs no system libopus and no ffmpeg. `moosicbox_opus` was rejected because it binds libopus through `audiopus`.
+- **Encoder delay** (`audio/priming.rs`). Symphonia trims MP3 gapless delay itself but leaves AAC priming (1024 samples) and Opus pre-skip (312) in the stream. Both are trimmed:
+  - AAC: from the m4a edit list (`moov/trak/edts/elst` media_time, rescaled from the `mdhd` timescale), else iTunSMPB, else the codec delay, else 1024.
+  - Opus: from the OpusHead pre-skip.
+  - The number trimmed is reported as `AudioInfo::trimmed_samples`. `events/measure/decode_align.rs` checks the lag against ffmpeg: 0 samples for AAC, Opus/Ogg, Opus/WebM and MP3. Opus end padding is not trimmed, so the output is about 650 samples longer than ffmpeg's at the tail.
 - Channels are averaged to mono f32.
 - A corrupt packet is skipped and counted in `AudioInfo::skipped_packets`. A sample-rate change in mid-stream is an error.
 - `decode_band(path, f_max)` decimates while it decodes, so a 1 h, 48 kHz file never sits in memory at full rate.
@@ -46,6 +51,14 @@ Every step is relative, so the output does not depend on gain. A test checks tha
 Stationary tones are removed on purpose. Doppler ridges move, so they survive.
 
 `FrontEnd` computes several windows (0.5, 1 and 2 s by default), whitens each one, takes the element-wise maximum, and standardises the result again. Short windows follow the steep part around CPA; long windows resolve faint, slowly moving asymptotes.
+
+### Persistent-line mask (`audio/lines.rs`, `FrontEnd::mask_lines`, on by default)
+
+Whitening removes a line that is always on, but not one that flickers (ENF-wandering hum, a motor that cycles), and a weak stationary path costs the tracker nothing. On real audio these lines are common and they are not only mains harmonics: Livermore has a 58.25 Hz motor-slip line with 3×/5×/15× companions in about a third of the files, plus 25 Hz lines, and Oyster Bay has 101/137/360 Hz (research_notes/…/corpus_signatures.md §3, §8).
+- On the raw power of the longest window, each quarter of the recording gets a time-median spectrum, and a bin's excess over its annulus median (1.5–5 Hz, at least 2–8 bins away) is compared with max(3 dB, median + 5·MAD of the excess).
+- A bin is a line if that holds in **at least 3 of the 4 quarters**. A single time-median over the whole file also caught the flat approach asymptote of a steep sim pass (about 45 % of the clip) and cost that fit d −21 %. An asymptote holds a bin only before or after CPA.
+- Line bins, widened by 1/(shortest window) Hz, are set to 0 in the combined image. Recordings under 30 s are not masked.
+- Mains notching by `mains_hz` still exists. The mask is generic and needs no grid frequency. With both on, `auto_mains` notches the detected hum fundamental before whitening and the mask catches whatever flickers through.
 
 ## Mains hum (`audio/hum/`)
 
@@ -110,7 +123,16 @@ For each segment, three hypotheses are tested: the base track is harmonic `m` of
   - The fundamental is the gcd of the present orders. This handles a missing fundamental: if lines 2, 3 and 4 are present, the fundamental is line 1.
   - Each harmonic's z is the mean on-minus-control difference divided by its standard error, using `n / frames_per_indep` independent samples. The candidate score is the Stouffer combination of the present z values.
   - The best hypothesis wins. Ties within ×1.05 go to the smallest `m`.
-- **Refined fundamental.** The fundamental track `fund_hz` is refined by parabolic peak interpolation on the strongest harmonic.
+- **Refined fundamental.** The fundamental track `fund_hz` is refined by parabolic peak interpolation on the whitened image of each detected harmonic, folded with z² weights. A flat top (the clip at 8) reads as its centre; taking its last bin biased strong lines by +0.5 bin. This track is used for detection, splitting and merging only. The fit uses the ridge re-measured below.
+
+## Ridge re-measurement (`audio/refine.rs`, `events/refine.rs`)
+
+The whitened image biases peak positions. Its 60 s low-quantile floor partly subtracts a slow ridge that sits in one bin for long, so far or slow passes read 0.4–0.9 bin off with frame-to-frame correlation of about 0.96. The CV fit turned that into d +2 to +40 % and t_cpa up to +4 s late (research_notes/…/pipeline_bias_measurements.md, M1). So before the fit, `finalize` re-measures each frame on the complex, unwhitened STFT of the samples (`discover_refined`; `discover_with` has no samples and skips this):
+- Candan's three-sample estimator on the Hann DTFT, phase referenced to the window centre, `c` fitted on clean tones per window, 3 iterations. The seed is the folded `fund_hz·h`, after an argmax over ±3 log bins.
+- The window is the longest of `wins_s` with |slope|·T² ≤ 4: unbiased below 0.005 bin for linear chirps, and the longest window has the lowest noise.
+- A harmonic whose estimate leaves ±3 log bins of its seed, or whose window leaves the recording, keeps the seed. Harmonics are folded with the detection z² weights.
+
+Measured on exact CV passes (`events/measure/fitbias.rs`): |d| ≤ 0.5 %, |v| ≤ 0.2 %, |t_cpa| ≤ 0.04 s in every cell, against d +2…+40 % before.
 
 ## Splitting, merging, stitching (`events/split.rs`, `events/merge.rs`)
 
@@ -196,7 +218,7 @@ The fit is run on the frames with peak z ≥ 1, when there are enough of them.
 Every field of `FrontEnd` and `DiscoverParams` (`events/mod.rs`, with a doc comment on each) can be set from one flat JSON object, `DiscoverConfig`. Missing fields take their defaults.
 
 ```json
-{"wins_s": [0.5, 1, 2], "hop_s": 0.25, "f_min": 20, "f_max": 1000, "bins_per_octave": 96, "mains_hz": null,
+{"wins_s": [0.5, 1, 2], "hop_s": 0.25, "f_min": 20, "f_max": 1000, "bins_per_octave": 96, "mains_hz": null, "mask_lines": true,
  "harmonics": 6, "min_duration_s": 10, "min_snr": 6, "max_rmse_rel": 0.03, "fit": {"sigma_k": 3, "c_rel_unc": 0.03}}
 ```
 
