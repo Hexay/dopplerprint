@@ -1,9 +1,7 @@
 //! Per-cell association: which flights could explain each event, with one shared recording clock,
 //! plus the soft silence penalty for unexplained audible flights.
 
-use crate::geo::Vec3;
-use crate::physics::{self, Atmosphere, Cpa};
-use crate::track::Track;
+use crate::physics::Cpa;
 
 /// What the search needs to know about one audio event (from `events::Event` or oracle truth).
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -53,16 +51,8 @@ pub struct Hypothesis {
     pub unexplained: usize,
 }
 
-/// Enumerate hypotheses for one observer position. `tracks` are the catalogue's nearby tracks.
-pub fn associate(
-    events: &[EventSpec],
-    tracks: &[&Track],
-    obs: Vec3,
-    atm: &Atmosphere,
-    duration_s: f64,
-    p: &AssocParams,
-) -> Vec<Hypothesis> {
-    let cpas: Vec<Option<Cpa>> = tracks.iter().map(|t| physics::cpa(t, obs, atm)).collect();
+/// Enumerate hypotheses for one observer position from the CPA of each nearby track (index = track index).
+pub fn associate(events: &[EventSpec], cpas: &[Option<Cpa>], duration_s: f64, p: &AssocParams) -> Vec<Hypothesis> {
     let options: Vec<Vec<(usize, f64)>> = events
         .iter()
         .map(|e| {
@@ -79,7 +69,7 @@ pub fn associate(
     let mut stack = Vec::with_capacity(events.len());
     expand(&options, 0, &mut stack, p, &mut out);
     for h in &mut out {
-        h.unexplained = unexplained(&cpas, h, duration_s, p);
+        h.unexplained = unexplained(cpas, h, duration_s, p);
     }
     out
 }

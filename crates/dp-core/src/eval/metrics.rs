@@ -101,10 +101,12 @@ fn flight_stages(inp: &SearchInput<'_>, ps: &[SearchParams], t: &Truth<'_>) -> V
     let all: Vec<&Track> = inp.catalog.all().iter().collect();
     let obs = truth_observer(inp, p, t);
     let (t0, t1) = p.assoc.t_start_prior;
-    let near = inp.catalog.near(obs, p.track_radius_m, t0, t1 + inp.duration_s);
+    let nearby = inp.catalog.near(obs, p.track_radius_m, t0, t1 + inp.duration_s);
+    let near: Vec<&Track> = nearby.iter().map(|n| n.track).collect();
     let (mut assoc_ok, mut n_hyps) = (false, 0);
     for q in ps {
-        let hyps = associate(inp.events, &near, obs, &q.atmosphere, inp.duration_s, &q.assoc);
+        let cpas: Vec<_> = nearby.iter().map(|n| n.cpa(obs, &q.atmosphere)).collect();
+        let hyps = associate(inp.events, &cpas, inp.duration_s, &q.assoc);
         assoc_ok |= hyps.iter().any(|h| h.tracks.iter().zip(truth).all(|(&i, f)| same_flight(&near[i].id, f)));
         n_hyps = n_hyps.max(hyps.len());
     }

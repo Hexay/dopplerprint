@@ -22,6 +22,14 @@ impl Vec3 {
     pub fn normalized(self) -> Vec3 {
         self * (1.0 / self.norm())
     }
+    /// Component-wise minimum.
+    pub fn min(self, o: Vec3) -> Vec3 {
+        Vec3::new(self.x.min(o.x), self.y.min(o.y), self.z.min(o.z))
+    }
+    /// Component-wise maximum.
+    pub fn max(self, o: Vec3) -> Vec3 {
+        Vec3::new(self.x.max(o.x), self.y.max(o.y), self.z.max(o.z))
+    }
 }
 
 impl Add for Vec3 {

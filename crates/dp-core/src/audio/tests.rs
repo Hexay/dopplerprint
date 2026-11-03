@@ -218,3 +218,19 @@ fn multi_window_shares_grid() {
     let c = combine_max(&specs).unwrap();
     assert!((peak_freq(&c) / 200.0 - 1.0).abs() < 0.008);
 }
+
+#[test]
+fn parallel_decimation_equals_streaming() {
+    use super::resample::Decimator;
+    for (n, q) in [(1, 3), (50, 4), (99_999, 6), (300_001, 12)] {
+        let x = noise(n, 0.3, n as u64);
+        let mut d = Decimator::new(48_000, q, 1_500.0);
+        let want = d.decimate_all(&x);
+        let mut got = Vec::new();
+        for chunk in x.chunks(7_919) {
+            d.push(chunk, &mut got);
+        }
+        d.finish(&mut got);
+        assert_eq!(got, want, "n {n} q {q}");
+    }
+}

@@ -23,8 +23,13 @@ pub fn one_line(r: &CaseResult) -> String {
     if r.status != "ok" {
         return r.status.clone();
     }
+    let t = &r.timing;
+    let stages = format!(
+        "[pose {:.1} plane {:.1} plan {:.1} score {:.1} metrics {:.1}]",
+        t.pose_s, t.plane_s, t.plan_s, t.score_s, t.metrics_s
+    );
     format!(
-        "err {:>8} m  flights {:<5}  rank {:>3}  margin {:>6}  clock {:>6} s  cells {:>6}  {:.1} s  lost {:<7} logS {:>6}  gap {:>6}",
+        "err {:>8} m  flights {:<5}  rank {:>3}  margin {:>6}  clock {:>6} s  cells {:>6}  {:.1} s {stages}  lost {:<7} logS {:>6}  gap {:>6}",
         opt(r.error_m, 1),
         r.flights_correct.map_or("–".into(), |b| b.to_string()),
         opt_u(r.truth_tuple_rank),

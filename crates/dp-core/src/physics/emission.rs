@@ -4,7 +4,7 @@
 
 use super::{Atmosphere, Emission, Medium};
 use crate::geo::Vec3;
-use crate::track::Track;
+use crate::track::{Cursor, Track};
 
 const MAX_ITERS: u32 = 30;
 
@@ -24,8 +24,8 @@ struct Eval {
     medium: Medium,
 }
 
-fn eval(track: &Track, obs: Vec3, t_obs: f64, atm: &Atmosphere, tau: f64) -> Option<Eval> {
-    let s = track.state_at(tau)?;
+fn eval(track: &Track, obs: Vec3, t_obs: f64, atm: &Atmosphere, tau: f64, cur: &mut Cursor) -> Option<Eval> {
+    let s = track.state_at_from(tau, cur)?;
     let m = atm.medium(obs, s.pos);
     let d = obs - s.pos - m.wind * (t_obs - tau);
     let r = d.norm();
@@ -61,11 +61,23 @@ pub fn emission_iters(
     atm: &Atmosphere,
     tau_guess: f64,
 ) -> Option<(Emission, u32)> {
+    emission_from(track, obs, t_obs, atm, tau_guess, &mut Cursor::default())
+}
+
+/// `emission_iters` with a knot-search hint carried across calls (identical result).
+fn emission_from(
+    track: &Track,
+    obs: Vec3,
+    t_obs: f64,
+    atm: &Atmosphere,
+    tau_guess: f64,
+    cur: &mut Cursor,
+) -> Option<(Emission, u32)> {
     let (lo, hi) = (track.t_start(), track.t_end());
     let tol = tolerance(t_obs);
     let mut tau = tau_guess.clamp(lo, hi);
     for it in 0..=MAX_ITERS {
-        let e = eval(track, obs, t_obs, atm, tau)?;
+        let e = eval(track, obs, t_obs, atm, tau, cur)?;
         if e.g.abs() < tol {
             let em = Emission {
                 tau,
@@ -97,12 +109,13 @@ pub fn emissions<'a>(
     atm: &'a Atmosphere,
 ) -> impl Iterator<Item = Option<Emission>> + 'a {
     let mut prev: Option<(f64, Emission)> = None;
+    let mut cur = Cursor::default();
     t_obs.iter().map(move |&t| {
         let guess = match prev {
             Some((tp, e)) => Some(e.tau + (t - tp) * e.factor),
             None => cold_guess(track, obs, t, atm),
         };
-        let out = guess.and_then(|g| emission_warm(track, obs, t, atm, g));
+        let out = guess.and_then(|g| emission_from(track, obs, t, atm, g, &mut cur).map(|(e, _)| e));
         prev = out.map(|e| (t, e));
         out
     })

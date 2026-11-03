@@ -85,3 +85,8 @@ pub fn doppler_factors(track: &Track, obs: Vec3, t_obs: &[f64], atm: &Atmosphere
 pub fn cpa(track: &Track, obs: Vec3, atm: &Atmosphere) -> Option<Cpa> {
     cpa::closest_approach(track, obs, atm)
 }
+
+/// `cpa` using precomputed chunk bounds (identical result, sublinear in track length).
+pub fn cpa_bounded(track: &Track, bounds: &crate::track::TrackBounds, obs: Vec3, atm: &Atmosphere) -> Option<Cpa> {
+    cpa::closest_approach_bounded(track, bounds, obs, atm)
+}

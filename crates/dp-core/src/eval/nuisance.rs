@@ -45,6 +45,7 @@ pub fn merge(runs: Vec<SearchResult>) -> (SearchResult, usize) {
     for r in runs {
         out.cells_scored += r.cells_scored;
         out.hypotheses_scored += r.hypotheses_scored;
+        out.timing += r.timing;
         out.ranked.extend(r.ranked);
     }
     out.ranked.sort_by(|a, b| b.score.total_cmp(&a.score));

@@ -97,7 +97,7 @@ fn steps(req: &LocateRequest, ui: &dyn Ui, rep: &mut Report, started: Instant) -
         area.radius_km,
         area.label
     ));
-    let (res, used) = search_dropping_weakest(&audio, events, &tracks, &area, dem.as_ref(), &cfg, &p);
+    let (res, used) = search_dropping_weakest(&audio, events, &tracks, &area, dem.as_ref(), &cfg, &p)?;
     rep.cells_scored = res.cells_scored;
     rep.events_used = used.len();
     let Some(best) = res.ranked.first() else {
@@ -197,13 +197,13 @@ fn search_dropping_weakest(
     dem: Option<&Dem>,
     cfg: &Config,
     p: &SearchParams,
-) -> (SearchResult, Vec<Event>) {
+) -> anyhow::Result<(SearchResult, Vec<Event>)> {
     let region = search_region(a);
     loop {
         let specs: Vec<EventSpec> = events.iter().map(EventSpec::from_event).collect();
-        let res = search::locate(audio, &specs, tracks.to_vec(), region, dem, &cfg.spec, p);
+        let res = search::locate(audio, &specs, tracks.to_vec(), region, dem, &cfg.spec, p)?;
         if !res.ranked.is_empty() || events.len() <= 1 {
-            return (res, events);
+            return Ok((res, events));
         }
         let weakest = events.iter().enumerate().min_by(|x, y| x.1.snr.total_cmp(&y.1.snr)).map_or(0, |w| w.0);
         events.remove(weakest);

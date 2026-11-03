@@ -1,4 +1,8 @@
+pub mod bounds;
+
 use crate::geo::Vec3;
+
+pub use bounds::TrackBounds;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum EngineClass {
@@ -27,6 +31,15 @@ pub struct Track {
     pub points: Vec<TrackPoint>,
 }
 
+/// Knot search hint for `Track::state_at_from`.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Cursor(usize);
+
+impl Cursor {
+    /// Knots walked from the hint before falling back to binary search.
+    const MAX_WALK: usize = 4;
+}
+
 /// Position and velocity at an instant.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct State {
@@ -53,6 +66,35 @@ impl Track {
             return Some(State { pos: pts[0].pos, vel: pts[0].vel });
         }
         let i = pts.partition_point(|p| p.t <= t).clamp(1, pts.len() - 1);
+        Some(hermite(&pts[i - 1], &pts[i], t))
+    }
+
+    /// `state_at` (identical result) starting the knot search from `cur`, the previous call's partition
+    /// point: O(1) for the slowly moving times of a warm-started emission sweep.
+    pub fn state_at_from(&self, t: f64, cur: &mut Cursor) -> Option<State> {
+        let pts = &self.points;
+        if pts.is_empty() || !(t >= self.t_start() && t <= self.t_end()) {
+            return None;
+        }
+        if pts.len() == 1 {
+            return Some(State { pos: pts[0].pos, vel: pts[0].vel });
+        }
+        let mut pp = cur.0.min(pts.len());
+        let mut walked = 0;
+        while pp < pts.len() && pts[pp].t <= t && walked < Cursor::MAX_WALK {
+            pp += 1;
+            walked += 1;
+        }
+        while pp > 0 && pts[pp - 1].t > t && walked < Cursor::MAX_WALK {
+            pp -= 1;
+            walked += 1;
+        }
+        let settled = (pp == pts.len() || pts[pp].t > t) && (pp == 0 || pts[pp - 1].t <= t);
+        if !settled {
+            pp = pts.partition_point(|p| p.t <= t);
+        }
+        cur.0 = pp;
+        let i = pp.clamp(1, pts.len() - 1);
         Some(hermite(&pts[i - 1], &pts[i], t))
     }
 
@@ -101,6 +143,16 @@ mod tests {
             let s = tr.state_at(t).unwrap();
             assert!((s.pos - (p0 + v * dt)).norm() < 1e-6, "pos at {dt}");
             assert!((s.vel - v).norm() < 1e-9, "vel at {dt}");
+        }
+    }
+
+    #[test]
+    fn hinted_lookup_equals_binary_search() {
+        let tr = linear_track();
+        let mut cur = Cursor::default();
+        let times = (0..400).map(|k| 1.7e9 - 0.5 + ((k * 37) % 120) as f64 * 0.1).chain((0..200).map(|k| 1.7e9 + k as f64 * 0.06));
+        for t in times.chain([1.7e9 + 3.5, 1.7e9 + 1.0, 1.7e9 + 11.0, 1.7e9]) {
+            assert_eq!(tr.state_at_from(t, &mut cur), tr.state_at(t), "t − t0 = {}", t - 1.7e9);
         }
     }
 

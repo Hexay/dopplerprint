@@ -101,14 +101,33 @@ pub fn decimate_for(audio: &Audio, f_max: f64) -> Cow<'_, Audio> {
     if q == 1 {
         return Cow::Borrowed(audio);
     }
-    let mut d = Decimator::new(audio.sample_rate, q, f_max);
-    let mut out = Vec::with_capacity(audio.samples.len() / q as usize + 1);
-    for chunk in audio.samples.chunks(1 << 16) {
-        d.push(chunk, &mut out);
-    }
-    d.finish(&mut out);
+    let d = Decimator::new(audio.sample_rate, q, f_max);
     Cow::Owned(Audio {
         sample_rate: audio.sample_rate / q,
-        samples: out,
+        samples: d.decimate_all(&audio.samples),
     })
+}
+
+impl Decimator {
+    /// The streaming output of `push(x)` + `finish`, computed in parallel over output samples: output j is
+    /// the same left-to-right tap sum over the zero-padded input window centred on x[j·q].
+    pub fn decimate_all(&self, x: &[f32]) -> Vec<f32> {
+        use rayon::prelude::*;
+        let (q, half) = (self.q, self.half);
+        let mut out = vec![0.0f32; x.len().div_ceil(q)];
+        out.par_chunks_mut(1 << 14).enumerate().for_each_init(Vec::new, |pad, (ci, chunk)| {
+            for (o, y) in chunk.iter_mut().enumerate() {
+                let c = ((ci << 14) + o) * q;
+                let dot = |w: &[f32]| w.iter().zip(&self.taps).map(|(a, b)| a * b).sum::<f32>();
+                *y = if c >= half && c + half < x.len() {
+                    dot(&x[c - half..=c + half])
+                } else {
+                    pad.clear();
+                    pad.extend((0..=2 * half).map(|i| (c + i).checked_sub(half).and_then(|k| x.get(k)).copied().unwrap_or(0.0)));
+                    dot(pad)
+                };
+            }
+        });
+        out
+    }
 }

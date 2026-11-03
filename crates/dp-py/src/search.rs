@@ -48,7 +48,7 @@ fn search<'py>(
         let dem = dem.map(|d| Dem::open(&d)).transpose()?;
         let tracks = adsb::load_tracks(&store, &q)?;
         let region = Region { lat_deg: lat, lon_deg: lon, radius_m };
-        locate(&audio, &specs, tracks, region, dem.as_ref(), &cfg.spec, &p).to_json()
+        locate(&audio, &specs, tracks, region, dem.as_ref(), &cfg.spec, &p)?.to_json()
     })?;
     json.call_method1("loads", (out,))
 }

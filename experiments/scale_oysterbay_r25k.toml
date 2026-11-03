@@ -1,0 +1,13 @@
+# Scale benchmark (not an accuracy experiment): oysterbay parity with a 25 km radius (~1960 km², ~49k coarse
+# cells) and a ±10 min start prior, in dense NYC-area traffic. Tracks the search-throughput frontier.
+[eval]
+cases = ["oysterbay"]
+region_radius_m = 25000.0
+region_offset_m = 450.0
+time_prior_s = 600.0
+oracle_events = true
+
+[search]
+coarse_step_m = 200
+min_step_m = 25
+keep_top = 200

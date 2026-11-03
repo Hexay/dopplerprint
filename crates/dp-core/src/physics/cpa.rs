@@ -2,26 +2,74 @@
 
 use super::{Atmosphere, Cpa, Medium};
 use crate::geo::{Vec3, ecef_to_geodetic, up_vector};
+use crate::track::bounds::{Chunk, TrackBounds};
 use crate::track::{Track, TrackPoint, hermite};
 
 const ROOT_TOL_S: f64 = 1e-9;
 
+/// Reference implementation; `closest_approach_bounded` returns the same result faster.
 pub fn closest_approach(track: &Track, obs: Vec3, atm: &Atmosphere) -> Option<Cpa> {
-    let range2 = |p: &TrackPoint| (p.pos - obs).dot(p.pos - obs);
-    let knot = track
-        .points
-        .iter()
-        .min_by(|a, b| range2(a).total_cmp(&range2(b)))?;
-    let mut best = (knot.t, range2(knot));
+    let knot = track.points.iter().min_by(|a, b| range2(a, obs).total_cmp(&range2(b, obs)))?;
+    let mut best = (knot.t, range2(knot, obs));
     for (a, b) in track.segments() {
-        let closing_at = |p: &TrackPoint| (p.pos - obs).dot(p.vel);
-        if closing_at(a) < 0.0 && closing_at(b) >= 0.0 {
-            let (t, r2) = segment_min(a, b, obs);
-            if r2 <= best.1 {
-                best = (t, r2);
-            }
+        refine(&mut best, a, b, obs);
+    }
+    finish(track, best, obs, atm)
+}
+
+/// `closest_approach` with chunks skipped when their lower bound cannot beat the running best. Knots:
+/// best chunk first, then (lb2, index) order is preserved by a lowest-index tie-break. Segments: original
+/// order with a strict skip, so every accepted update is the one the reference makes.
+pub fn closest_approach_bounded(track: &Track, bounds: &TrackBounds, obs: Vec3, atm: &Atmosphere) -> Option<Cpa> {
+    let pts = &track.points;
+    let seed = bounds.chunks.iter().enumerate().min_by(|a, b| a.1.point_lb2(obs).total_cmp(&b.1.point_lb2(obs)))?.0;
+    let mut knot: Option<(f64, usize)> = None;
+    nearest_knot(pts, &bounds.chunks[seed], obs, &mut knot);
+    for (ci, c) in bounds.chunks.iter().enumerate() {
+        if ci != seed && knot.is_none_or(|(b, _)| c.point_lb2(obs) <= b) {
+            nearest_knot(pts, c, obs, &mut knot);
         }
     }
+    let (r2, i) = knot?;
+    let mut best = (pts[i].t, r2);
+    for c in &bounds.chunks {
+        if c.curve_lb2(obs) > best.1 {
+            continue;
+        }
+        for s in c.first..c.last {
+            refine(&mut best, &pts[s], &pts[s + 1], obs);
+        }
+    }
+    finish(track, best, obs, atm)
+}
+
+/// Chunk knots `first..last` (the final chunk also owns `last`), so chunks partition the points.
+fn nearest_knot(pts: &[TrackPoint], c: &Chunk, obs: Vec3, best: &mut Option<(f64, usize)>) {
+    let end = if c.last + 1 == pts.len() { pts.len() } else { c.last };
+    for (i, p) in pts.iter().enumerate().take(end).skip(c.first) {
+        let r2 = range2(p, obs);
+        if best.is_none_or(|(b, bi)| r2 < b || (r2 == b && i < bi)) {
+            *best = Some((r2, i));
+        }
+    }
+}
+
+fn range2(p: &TrackPoint, obs: Vec3) -> f64 {
+    (p.pos - obs).dot(p.pos - obs)
+}
+
+/// A segment whose range rate turns from closing to opening holds a local minimum; keep it if ≤ best.
+fn refine(best: &mut (f64, f64), a: &TrackPoint, b: &TrackPoint, obs: Vec3) {
+    let closing_at = |p: &TrackPoint| (p.pos - obs).dot(p.vel);
+    if closing_at(a) < 0.0 && closing_at(b) >= 0.0 {
+        let (t, r2) = segment_min(a, b, obs);
+        if r2 <= best.1 {
+            *best = (t, r2);
+        }
+    }
+}
+
+fn finish(track: &Track, best: (f64, f64), obs: Vec3, atm: &Atmosphere) -> Option<Cpa> {
     let s = track.state_at(best.0)?;
     let g = ecef_to_geodetic(s.pos);
     let up = up_vector(g.lat_deg, g.lon_deg);

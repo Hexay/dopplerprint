@@ -30,7 +30,7 @@ use crate::audio::spectrogram::log_spectrogram;
 use crate::search::score::ScoringPlane;
 use crate::search::surface::Surface;
 use coverage::Coverage;
-use crate::search::{MemCatalog, Region, SearchInput, search};
+use crate::search::{MemCatalog, Region, Scorer, SearchInput, search};
 use metrics::{Metrics, PosteriorParams, Truth, same_flight};
 
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
@@ -49,6 +49,11 @@ pub struct CaseResult {
     pub cells: usize,
     pub hypotheses: usize,
     pub runtime_s: f64,
+    /// Where the f0 sweep ran ("cpu" / "cuda (<device>)"); scores are identical, runtimes are not.
+    #[serde(default)]
+    pub device: String,
+    #[serde(default)]
+    pub timing: CaseTiming,
     #[serde(default)]
     pub metrics: Metrics,
     /// Model atmosphere of the best candidate (the chosen grid point when a nuisance grid ran).
@@ -69,13 +74,30 @@ pub struct CaseResult {
     pub tuples: Vec<Candidate>,
 }
 
+/// Wall seconds per stage of one case (search stages summed over nuisance variants).
+#[derive(Clone, Copy, Debug, Default, serde::Serialize, serde::Deserialize)]
+pub struct CaseTiming {
+    /// Decode, ADS-B load, DEM.
+    pub pose_s: f64,
+    /// Spectrogram, scoring plane, device upload, catalogue index.
+    pub plane_s: f64,
+    pub plan_s: f64,
+    pub score_s: f64,
+    pub metrics_s: f64,
+}
+
 pub fn run(cfg: &Config, sim_dir: &Path, out_dir: &Path) -> Result<Vec<CaseResult>> {
     std::fs::create_dir_all(out_dir)?;
     let mut results = Vec::new();
     for src in case::list(&cfg.eval, sim_dir)? {
         let t = Instant::now();
         let mut r = match case::pose(&src, &cfg.eval) {
-            Ok(posed) => run_case(cfg, &posed),
+            Ok(posed) => {
+                let pose_s = t.elapsed().as_secs_f64();
+                let mut r = run_case(cfg, &posed);
+                r.timing.pose_s = pose_s;
+                r
+            }
             Err(e) => CaseResult { id: src.id(), status: format!("skipped: {e:#}"), ..Default::default() },
         };
         r.runtime_s = t.elapsed().as_secs_f64();
@@ -97,16 +119,22 @@ fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
     p.atmosphere = atmosphere::case_atmosphere(base, c, e);
     let variants = nuisance::variants(&p, c, e);
     // Not search::locate: the truth metrics need the plane and catalogue the search used.
+    let t_plane = Instant::now();
     let plane = ScoringPlane::new(&log_spectrogram(&c.audio, &cfg.spec), &p.score);
+    let scorer = match Scorer::new(&plane, p.backend) {
+        Ok(s) => s,
+        Err(e) => return CaseResult { id: c.id.clone(), status: format!("skipped: {e:#}"), ..Default::default() },
+    };
     let catalog = MemCatalog::new(c.tracks.clone());
     let inp = SearchInput {
-        plane: &plane,
+        scorer: &scorer,
         events: &c.events,
         catalog: &catalog,
         region,
         duration_s: c.audio.duration_s(),
         dem: c.dem.as_ref(),
     };
+    let plane_s = t_plane.elapsed().as_secs_f64();
     let (res, chosen) = nuisance::merge(variants.iter().map(|q| search(&inp, q)).collect());
     let surface = Surface::new(&res.ranked, &inp.region, p.coarse_step_m);
     let tuples = best_per_tuple(&res.ranked);
@@ -115,6 +143,15 @@ fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
     let is_truth = |cand: &Candidate| truth_ids.as_ref().is_some_and(|t| same_flights(&cand.track_ids, t));
     let truth = Truth { lat: c.truth_lat, lon: c.truth_lon, flights: truth_ids.as_deref() };
     let pp = PosteriorParams { beta: e.posterior_beta, floor: e.posterior_floor };
+    let t_metrics = Instant::now();
+    let metrics = metrics::measure(&inp, &variants, &res, &truth, pp);
+    let timing = CaseTiming {
+        plane_s,
+        plan_s: res.timing.plan_s,
+        score_s: res.timing.score_s,
+        metrics_s: t_metrics.elapsed().as_secs_f64(),
+        ..Default::default()
+    };
     CaseResult {
         id: c.id.clone(),
         status: "ok".into(),
@@ -131,7 +168,9 @@ fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
         cells: res.cells_scored,
         hypotheses: res.hypotheses_scored,
         runtime_s: 0.0,
-        metrics: metrics::measure(&inp, &variants, &res, &truth, pp),
+        device: scorer.device(),
+        timing,
+        metrics,
         atmosphere: Some(variants[chosen].atmosphere),
         truth_lat_lon: Some((c.truth_lat, c.truth_lon)),
         coverage: Some(coverage::measure(&surface, c.truth_lat, c.truth_lon, coverage::Shape::shipped(), &coverage::shipped_masses(c.events.len()))),

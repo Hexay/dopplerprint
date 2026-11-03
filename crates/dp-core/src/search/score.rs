@@ -5,9 +5,11 @@
 //! per-frame offset pattern. All events share one clock offset (audio s → UNIX s); only event 1's
 //! measurement error is absorbed by the clock sweep, the others ride on it ("locked" scoring).
 
+use super::job::prepare_job;
+use super::sweep;
 use crate::audio::LogSpectrogram;
 use crate::geo::Vec3;
-use crate::physics::{self, Atmosphere};
+use crate::physics::Atmosphere;
 use crate::track::Track;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -94,100 +96,6 @@ pub fn score_joint(
     clock_nominal: f64,
     p: &ScoreParams,
 ) -> Option<JointScore> {
-    let spec = &plane.spec;
-    let k_max = (p.clock_sweep_s / spec.dt).round() as i64;
-    let prepared: Vec<Prepared> = targets.iter().map(|t| prepare(spec, t, obs, atm, clock_nominal, k_max)).collect();
-    let bpo = spec.bins_per_octave as f64;
-    let shifts: Vec<(f64, f32)> = p.harmonics.iter().map(|&(h, w)| (bpo * (h as f64).log2(), w)).collect();
-    let mut scratch = Sweep::default();
-    let mut best: Option<JointScore> = None;
-    for k in -k_max..=k_max {
-        let events: Vec<EventScore> =
-            prepared.iter().map(|pr| best_f0(spec, pr, k + k_max, &shifts, &mut scratch, p)).collect();
-        let total = events.iter().map(|e| e.z).sum::<f64>();
-        if best.as_ref().is_none_or(|b| total > b.total) {
-            best = Some(JointScore { total, clock_offset: clock_nominal + k as f64 * spec.dt, events });
-        }
-    }
-    best
-}
-
-struct Prepared {
-    frames: std::ops::Range<usize>,
-    /// bpo·log2(F) for frame (frames.start + i) at sweep index k is `offsets[i + k]`.
-    offsets: Vec<f64>,
-    b0_range: (f64, f64),
-}
-
-fn prepare(spec: &LogSpectrogram, t: &EventTarget<'_>, obs: Vec3, atm: &Atmosphere, clock: f64, k_max: i64) -> Prepared {
-    let f_a = spec.frame_of(t.window.0).ceil().max(0.0) as usize;
-    let f_b = (spec.frame_of(t.window.1).floor().max(0.0) as usize + 1).min(spec.n_t);
-    let first = f_a as i64 - k_max;
-    let n = (f_b.saturating_sub(f_a)) as i64 + 2 * k_max;
-    let times: Vec<f64> = (0..n.max(0)).map(|j| spec.t0 + (first + j) as f64 * spec.dt + clock).collect();
-    let bpo = spec.bins_per_octave as f64;
-    let offsets = physics::doppler_factors(t.track, obs, &times, atm).into_iter().map(|f| bpo * f.log2()).collect();
-    let b0_range = (spec.bin_of(t.f0_range.0), spec.bin_of(t.f0_range.1));
-    Prepared { frames: f_a..f_b.max(f_a), offsets, b0_range }
-}
-
-/// `shifts` = (bpo·log2 h, weight) per harmonic. Frames are the outer loop so each row is read once per
-/// sweep, but every f0 step's sum still accumulates frame by frame, harmonic by harmonic.
-fn best_f0(
-    spec: &LogSpectrogram,
-    pr: &Prepared,
-    k: i64,
-    shifts: &[(f64, f32)],
-    scratch: &mut Sweep,
-    p: &ScoreParams,
-) -> EventScore {
-    let n_frames = pr.frames.len();
-    let covered = (0..n_frames).filter(|&i| pr.offsets[i + k as usize].is_finite()).count();
-    let norm = ((n_frames.max(1)) as f64 * p.harmonics.iter().map(|(_, w)| (*w as f64).powi(2)).sum::<f64>()).sqrt();
-    let mut best = EventScore { z: f64::NEG_INFINITY, f0: f64::NAN, coverage: covered as f64 / n_frames.max(1) as f64 };
-    let n_steps = ((pr.b0_range.1 - pr.b0_range.0) / p.f0_step_bins).ceil().max(0.0) as usize;
-    let (b0s, acc) = (&mut scratch.b0s, &mut scratch.acc);
-    b0s.clear();
-    b0s.extend((0..=n_steps).map(|step| pr.b0_range.0 + step as f64 * p.f0_step_bins));
-    acc.clear();
-    acc.resize(n_steps + 1, 0.0);
-    for (i, frame) in pr.frames.clone().enumerate() {
-        let off = pr.offsets[i + k as usize];
-        if !off.is_finite() {
-            continue;
-        }
-        let row = spec.row(frame);
-        let top = row.len().saturating_sub(1) as f64;
-        for &(hs, w) in shifts {
-            // Positions rise monotonically with the step, so the in-row steps are one contiguous run; outside
-            // it lerp would add ±0.0, which leaves a +0.0-seeded sum unchanged, so skipping it is exact.
-            let lo = b0s.partition_point(|&b0| b0 + off + hs < 0.0);
-            let hi = b0s.partition_point(|&b0| b0 + off + hs < top);
-            for (s, &b0) in acc[lo..hi.max(lo)].iter_mut().zip(&b0s[lo..hi.max(lo)]) {
-                *s += (w * lerp_in(row, b0 + off + hs)) as f64;
-            }
-        }
-    }
-    for (&s, &b0) in acc.iter().zip(b0s.iter()) {
-        let z = s / norm;
-        if z > best.z {
-            best.z = z;
-            best.f0 = spec.freq_of(b0);
-        }
-    }
-    best
-}
-
-/// Scratch buffers reused across `best_f0` calls.
-#[derive(Default)]
-struct Sweep {
-    b0s: Vec<f64>,
-    acc: Vec<f64>,
-}
-
-/// Linear interpolation at `0 ≤ bin < row.len() − 1` (truncation = floor there).
-fn lerp_in(row: &[f32], bin: f64) -> f32 {
-    let i = bin as i64 as usize;
-    let fr = (bin - i as f64) as f32;
-    row[i] * (1.0 - fr) + row[i + 1] * fr
+    let job = prepare_job(&plane.spec, targets, obs, atm, clock_nominal, p);
+    sweep::score_jobs(&plane.spec, std::slice::from_ref(&job), p).pop().flatten()
 }

@@ -4,7 +4,7 @@ use dp_core::audio::LogSpectrogram;
 use dp_core::geo::{Geodetic, Vec3, east_north, geodetic_to_ecef, up_vector};
 use dp_core::physics::{Atmosphere, cpa, cv::StraightLine, doppler_factors};
 use dp_core::search::score::{ScoreParams, ScoringPlane};
-use dp_core::search::{Catalog, EventSpec, MemCatalog, Region, SearchInput, SearchParams, search};
+use dp_core::search::{Catalog, EventSpec, MemCatalog, Region, Scorer, SearchInput, SearchParams, search};
 use dp_core::track::Track;
 
 const T_REC: f64 = 1.7e9 + 500.0;
@@ -70,8 +70,12 @@ fn two_event_search_recovers_observer() {
     let events = [spec_for(&a1, obs, f1), spec_for(&a2, obs, f2)];
     let catalog = MemCatalog::new(vec![a1, a2, decoy1, decoy2]);
     let p = SearchParams { flat_h_ell_m: H - 1.5, ..Default::default() };
+    // DP_BACKEND=cpu|cuda forces a backend, for CPU↔GPU dump comparisons.
+    let backend = std::env::var("DP_BACKEND").map_or(p.backend, |b| serde_json::from_value(b.into()).unwrap());
+    let scorer = Scorer::new(&plane, backend).unwrap();
+    eprintln!("scoring on {}", scorer.device());
     let inp = SearchInput {
-        plane: &plane,
+        scorer: &scorer,
         events: &events,
         catalog: &catalog,
         region: Region { lat_deg: LAT + 0.006, lon_deg: LON - 0.008, radius_m: 2_500.0 },

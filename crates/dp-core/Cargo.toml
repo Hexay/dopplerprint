@@ -7,11 +7,15 @@ repository.workspace = true
 homepage.workspace = true
 
 [features]
-default = ["net"]
+default = ["net", "cuda"]
 # Downloads (ADS-B days, type DB, terrain tiles) and place-name geocoding.
 net = ["dep:ureq"]
+# GPU f0 sweep, used at run time only if an NVIDIA driver and device are present (search::backend).
+# Loads libcuda dynamically: no CUDA toolkit needed to build.
+cuda = ["dep:cudarc"]
 
 [dependencies]
+cudarc = { version = "0.19", default-features = false, features = ["std", "driver", "nvrtc", "dynamic-loading", "cuda-12000"], optional = true }
 ureq = { version = "3", default-features = false, features = ["rustls"], optional = true }
 tiff = { version = "0.10", default-features = false, features = ["deflate", "lzw"] }
 anyhow.workspace = true
