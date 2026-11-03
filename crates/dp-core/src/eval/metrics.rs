@@ -49,12 +49,16 @@ pub struct PosteriorParams {
     pub floor: f64,
 }
 
-pub fn measure(inp: &SearchInput<'_>, p: &SearchParams, res: &SearchResult, t: &Truth<'_>, pp: PosteriorParams) -> Metrics {
-    let mut stages = flight_stages(inp, p, t);
+/// `ps` are the searched parameter variants (one unless a nuisance grid ran); they differ only in
+/// atmosphere, so the lattice comes from `ps[0]` and truth-side stages pass if any variant passes.
+pub fn measure(inp: &SearchInput<'_>, ps: &[SearchParams], res: &SearchResult, t: &Truth<'_>, pp: PosteriorParams) -> Metrics {
+    let p = &ps[0];
+    let mut stages = flight_stages(inp, ps, t);
     stages.extend(level_stages(p, res, t));
     let lost_at = stages.iter().find(|s| !s.ok).map(|s| s.stage.clone());
     let truth_cell = Cell::of(albers::forward(t.lat, t.lon), finest_step(p));
-    let truth_score = score_cell(inp, p, truth_cell).0.map(|c| c.score);
+    let truth_score =
+        ps.iter().filter_map(|q| score_cell(inp, q, truth_cell).0.map(|c| c.score)).max_by(f64::total_cmp);
     let best = res.ranked.first().map(|c| c.score);
     let mut m = Metrics {
         stages,
@@ -90,19 +94,24 @@ fn stage(name: &str, ok: bool, rank: Option<usize>, of: Option<usize>) -> Stage 
 }
 
 /// catalog → near → assoc, evaluated at the exact truth position.
-fn flight_stages(inp: &SearchInput<'_>, p: &SearchParams, t: &Truth<'_>) -> Vec<Stage> {
+fn flight_stages(inp: &SearchInput<'_>, ps: &[SearchParams], t: &Truth<'_>) -> Vec<Stage> {
     let Some(truth) = t.flights else { return Vec::new() };
+    let p = &ps[0];
     let has_all = |tracks: &[&Track]| truth.iter().all(|f| tracks.iter().any(|tr| same_flight(&tr.id, f)));
     let all: Vec<&Track> = inp.catalog.all().iter().collect();
     let obs = truth_observer(inp, p, t);
     let (t0, t1) = p.assoc.t_start_prior;
     let near = inp.catalog.near(obs, p.track_radius_m, t0, t1 + inp.duration_s);
-    let hyps = associate(inp.events, &near, obs, &p.atmosphere, inp.duration_s, &p.assoc);
-    let assoc_ok = hyps.iter().any(|h| h.tracks.iter().zip(truth).all(|(&i, f)| same_flight(&near[i].id, f)));
+    let (mut assoc_ok, mut n_hyps) = (false, 0);
+    for q in ps {
+        let hyps = associate(inp.events, &near, obs, &q.atmosphere, inp.duration_s, &q.assoc);
+        assoc_ok |= hyps.iter().any(|h| h.tracks.iter().zip(truth).all(|(&i, f)| same_flight(&near[i].id, f)));
+        n_hyps = n_hyps.max(hyps.len());
+    }
     vec![
         stage("catalog", has_all(&all), None, Some(all.len())),
         stage("near", has_all(&near), None, Some(near.len())),
-        stage("assoc", assoc_ok, None, Some(hyps.len())),
+        stage("assoc", assoc_ok, None, Some(n_hyps)),
     ]
 }
 
@@ -116,7 +125,10 @@ fn level_stages(p: &SearchParams, res: &SearchResult, t: &Truth<'_>) -> Vec<Stag
         let level: Vec<&Candidate> = res.ranked.iter().filter(|c| c.cell.step_m == step).collect();
         let target = Cell::of(xy, step);
         let rank = level.iter().position(|c| c.cell == target).map(|i| i + 1);
-        let ok = rank.is_some_and(|r| step == finest || r <= p.keep_top);
+        // Kept = refined, i.e. a child was scored next level; exact for merged nuisance runs too.
+        let kids = target.children();
+        let refined = || res.ranked.iter().any(|c| kids.contains(&c.cell));
+        let ok = rank.is_some() && (step == finest || refined());
         out.push(stage(&format!("L{step}"), ok, rank, Some(level.len())));
         if step == finest {
             return out;

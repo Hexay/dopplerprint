@@ -39,6 +39,15 @@ pub struct EvalParams {
     /// Posterior temperature β and uniform floor ε for log score / 90% region (see `eval::metrics`).
     pub posterior_beta: f64,
     pub posterior_floor: f64,
+    /// Wind added to `search.atmosphere` per case, in the case's local frame (see `eval::atmosphere`).
+    pub wind_enu_mps: [f64; 3],
+    /// Along/cross the truth flight's ground track (oracle direction: sensitivity probes only).
+    pub wind_along_track_mps: f64,
+    pub wind_cross_track_mps: f64,
+    /// Shared-nuisance profile grid: sound speeds (m/s) × horizontal winds [east, north] (m/s).
+    /// Empty = the single model atmosphere. See `eval::nuisance`.
+    pub nuisance_c: Vec<f64>,
+    pub nuisance_wind_en: Vec<[f64; 2]>,
 }
 
 impl Default for EvalParams {
@@ -58,6 +67,11 @@ impl Default for EvalParams {
             split_file: "experiments/split.toml".into(),
             posterior_beta: 1.0,
             posterior_floor: 0.01,
+            wind_enu_mps: [0.0; 3],
+            wind_along_track_mps: 0.0,
+            wind_cross_track_mps: 0.0,
+            nuisance_c: Vec::new(),
+            nuisance_wind_en: Vec::new(),
         }
     }
 }

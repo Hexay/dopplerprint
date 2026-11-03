@@ -2,10 +2,12 @@
 //! Output: runs/<stamp>/summary.{md,json} and one <case>.json per case.
 
 pub mod aggregate;
+pub mod atmosphere;
 pub mod case;
 pub mod compare;
 pub mod livermore;
 pub mod metrics;
+pub mod nuisance;
 pub mod report;
 pub mod split;
 pub mod stats;
@@ -18,6 +20,7 @@ use anyhow::Result;
 use crate::config::Config;
 use crate::dem::geoid_undulation;
 use crate::geo::{Geodetic, geodetic_to_ecef};
+use crate::physics::Atmosphere;
 use crate::search::pipeline::Candidate;
 use crate::audio::spectrogram::log_spectrogram;
 use crate::search::score::ScoringPlane;
@@ -42,6 +45,9 @@ pub struct CaseResult {
     pub runtime_s: f64,
     #[serde(default)]
     pub metrics: Metrics,
+    /// Model atmosphere of the best candidate (the chosen grid point when a nuisance grid ran).
+    #[serde(default)]
+    pub atmosphere: Option<Atmosphere>,
     pub best: Option<Candidate>,
     pub tuples: Vec<Candidate>,
 }
@@ -69,6 +75,8 @@ fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
     let e = &cfg.eval;
     p.assoc.t_start_prior = (c.t_start_true - e.time_prior_s, c.t_start_true + e.time_prior_s);
     p.flat_h_ell_m = c.truth_h_ell.unwrap_or_else(|| geoid_undulation(c.truth_lat, c.truth_lon));
+    p.atmosphere = atmosphere::case_atmosphere(p.atmosphere, c, e);
+    let variants = nuisance::variants(&p, c, e);
     // Not search::locate: the truth metrics need the plane and catalogue the search used.
     let plane = ScoringPlane::new(&log_spectrogram(&c.audio, &cfg.spec), &p.score);
     let catalog = MemCatalog::new(c.tracks.clone());
@@ -80,7 +88,7 @@ fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
         duration_s: c.audio.duration_s(),
         dem: c.dem.as_ref(),
     };
-    let res = search(&inp, &p);
+    let (res, chosen) = nuisance::merge(variants.iter().map(|q| search(&inp, q)).collect());
     let tuples = best_per_tuple(&res.ranked);
     let best = tuples.first().cloned();
     let truth_ids: Option<Vec<String>> = c.truth_flights.iter().cloned().collect();
@@ -103,7 +111,8 @@ fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
         cells: res.cells_scored,
         hypotheses: res.hypotheses_scored,
         runtime_s: 0.0,
-        metrics: metrics::measure(&inp, &p, &res, &truth, pp),
+        metrics: metrics::measure(&inp, &variants, &res, &truth, pp),
+        atmosphere: Some(variants[chosen].atmosphere),
         best,
         tuples: tuples.into_iter().take(10).collect(),
     }
