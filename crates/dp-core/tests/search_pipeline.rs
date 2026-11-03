@@ -54,6 +54,7 @@ fn spec_for(tr: &Track, obs: Vec3, f0: f64) -> EventSpec {
 }
 
 #[test]
+#[ignore = "full end-to-end search: 30 s+ on fast machines, minutes on CI; run with --run-ignored all"]
 fn two_event_search_recovers_observer() {
     let obs = geodetic_to_ecef(Geodetic { lat_deg: LAT, lon_deg: LON, h_ell_m: H });
     let (e, n) = east_north(LAT, LON);

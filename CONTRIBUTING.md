@@ -10,7 +10,7 @@ Everything goes through `tools/dev.sh`:
 | Command | Does |
 |---|---|
 | `tools/dev.sh check` | clippy on the whole workspace (CI runs it with `-D warnings`) |
-| `tools/dev.sh test [filter]` | dp-core tests via [cargo-nextest](https://nexte.st) |
+| `tools/dev.sh test [filter]` | dp-core tests via [cargo-nextest](https://nexte.st); slow end-to-end tests are `#[ignore]`d, run them with `cargo nextest run --run-ignored all` |
 | `tools/dev.sh py` | `maturin develop` the `dopplerprint` package into `.venv` |
 | `tools/dev.sh eval [experiment.toml]` | corpus + sim evaluation → `runs/<ts>/summary.md` |
 
