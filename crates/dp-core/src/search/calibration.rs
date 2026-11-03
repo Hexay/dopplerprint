@@ -37,6 +37,10 @@ pub fn get() -> &'static Calibration {
 }
 
 impl Calibration {
+    pub fn from_file(path: &std::path::Path) -> anyhow::Result<Self> {
+        Ok(toml::from_str(&std::fs::read_to_string(path)?)?)
+    }
+
     pub fn stratum(&self, n_events: usize) -> Option<&Stratum> {
         self.stratum.iter().find(|s| (s.min_events..=s.max_events).contains(&n_events))
     }

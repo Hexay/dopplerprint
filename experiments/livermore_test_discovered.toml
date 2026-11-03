@@ -1,0 +1,14 @@
+# The 12 frozen Livermore test cases searched with discovered events (oracle alongside in oracle/).
+# Run once per promotion: here, to score the discovered-path calibration fitted on the dev cases.
+[eval]
+cases = ["livermore"]
+split = "test"
+data_dir = "/srv/agents/work/doppler_print/data"
+store_dir = "/srv/agents/work/doppler_print/data/adsb/store"
+time_prior_s = 2.0
+oracle_d_range = [150.0, 8000.0]
+oracle_v_range = [20.0, 250.0]
+oracle_events = false
+
+[search.score]
+clock_sweep_s = 2.0

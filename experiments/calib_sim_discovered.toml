@@ -1,0 +1,12 @@
+# calib_sim.toml with discovered events (oracle alongside in oracle/). Run on the calibration bank passed
+# through a recording chain: `python3 -I tools/gen_sim_chain.py phone_livermore_like --src experiments/sim_calib
+# --out experiments/sim_calib_chain_phone_livermore_like`, then --sim-dir that dir, --case sim_cal_ or sim_test_.
+[eval]
+time_prior_s = 5.0
+oracle_events = false
+
+[search]
+keep_top = 100
+
+[search.score]
+clock_sweep_s = 2.0

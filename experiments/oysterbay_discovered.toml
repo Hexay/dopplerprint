@@ -1,0 +1,14 @@
+# oysterbay_dg_parity.toml posing searched with discovered events (oracle alongside in oracle/).
+[eval]
+cases = ["oysterbay"]
+data_dir = "/srv/agents/work/doppler_print/data"
+store_dir = "/srv/agents/work/doppler_print/data/adsb/store"
+region_radius_m = 5600.0
+region_offset_m = 450.0
+time_prior_s = 5.0
+oracle_events = false
+
+[search]
+coarse_step_m = 200
+min_step_m = 25
+keep_top = 200

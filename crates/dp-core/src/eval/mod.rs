@@ -5,6 +5,7 @@ pub mod aggregate;
 pub mod atmosphere;
 pub mod case;
 pub mod calib_report;
+mod calib_section;
 pub mod calibrate;
 pub mod compare;
 pub mod conformal;

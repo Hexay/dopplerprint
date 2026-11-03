@@ -85,9 +85,10 @@ pub fn compare(a_dir: &Path, b_dir: &Path, only: &[String]) -> Result<String> {
     let refined = |r: &CaseResult| Some(!r.metrics.lost_at.as_deref().is_some_and(|s| s.starts_with('L')));
     let _ = writeln!(
         md,
-        "\nFlights correct flips {}; in-90%-region flips {}; truth refined to the finest level flips {}.\n",
+        "\nFlights correct flips {}; in-90%-region flips {}; in calibrated 90% region flips {}; truth refined to the finest level flips {}.\n",
         flip(&|r| r.flights_correct),
         flip(&|r| r.metrics.hpd90_contains),
+        flip(&|r| r.coverage.as_ref().and_then(|c| c.covered().get(2).copied())),
         flip(&refined)
     );
     md.push_str(&answers(&b.iter().filter(|r| wanted(r, only)).collect::<Vec<_>>()));
