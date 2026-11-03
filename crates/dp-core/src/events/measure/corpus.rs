@@ -33,6 +33,27 @@ fn stationary(e: &Event) -> bool {
     (k >= 1.0 && (med / (60.0 * k) - 1.0).abs() < 0.01) || (q(0.9) - q(0.1)) / med < 0.005
 }
 
+/// Centre frequency of each contiguous run of masked bins.
+fn masked_runs(audio: &crate::audio::Audio) -> String {
+    let fe = crate::audio::FrontEnd::default();
+    let a = crate::audio::resample::decimate_for(audio, fe.f_max);
+    let mask = fe.line_mask(&a);
+    let f = |b: usize| fe.f_min * (b as f64 / fe.bins_per_octave as f64).exp2();
+    let mut out = Vec::new();
+    let mut b = 0;
+    while b < mask.len() {
+        if mask[b] {
+            let s = b;
+            while b + 1 < mask.len() && mask[b + 1] {
+                b += 1;
+            }
+            out.push(format!("{:.1}", (f(s) * f(b)).sqrt()));
+        }
+        b += 1;
+    }
+    out.join(" ")
+}
+
 #[test]
 #[ignore]
 fn corpus_discovery() {
@@ -70,6 +91,7 @@ fn corpus_discovery() {
             })
             .collect();
         println!("| {} | {} | {found} | {} | {stat} | {rt:.1} | {} |", posed.id, posed.events.len(), evs.len(), list.join(" "));
+        println!("<!-- {} masked lines (Hz): {} -->", posed.id, masked_runs(&posed.audio));
         (n_or, n_found, n_ev, n_stat) = (n_or + posed.events.len(), n_found + found, n_ev + evs.len(), n_stat + stat);
     }
     println!("\nTOTAL recall {n_found}/{n_or}, events {n_ev}, stationary {n_stat}");

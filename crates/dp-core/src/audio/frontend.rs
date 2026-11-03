@@ -1,6 +1,9 @@
-//! The discovery front end: multi-window whitened spectrograms max-combined on one grid.
+//! The discovery front end: multi-window whitened spectrograms max-combined on one grid, with persistent
+//! narrowband lines masked.
 
-use super::spectrogram::{LogSpectrogram, SpecParams, combine_max, log_spectrogram_multi};
+use super::lines::{MIN_DURATION_S, persistent_lines};
+use super::resample::decimate_for;
+use super::spectrogram::{LogSpectrogram, SpecParams, combine_max, log_spectrogram_multi, power_on_log_axis};
 use super::{Audio, WhitenParams};
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -13,6 +16,8 @@ pub struct FrontEnd {
     pub f_max: f64,
     pub bins_per_octave: u32,
     pub mains_hz: Option<f64>,
+    /// Zero bins holding a persistent narrowband line (hum, motor slip, local tones); see docs/AUDIO.md.
+    pub mask_lines: bool,
 }
 
 impl Default for FrontEnd {
@@ -25,6 +30,7 @@ impl Default for FrontEnd {
             f_max: s.f_max,
             bins_per_octave: s.bins_per_octave,
             mains_hz: None,
+            mask_lines: true,
         }
     }
 }
@@ -40,17 +46,32 @@ impl FrontEnd {
         }
     }
 
+    fn wins(&self) -> Vec<f64> {
+        if self.wins_s.is_empty() { vec![1.0] } else { self.wins_s.clone() }
+    }
+
     pub fn spectrogram(&self, audio: &Audio) -> LogSpectrogram {
         let w = WhitenParams {
             mains_hz: self.mains_hz,
             ..Default::default()
         };
-        let wins = if self.wins_s.is_empty() {
-            vec![1.0]
-        } else {
-            self.wins_s.clone()
-        };
-        let specs = log_spectrogram_multi(audio, &self.spec_params(), &w, &wins);
-        combine_max(&specs).expect("at least one window")
+        let a = decimate_for(audio, self.f_max);
+        let specs = log_spectrogram_multi(&a, &self.spec_params(), &w, &self.wins());
+        let mut out = combine_max(&specs).expect("at least one window");
+        if self.mask_lines && a.duration_s() >= MIN_DURATION_S {
+            let mask = self.line_mask(&a);
+            for row in out.data.chunks_mut(out.n_f) {
+                row.iter_mut().zip(&mask).filter(|(_, m)| **m).for_each(|(z, _)| *z = 0.0);
+            }
+        }
+        out
+    }
+
+    /// Lines are found on the longest window (finest resolution) and widened to the shortest window's lobe.
+    pub fn line_mask(&self, audio: &Audio) -> Vec<bool> {
+        let wins = self.wins();
+        let (short, long) = wins.iter().fold((f64::MAX, 0.0f64), |(s, l), &w| (s.min(w), l.max(w)));
+        let (grid, power) = power_on_log_axis(audio, &SpecParams { win_s: long, ..self.spec_params() });
+        persistent_lines(&power, grid.n_t, &grid.freqs(), 1.0 / short)
     }
 }

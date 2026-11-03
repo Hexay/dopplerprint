@@ -2,6 +2,7 @@
 
 mod decode;
 mod frontend;
+mod lines;
 mod refine;
 pub mod resample;
 pub mod spectrogram;

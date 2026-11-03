@@ -47,6 +47,14 @@ Stationary tones are removed on purpose. Doppler ridges move, so they survive.
 
 `FrontEnd` computes several windows (0.5, 1 and 2 s by default), whitens each one, takes the element-wise maximum, and standardises the result again. Short windows follow the steep part around CPA; long windows resolve faint, slowly moving asymptotes.
 
+### Persistent-line mask (`audio/lines.rs`, `FrontEnd::mask_lines`, on by default)
+
+Whitening removes a line that is always on, but not one that flickers (ENF-wandering hum, a motor that cycles), and a weak stationary path costs the tracker nothing. On real audio these lines are common and they are not only mains harmonics: Livermore has a 58.25 Hz motor-slip line with 3×/5×/15× companions in about a third of the files, plus 25 Hz lines, and Oyster Bay has 101/137/360 Hz (research_notes/…/corpus_signatures.md §3, §8).
+- On the raw power of the longest window, each quarter of the recording gets a time-median spectrum, and a bin's excess over its annulus median (1.5–5 Hz, at least 2–8 bins away) is compared with max(3 dB, median + 5·MAD of the excess).
+- A bin is a line if that holds in **at least 3 of the 4 quarters**. A single time-median over the whole file also caught the flat approach asymptote of a steep sim pass (about 45 % of the clip) and cost that fit d −21 %. An asymptote holds a bin only before or after CPA.
+- Line bins, widened by 1/(shortest window) Hz, are set to 0 in the combined image. Recordings under 30 s are not masked.
+- Mains notching by `mains_hz` still exists. The mask is generic and needs no grid frequency.
+
 ## Comb image (`events/comb.rs`)
 
 Harmonic `h` sits at a fixed log-axis offset `bpo·log2(h)` from the fundamental, whatever the Doppler factor. For each bin `u`, the comb image is:
@@ -185,7 +193,7 @@ The fit is run on the frames with peak z ≥ 1, when there are enough of them.
 Every field of `FrontEnd` and `DiscoverParams` (`events/mod.rs`, with a doc comment on each) can be set from one flat JSON object, `DiscoverConfig`. Missing fields take their defaults.
 
 ```json
-{"wins_s": [0.5, 1, 2], "hop_s": 0.25, "f_min": 20, "f_max": 1000, "bins_per_octave": 96, "mains_hz": null,
+{"wins_s": [0.5, 1, 2], "hop_s": 0.25, "f_min": 20, "f_max": 1000, "bins_per_octave": 96, "mains_hz": null, "mask_lines": true,
  "harmonics": 6, "min_duration_s": 10, "min_snr": 6, "max_rmse_rel": 0.03, "fit": {"sigma_k": 3, "c_rel_unc": 0.03}}
 ```
 
