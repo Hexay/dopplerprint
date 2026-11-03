@@ -3,7 +3,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cargo build --manifest-path "$ROOT/Cargo.toml" -q --release -p dp-cli
-BIN="$ROOT/target/release/doppler-print"
+BIN="$ROOT/target/release/dopplerprint"
 for d in "$ROOT"/data/_downloads/adsblol/v*-planes-readsb-*; do
   v="$(basename "$d" | sed -E 's/^v([0-9]{4})\.([0-9]{2})\.([0-9]{2}).*/\1-\2-\3/')"
   if [[ -d "$ROOT/data/adsb/store/date=$v" ]]; then echo "skip $v"; continue; fi

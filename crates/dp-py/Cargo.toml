@@ -12,6 +12,8 @@ crate-type = ["cdylib"]
 
 [dependencies]
 dp-core.workspace = true
+dp-cli = { path = "../dp-cli" }
 anyhow.workspace = true
+serde_json.workspace = true
 pyo3 = { version = "0.30", features = ["extension-module", "abi3-py311", "anyhow"] }
 numpy = "0.30"

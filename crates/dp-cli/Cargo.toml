@@ -6,8 +6,12 @@ license.workspace = true
 repository.workspace = true
 homepage.workspace = true
 
+[lib]
+name = "dp_cli"
+path = "src/lib.rs"
+
 [[bin]]
-name = "doppler-print"
+name = "dopplerprint"
 path = "src/main.rs"
 
 [dependencies]

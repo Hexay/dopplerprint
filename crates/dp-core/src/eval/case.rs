@@ -134,7 +134,7 @@ fn first_file(dir: &Path) -> Result<PathBuf> {
 fn load_tracks(p: &EvalParams, date: &str, lat: f64, lon: f64, t0: f64, dur: f64) -> Result<Vec<Track>> {
     let store = p.store_dir.clone();
     if !store.join(format!("date={date}")).exists() {
-        bail!("no ADS-B store for {date} under {} (run doppler-print ingest)", store.display());
+        bail!("no ADS-B store for {date} under {} (run dopplerprint ingest)", store.display());
     }
     let reach = p.region_radius_m + p.region_offset_m + 15_000.0;
     let (dlat, dlon) = (reach / 111_000.0, reach / (111_000.0 * lat.to_radians().cos()));

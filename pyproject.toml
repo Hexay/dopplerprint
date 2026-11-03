@@ -22,6 +22,9 @@ classifiers = [
 ]
 dependencies = ["numpy>=2"]
 
+[project.scripts]
+dopplerprint = "dopplerprint.__main__:main"
+
 [project.urls]
 Homepage = "https://github.com/Hexay/dopplerprint"
 Repository = "https://github.com/Hexay/dopplerprint"
