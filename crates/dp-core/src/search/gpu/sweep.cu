@@ -12,7 +12,16 @@ __device__ __forceinline__ long long term(const float* row, long long p, float w
     return (long long)__float2int_rz(__fmul_rn(__fmul_rn(w, v), 16777216.0f));
 }
 
-// One warp per (event instance, clock index k); lanes stride over f0 steps.
+// Steps per 32-lane tile: the largest power of two whose padding of nsteps is ≤ 5%. The other lane bits
+// split the frames; partial sums are i64, so any summation order is exact.
+__device__ __forceinline__ unsigned group_width(unsigned nsteps) {
+    for (unsigned g = 32; g > 1; g >>= 1) {
+        if ((nsteps + g - 1) / g * g * 20 <= nsteps * 21) return g;
+    }
+    return 1;
+}
+
+// One warp per (event instance, clock index k); a tile is g f0 steps × (32/g) frame phases.
 extern "C" __global__ void best_f0(
     const float* __restrict__ plane, unsigned n_f,
     const long long* __restrict__ offsets,
@@ -37,21 +46,28 @@ extern "C" __global__ void best_f0(
 
     double best = -INFINITY;
     unsigned best_step = 0xffffffffu;
-    for (unsigned s = lane; s < nsteps; s += 32) {
-        const long long bs = b0 + (long long)s * step;
+    const unsigned g = group_width(nsteps), phases = 32 / g, phase = lane / g;
+    for (unsigned s0 = 0; s0 < nsteps; s0 += g) {
+        const unsigned s = s0 + lane % g;
         long long acc = 0;
-        for (unsigned i = 0; i < nframes; ++i) {
-            const long long off = offs[i];
-            if (off == NONE) continue;
-            const float* row = plane + (size_t)(frame0 + i) * n_f;
-            const long long base = bs + off;
-            for (unsigned h = 0; h < n_h; ++h) {
-                const long long p = base + hs[h];
-                if (p >= 0 && p < top) acc += term(row, p, hw[h]);
+        if (s < nsteps) {
+            const long long bs = b0 + (long long)s * step;
+            for (unsigned i = phase; i < nframes; i += phases) {
+                const long long off = offs[i];
+                if (off == NONE) continue;
+                const float* row = plane + (size_t)(frame0 + i) * n_f;
+                const long long base = bs + off;
+                for (unsigned h = 0; h < n_h; ++h) {
+                    const long long p = base + hs[h];
+                    if (p >= 0 && p < top) acc += term(row, p, hw[h]);
+                }
             }
         }
-        const double z = (double)acc * (1.0 / 16777216.0) / norm;
-        if (z > best) { best = z; best_step = s; }
+        for (unsigned o = g; o < 32; o <<= 1) acc += __shfl_xor_sync(0xffffffffu, acc, o);
+        if (phase == 0 && s < nsteps) {
+            const double z = (double)acc * (1.0 / 16777216.0) / norm;
+            if (z > best) { best = z; best_step = s; }
+        }
     }
     // Warp argmax; ties keep the lowest step, as the CPU's first-strict-maximum scan does.
     for (unsigned w = 16; w > 0; w >>= 1) {

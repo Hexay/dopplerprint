@@ -65,6 +65,12 @@ impl Chunk {
     pub fn curve_lb2(&self, p: Vec3) -> f64 {
         dist2_box(p, self.lo, self.hi, self.pad)
     }
+
+    /// Corners of the box holding the chunk's points and curve.
+    pub fn curve_box(&self) -> (Vec3, Vec3) {
+        let pad = Vec3::new(self.pad, self.pad, self.pad);
+        (self.lo - pad, self.hi + pad)
+    }
 }
 
 fn dist2_box(p: Vec3, lo: Vec3, hi: Vec3, pad: f64) -> f64 {

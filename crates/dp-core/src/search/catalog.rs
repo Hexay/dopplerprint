@@ -18,15 +18,23 @@ pub trait Catalog: Sync {
 }
 
 /// A catalogue track with the chunk bounds used for exact pruning (track::bounds).
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct Nearby<'a> {
     pub track: &'a Track,
     pub bounds: &'a TrackBounds,
+    /// Ascending indices of the chunks whose curve box meets the query cube; every other chunk's curve
+    /// lies farther than `query_m` from the query point.
+    pub chunks: Vec<u32>,
+    /// `radius_m + POINT_SLACK_M` of the query. A returned track has a knot this close, so its CPA is too.
+    pub query_m: f64,
 }
 
 impl Nearby<'_> {
-    pub fn cpa(&self, obs: Vec3, atm: &Atmosphere) -> Option<Cpa> {
-        physics::cpa_bounded(self.track, self.bounds, obs, atm)
+    /// CPA from the query point if within `reach_m`, else `None`. Reach is capped at `query_m`, where
+    /// the result is unchanged (see `query_m`) and the omitted chunks cannot matter.
+    pub fn cpa(&self, obs: Vec3, atm: &Atmosphere, reach_m: f64) -> Option<Cpa> {
+        let chunks = self.chunks.iter().map(|&c| &self.bounds.chunks[c as usize]);
+        physics::cpa_bounded(self.track, chunks, obs, atm, reach_m.min(self.query_m))
     }
 }
 
@@ -59,10 +67,9 @@ impl MemCatalog {
             .iter()
             .enumerate()
             .flat_map(|(ti, b)| {
-                b.chunks.iter().enumerate().map(move |(ci, c)| ChunkRef {
-                    track: ti as u32,
-                    chunk: ci as u32,
-                    env: AABB::from_corners([c.lo.x, c.lo.y, c.lo.z], [c.hi.x, c.hi.y, c.hi.z]),
+                b.chunks.iter().enumerate().map(move |(ci, c)| {
+                    let (lo, hi) = c.curve_box();
+                    ChunkRef { track: ti as u32, chunk: ci as u32, env: AABB::from_corners([lo.x, lo.y, lo.z], [hi.x, hi.y, hi.z]) }
                 })
             })
             .collect();
@@ -78,29 +85,27 @@ fn bounding_sphere(t: &Track) -> (Vec3, f64) {
 }
 
 impl Catalog for MemCatalog {
-    /// Same set as testing every track: a point within reach lies in a chunk whose box meets the query cube.
+    /// Same set as testing every track: a point within reach lies in a chunk whose (curve) box meets the
+    /// query cube.
     fn near(&self, p: Vec3, radius_m: f64, t0: f64, t1: f64) -> Vec<Nearby<'_>> {
         let reach = radius_m + POINT_SLACK_M;
-        let cube = AABB::from_corners([p.x - reach, p.y - reach, p.z - reach], [p.x + reach, p.y + reach, p.z + reach]);
-        let mut hit: Vec<u32> = self
-            .tree
-            .locate_in_envelope_intersecting(cube)
-            .filter(|r| {
-                let t = &self.tracks[r.track as usize];
-                let c = &self.bounds[r.track as usize].chunks[r.chunk as usize];
-                t.points[c.first..=c.last].iter().any(|q| (q.pos - p).norm() <= reach)
+        // +1 m so rounding at the cube face cannot drop a chunk `Nearby::cpa` needs.
+        let h = reach + 1.0;
+        let cube = AABB::from_corners([p.x - h, p.y - h, p.z - h], [p.x + h, p.y + h, p.z + h]);
+        let mut hits: Vec<(u32, u32)> = self.tree.locate_in_envelope_intersecting(cube).map(|r| (r.track, r.chunk)).collect();
+        hits.sort_unstable();
+        hits.chunk_by(|a, b| a.0 == b.0)
+            .filter_map(|run| {
+                let i = run[0].0 as usize;
+                let (t, b, (c, r)) = (&self.tracks[i], &self.bounds[i], &self.spheres[i]);
+                let in_time = t.t_end() >= t0 && t.t_start() <= t1 && (p - *c).norm() <= r + radius_m;
+                let point_near = |&(_, ci): &(u32, u32)| {
+                    let ch = &b.chunks[ci as usize];
+                    t.points[ch.first..=ch.last].iter().any(|q| (q.pos - p).norm() <= reach)
+                };
+                (in_time && run.iter().any(point_near))
+                    .then(|| Nearby { track: t, bounds: b, chunks: run.iter().map(|h| h.1).collect(), query_m: reach })
             })
-            .map(|r| r.track)
-            .collect();
-        hit.sort_unstable();
-        hit.dedup();
-        hit.into_iter()
-            .map(|i| i as usize)
-            .filter(|&i| {
-                let (t, (c, r)) = (&self.tracks[i], &self.spheres[i]);
-                t.t_end() >= t0 && t.t_start() <= t1 && (p - *c).norm() <= r + radius_m
-            })
-            .map(|i| Nearby { track: &self.tracks[i], bounds: &self.bounds[i] })
             .collect()
     }
     fn all(&self) -> &[Track] {

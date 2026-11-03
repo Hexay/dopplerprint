@@ -8,7 +8,7 @@ use rayon::prelude::*;
 
 use super::backend::{Backend, Scorer};
 use super::catalog::{Catalog, Nearby};
-use super::hypothesis::{AssocParams, EventSpec, Hypothesis, associate};
+use super::hypothesis::{AssocParams, EventSpec, Hypothesis, associate, cpa_reach_m};
 use super::job::{Job, prepare_job};
 use super::score::{EventScore, EventTarget, JointScore, ScoreParams};
 use crate::dem::Dem;
@@ -229,8 +229,10 @@ struct CellPlan<'c> {
 fn plan_cell<'c>(inp: &SearchInput<'c>, p: &SearchParams, cell: Cell) -> CellPlan<'c> {
     let (lat, lon, obs) = cell_observer(cell, inp.dem, p);
     let (t0, t1) = p.assoc.t_start_prior;
-    let nearby = inp.catalog.near(obs, p.track_radius_m, t0, t1 + inp.duration_s);
-    let cpas: Vec<_> = nearby.iter().map(|n| n.cpa(obs, &p.atmosphere)).collect();
+    let reach = cpa_reach_m(inp.events, &p.assoc);
+    // Tracks beyond `reach` get no CPA, so they cannot enter a hypothesis or the silence count.
+    let nearby = inp.catalog.near(obs, p.track_radius_m.min(reach), t0, t1 + inp.duration_s);
+    let cpas: Vec<_> = nearby.iter().map(|n| n.cpa(obs, &p.atmosphere, reach)).collect();
     let hyps = associate(inp.events, &cpas, inp.duration_s, &p.assoc);
     let spec = &inp.scorer.plane().spec;
     let jobs = hyps
