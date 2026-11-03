@@ -64,14 +64,15 @@ pub fn modes(s: &Surface, post: &Posterior, temperature: f64, persistence_nats: 
     collect(s, post, &mut parent, level)
 }
 
-/// Depth (nats below the peak) of the core whose centre is reported; chosen on Livermore dev, see
-/// docs/research/refine_keep_mode_centre_2026-11-03.md.
-pub const ANSWER_DEPTH_NATS: f64 = 0.5;
+/// Depth, in raw score units below the peak, of the core whose centre is reported: 0.5 nats at the T = 1.58
+/// it was chosen at on Livermore dev (docs/research/refine_keep_mode_centre_2026-11-03.md). Fixed in score
+/// units so a recalibrated T does not move the answer.
+pub const ANSWER_DEPTH_SCORE: f64 = 0.79;
 
 /// The reported location: `core_centroid` of the best-scoring leaf.
 pub fn answer(s: &Surface, post: &Posterior, m: &Modes, temperature: f64) -> Option<(f64, f64)> {
     let peak = (0..s.leaves.len()).max_by(|&a, &b| s.leaves[a].score.total_cmp(&s.leaves[b].score))?;
-    Some(core_centroid(s, post, m, temperature, peak, ANSWER_DEPTH_NATS))
+    Some(core_centroid(s, post, m, temperature, peak, ANSWER_DEPTH_SCORE / temperature))
 }
 
 /// Probability-weighted centre (lat, lon) of the leaves of `peak`'s mode connected to it and scoring within
@@ -218,7 +219,9 @@ mod tests {
         assert!(x(1.5) > 150.0 && x(1.5) < 350.0);
         assert!(x(50.0) < 450.0, "never pulled toward the mirror at x=750");
         let (lat, lon) = answer(&s, &p, &m, 1.0).unwrap();
-        assert!((albers::forward(lat, lon).x - x(ANSWER_DEPTH_NATS)).abs() < 1e-6);
+        assert!((albers::forward(lat, lon).x - x(ANSWER_DEPTH_SCORE)).abs() < 1e-6);
+        let (lat2, lon2) = answer(&s, &p, &m, 2.0).unwrap();
+        assert!((albers::forward(lat2, lon2).x - x(ANSWER_DEPTH_SCORE / 2.0)).abs() < 1e-6, "depth fixed in score units");
     }
 
     #[test]
