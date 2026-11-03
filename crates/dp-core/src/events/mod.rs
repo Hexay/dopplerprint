@@ -2,6 +2,7 @@
 
 mod candidate;
 mod comb;
+mod cvlm;
 mod discover;
 mod fit;
 mod linalg;
@@ -11,6 +12,7 @@ mod split;
 mod stats;
 mod stitch;
 mod track;
+mod window;
 
 #[cfg(test)]
 mod tests;
