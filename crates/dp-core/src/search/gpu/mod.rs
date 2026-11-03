@@ -2,7 +2,7 @@
 //! committed (tools/dev.sh ptx) so builds need no CUDA toolkit; at run time only the NVIDIA driver is
 //! needed, and a driver older than the PTX ISA fails to load → CPU fallback.
 
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use cudarc::driver::{CudaContext, CudaFunction, CudaSlice, CudaStream, LaunchConfig, PushKernelArg};
 use cudarc::nvrtc::Ptx;
@@ -47,13 +47,15 @@ pub struct GpuPlane {
     dev: &'static Device,
     plane: CudaSlice<f32>,
     n_f: u32,
+    /// Offsets staging buffer reused across batches: a fresh ~100 MB allocation per batch page-faults.
+    staging: Mutex<Vec<i64>>,
 }
 
 impl GpuPlane {
     pub fn new(spec: &LogSpectrogram) -> Result<Self, String> {
         let dev = device()?;
         let plane = dev.stream.clone_htod(&spec.data).map_err(|e| format!("uploading plane: {e}"))?;
-        Ok(Self { dev, plane, n_f: spec.n_f as u32 })
+        Ok(Self { dev, plane, n_f: spec.n_f as u32, staging: Mutex::default() })
     }
 
     pub fn device_name(&self) -> &str {
@@ -63,14 +65,16 @@ impl GpuPlane {
     /// Best f0 step per (event instance, k), event instances in job-then-event order, k fastest.
     pub fn sweep(&self, spec: &LogSpectrogram, jobs: &[Job], p: &ScoreParams) -> Result<Vec<StepBest>, String> {
         let Some(n_k) = jobs.first().map(Job::n_k) else { return Ok(Vec::new()) };
-        let b = Batch::flatten(jobs, n_k);
+        let mut offsets = self.staging.lock().unwrap_or_else(|p| p.into_inner());
+        let b = Batch::flatten(jobs, n_k, &mut offsets);
         if b.frame0.is_empty() {
             return Ok(Vec::new());
         }
         let (hs, hw): (Vec<i64>, Vec<f32>) = harmonic_shifts(spec, p).into_iter().unzip();
         let s = &self.dev.stream;
         let e = |e: cudarc::driver::DriverError| format!("CUDA sweep: {e}");
-        let d_off = s.clone_htod(&b.offsets).map_err(e)?;
+        let d_off = s.clone_htod(offsets.as_slice()).map_err(e)?;
+        drop(offsets);
         let d_off_start = s.clone_htod(&b.off_start).map_err(e)?;
         let d_frame0 = s.clone_htod(&b.frame0).map_err(e)?;
         let d_nframes = s.clone_htod(&b.nframes).map_err(e)?;
@@ -97,10 +101,9 @@ impl GpuPlane {
     }
 }
 
-/// Struct-of-arrays upload layout, one entry per (job, event).
+/// Struct-of-arrays upload layout, one entry per (job, event); the offsets go to a separate buffer.
 #[derive(Default)]
 struct Batch {
-    offsets: Vec<i64>,
     off_start: Vec<u64>,
     frame0: Vec<u32>,
     nframes: Vec<u32>,
@@ -110,7 +113,7 @@ struct Batch {
 }
 
 impl Batch {
-    fn flatten(jobs: &[Job], n_k: usize) -> Self {
+    fn flatten(jobs: &[Job], n_k: usize, offsets: &mut Vec<i64>) -> Self {
         use rayon::prelude::*;
         let mut b = Batch::default();
         let mut total = 0usize;
@@ -126,8 +129,9 @@ impl Batch {
                 b.norm.push(pr.norm);
             }
         }
-        b.offsets = vec![0; total];
-        let mut rest = b.offsets.as_mut_slice();
+        offsets.clear();
+        offsets.resize(total, 0);
+        let mut rest = offsets.as_mut_slice();
         let mut parts = Vec::with_capacity(b.off_start.len());
         for pr in jobs.iter().flat_map(|j| &j.events) {
             let (head, tail) = rest.split_at_mut(pr.offsets.len());
