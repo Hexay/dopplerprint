@@ -6,7 +6,14 @@ license.workspace = true
 repository.workspace = true
 homepage.workspace = true
 
+[features]
+default = ["net"]
+# Terrain tile downloads for `dem::ensure_dem`.
+net = ["dep:ureq"]
+
 [dependencies]
+ureq = { version = "3", default-features = false, features = ["rustls"], optional = true }
+tiff = { version = "0.10", default-features = false, features = ["deflate", "lzw"] }
 anyhow.workspace = true
 thiserror.workspace = true
 serde.workspace = true

@@ -42,6 +42,17 @@ Design rationale: `docs/research/geo_compute_stack.md` ("Design implications"). 
   - Height (m MSL) = raw·scale_m + offset_m with scale 0.1 and offset −100 (−100 to 6453 m); raw 0 = nodata.
   - Row-major rather than tiled: one 4 KB page is 2048 nodes (205 km at 100 m), so a 50 km work tile touches
     ~500 pages.
+- Rust path (what end users get): `dp_core::dem::ensure_dem(bbox, cache_dir, &DemFetchOptions)`.
+  - Same grid, alignment, encoding and source precedence as the Python prep; bilinear only (keep step ≤ 45 m).
+  - Tiles go to `<cache>/dem/tiles/` (`.part` then rename, TIFF magic and size checked, `.missing` on 403/404),
+    the raster to `<cache>/dem/<grid key>.u16`. Any cached raster on the same lattice that covers the bbox is reused.
+  - Options: `offline` (errors listing the missing tile URLs), `max_download_bytes`, a `confirm(&DownloadPlan)` hook and
+    a `progress` callback. HTTP lives in `dem/download.rs` (feature `net`).
+  - Parity with `livermore_30m`: median 0.1 m, p99 2.1 m (`tests/dem_fetch_parity.rs`, ignored by default). The gap is
+    GDAL's: its warper widens the bilinear kernel by each chunk's source-window ratio, which the 16° grid rotation
+    inflates, so the Python output is smoother and differs per 1024-row strip. Its final partial strip is smeared
+    (median 8 m off); Rust's exact 4-sample bilinear has neither effect.
+- The Python prep stays for bulk/offline builds (CONUS, `average` resampling at ≥ 45 m).
 - `dp_core::dem::Dem::open` memory-maps it. `height_msl(Xy)` is bilinear; nodata neighbours are dropped and the
   weights renormalised; `None` off-raster. Also `height_msl_latlon` and `height_ellipsoid_latlon` (H + N).
 
