@@ -1,0 +1,14 @@
+# Hypothesis (roadmap #4, single-event form): profiling c as a per-recording nuisance (max over a
+# 3-point ±10 K grid shared by all events) lets the fit absorb sound-speed error without opening false cells.
+# Paired against livermore_baseline. Primary metric: Δ error_m, Δ log_score, flights-correct flips.
+[eval]
+cases = ["livermore"]
+data_dir = "/srv/agents/work/doppler_print/data"
+store_dir = "/srv/agents/work/doppler_print/data/adsb/store"
+time_prior_s = 2.0
+oracle_d_range = [150.0, 8000.0]
+oracle_v_range = [20.0, 250.0]
+nuisance_c = [337.0, 343.0, 349.0]
+
+[search.score]
+clock_sweep_s = 2.0

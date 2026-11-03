@@ -1,0 +1,15 @@
+# Hypothesis (roadmap #3): an unmodelled along-track wind biases position; error should change roughly
+# linearly with |w| (research: 11-317 m per 10 m/s). The probe adds wind along the truth flight's ground
+# track (oracle direction, so a sensitivity probe only). Paired against livermore_baseline (no wind).
+# Sweep point: -10 m/s along track.
+[eval]
+cases = ["livermore"]
+data_dir = "/srv/agents/work/doppler_print/data"
+store_dir = "/srv/agents/work/doppler_print/data/adsb/store"
+time_prior_s = 2.0
+oracle_d_range = [150.0, 8000.0]
+oracle_v_range = [20.0, 250.0]
+wind_along_track_mps = -10.0
+
+[search.score]
+clock_sweep_s = 2.0

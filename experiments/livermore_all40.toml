@@ -1,0 +1,14 @@
+# All 40 Livermore passages, including the frozen test split: reproduces the README figure
+# (adapter run 2026-11-03: 34/40 correct aircraft, median error 207 m). Reporting only; never tune on it.
+# Same posing as livermore_baseline.toml.
+[eval]
+cases = ["livermore"]
+split = "all"
+data_dir = "/srv/agents/work/doppler_print/data"
+store_dir = "/srv/agents/work/doppler_print/data/adsb/store"
+time_prior_s = 2.0
+oracle_d_range = [150.0, 8000.0]
+oracle_v_range = [20.0, 250.0]
+
+[search.score]
+clock_sweep_s = 2.0

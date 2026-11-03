@@ -1,0 +1,17 @@
+# Sim, experiments/sim_atm (run with --sim-dir experiments/sim_atm): 12 single + 6 two-aircraft flyovers
+# rendered with c = 337, wind_enu = [6, 0, 0] (tools/gen_sim_atm.py). sim shares the model's uniform-medium
+# assumption, so this measures sensitivity, not realism.
+# Two-aircraft cases only (cost: one search per grid point); pair against the same cases of the runs above.
+# Hypothesis (roadmap #4): a shared c × horizontal-wind nuisance grid, one value per recording shared by all
+# events, recovers the all-true result; on two-event cases the shared wind is identifiable.
+[eval]
+cases = ["sim_atm_pair"]
+time_prior_s = 5.0
+nuisance_c = [337.0, 343.0]
+nuisance_wind_en = [[-6.0, 0.0], [0.0, 0.0], [6.0, 0.0]]
+
+[search]
+keep_top = 100
+
+[search.score]
+clock_sweep_s = 2.0

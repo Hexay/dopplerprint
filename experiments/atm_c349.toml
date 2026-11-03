@@ -1,0 +1,17 @@
+# Hypothesis (roadmap #2): a path-mean sound-speed error biases range (c, v, d scale invariance), so
+# Livermore error grows with |c - c_true|. c_true there is ~344-347 m/s (May, 15-28 °C). Paired against
+# livermore_baseline (c = 343). Primary metric: paired Δ error_m and Δ log_score. dc/dT ≈ 0.59 m/s/K.
+# Sweep point: c = 349 m/s (+10 K).
+[eval]
+cases = ["livermore"]
+data_dir = "/srv/agents/work/doppler_print/data"
+store_dir = "/srv/agents/work/doppler_print/data/adsb/store"
+time_prior_s = 2.0
+oracle_d_range = [150.0, 8000.0]
+oracle_v_range = [20.0, 250.0]
+
+[search.score]
+clock_sweep_s = 2.0
+
+[search.atmosphere]
+c = 349.0

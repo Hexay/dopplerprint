@@ -1,0 +1,13 @@
+# Sim, experiments/sim_atm (run with --sim-dir experiments/sim_atm): 12 single + 6 two-aircraft flyovers
+# rendered with c = 337, wind_enu = [6, 0, 0] (tools/gen_sim_atm.py). sim shares the model's uniform-medium
+# assumption, so this measures sensitivity, not realism.
+# Model c = 343, no wind (both wrong): the reference.
+[eval]
+cases = ["sim_atm"]
+time_prior_s = 5.0
+
+[search]
+keep_top = 100
+
+[search.score]
+clock_sweep_s = 2.0

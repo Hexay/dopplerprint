@@ -1,0 +1,15 @@
+# Sim, experiments/sim_atm (run with --sim-dir experiments/sim_atm): 12 single + 6 two-aircraft flyovers
+# rendered with c = 337, wind_enu = [6, 0, 0] (tools/gen_sim_atm.py). sim shares the model's uniform-medium
+# assumption, so this measures sensitivity, not realism.
+# Two-aircraft cases only (cost: one search per grid point); pair against the same cases of the runs above.
+# Hypothesis: profiling c (3-point grid) recovers the c = 337 result without knowing c.
+[eval]
+cases = ["sim_atm_pair"]
+time_prior_s = 5.0
+nuisance_c = [331.0, 337.0, 343.0]
+
+[search]
+keep_top = 100
+
+[search.score]
+clock_sweep_s = 2.0
