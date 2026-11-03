@@ -1,0 +1,13 @@
+# Sim, experiments/sim_wind (run with --sim-dir experiments/sim_wind): 16 single + 8 two-aircraft flyovers,
+# half with low jets, rendered with c = 337 and a 12 m/s wind from 240° (tools/gen_sim_atm.py). Uniform
+# medium, so this measures what supplying the wind is worth, not layer averaging.
+# Reference: the pre-weather default (still air, c 343).
+[eval]
+cases = ["sim_wind"]
+time_prior_s = 5.0
+
+[search]
+keep_top = 100
+
+[search.score]
+clock_sweep_s = 2.0

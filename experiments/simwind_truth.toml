@@ -1,0 +1,12 @@
+# Sim, experiments/sim_wind (see simwind_still.toml). Hypothesis: supplying the rendering atmosphere
+# (c and the full wind vector, as archived weather would) beats still air, most on jets.
+[eval]
+cases = ["sim_wind"]
+time_prior_s = 5.0
+weather = "truth"
+
+[search]
+keep_top = 100
+
+[search.score]
+clock_sweep_s = 2.0
