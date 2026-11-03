@@ -97,9 +97,13 @@ pub fn score_joint(
     let spec = &plane.spec;
     let k_max = (p.clock_sweep_s / spec.dt).round() as i64;
     let prepared: Vec<Prepared> = targets.iter().map(|t| prepare(spec, t, obs, atm, clock_nominal, k_max)).collect();
+    let bpo = spec.bins_per_octave as f64;
+    let shifts: Vec<(f64, f32)> = p.harmonics.iter().map(|&(h, w)| (bpo * (h as f64).log2(), w)).collect();
+    let mut acc = Vec::new();
     let mut best: Option<JointScore> = None;
     for k in -k_max..=k_max {
-        let events: Vec<EventScore> = prepared.iter().map(|pr| best_f0(spec, pr, k + k_max, p)).collect();
+        let events: Vec<EventScore> =
+            prepared.iter().map(|pr| best_f0(spec, pr, k + k_max, &shifts, &mut acc, p)).collect();
         let total = events.iter().map(|e| e.z).sum::<f64>();
         if best.as_ref().is_none_or(|b| total > b.total) {
             best = Some(JointScore { total, clock_offset: clock_nominal + k as f64 * spec.dt, events });
@@ -127,40 +131,55 @@ fn prepare(spec: &LogSpectrogram, t: &EventTarget<'_>, obs: Vec3, atm: &Atmosphe
     Prepared { frames: f_a..f_b.max(f_a), offsets, b0_range }
 }
 
-fn best_f0(spec: &LogSpectrogram, pr: &Prepared, k: i64, p: &ScoreParams) -> EventScore {
-    let bpo = spec.bins_per_octave as f64;
+/// `shifts` = (bpo·log2 h, weight) per harmonic; `acc` is scratch. Frames are the outer loop so each row is
+/// read once per sweep, but every f0 step's sum still accumulates frame by frame, harmonic by harmonic.
+fn best_f0(
+    spec: &LogSpectrogram,
+    pr: &Prepared,
+    k: i64,
+    shifts: &[(f64, f32)],
+    acc: &mut Vec<f64>,
+    p: &ScoreParams,
+) -> EventScore {
     let n_frames = pr.frames.len();
     let covered = (0..n_frames).filter(|&i| pr.offsets[i + k as usize].is_finite()).count();
     let norm = ((n_frames.max(1)) as f64 * p.harmonics.iter().map(|(_, w)| (*w as f64).powi(2)).sum::<f64>()).sqrt();
     let mut best = EventScore { z: f64::NEG_INFINITY, f0: f64::NAN, coverage: covered as f64 / n_frames.max(1) as f64 };
     let n_steps = ((pr.b0_range.1 - pr.b0_range.0) / p.f0_step_bins).ceil().max(0.0) as usize;
-    for step in 0..=n_steps {
-        let b0 = pr.b0_range.0 + step as f64 * p.f0_step_bins;
-        let mut s = 0.0f64;
-        for (i, frame) in pr.frames.clone().enumerate() {
-            let off = pr.offsets[i + k as usize];
-            if !off.is_finite() {
-                continue;
-            }
-            let row = spec.row(frame);
-            for &(h, w) in &p.harmonics {
-                s += (w * lerp(row, b0 + off + bpo * (h as f64).log2())) as f64;
+    let b0_at = |step: usize| pr.b0_range.0 + step as f64 * p.f0_step_bins;
+    acc.clear();
+    acc.resize(n_steps + 1, 0.0);
+    for (i, frame) in pr.frames.clone().enumerate() {
+        let off = pr.offsets[i + k as usize];
+        if !off.is_finite() {
+            continue;
+        }
+        let row = spec.row(frame);
+        for &(hs, w) in shifts {
+            for (step, s) in acc.iter_mut().enumerate() {
+                *s += (w * lerp(row, b0_at(step) + off + hs)) as f64;
             }
         }
+    }
+    for (step, &s) in acc.iter().enumerate() {
         let z = s / norm;
         if z > best.z {
             best.z = z;
-            best.f0 = spec.freq_of(b0);
+            best.f0 = spec.freq_of(b0_at(step));
         }
     }
     best
 }
 
 fn lerp(row: &[f32], bin: f64) -> f32 {
-    let i = bin.floor();
-    if i < 0.0 || i as usize + 1 >= row.len() {
+    // Truncation is floor for bin ≥ 0 and avoids a libm floor call (no SSE4.1 on the baseline target).
+    if bin < 0.0 {
         return 0.0;
     }
-    let (i, fr) = (i as usize, (bin - i) as f32);
+    let i = bin as usize;
+    if i + 1 >= row.len() {
+        return 0.0;
+    }
+    let fr = (bin - i as f64) as f32;
     row[i] * (1.0 - fr) + row[i + 1] * fr
 }
