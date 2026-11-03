@@ -111,3 +111,38 @@ extern "C" __global__ void best_f0(
         out_cov[pair] = cov;
     }
 }
+
+// job::assemble's choice of clock index, one warp per job: totals summed in event order from −0.0 (as
+// Rust's f64 Sum), first strict maximum over k. Writes the job's pick and its events' rows at that k.
+extern "C" __global__ void pick_k(
+    const double* __restrict__ z, const unsigned* __restrict__ step, const unsigned* __restrict__ cov,
+    const unsigned* __restrict__ job_inst0, const unsigned* __restrict__ job_ne, unsigned n_k, unsigned n_jobs,
+    double* __restrict__ out_total, unsigned* __restrict__ out_k,
+    double* __restrict__ ev_z, unsigned* __restrict__ ev_step, unsigned* __restrict__ ev_cov)
+{
+    const unsigned job = blockIdx.x * WARPS + threadIdx.x / 32;
+    if (job >= n_jobs) return;
+    const unsigned lane = threadIdx.x & 31, i0 = job_inst0[job], ne = job_ne[job];
+    double best = -INFINITY;
+    unsigned bk = 0xffffffffu;  // no k seen
+    for (unsigned k = lane; k < n_k; k += 32) {
+        double t = -0.0;
+        for (unsigned e = 0; e < ne; ++e) t = __dadd_rn(t, z[(size_t)(i0 + e) * n_k + k]);
+        if (bk == 0xffffffffu || t > best) { best = t; bk = k; }
+    }
+    for (unsigned w = 16; w > 0; w >>= 1) {
+        const double ot = __shfl_down_sync(0xffffffffu, best, w);
+        const unsigned ok = __shfl_down_sync(0xffffffffu, bk, w);
+        if (ok != 0xffffffffu && (bk == 0xffffffffu || ot > best || (ot == best && ok < bk))) { best = ot; bk = ok; }
+    }
+    if (lane == 0) {
+        out_total[job] = best;
+        out_k[job] = bk;
+        for (unsigned e = 0; e < ne; ++e) {
+            const size_t row = (size_t)(i0 + e) * n_k + bk;
+            ev_z[i0 + e] = z[row];
+            ev_step[i0 + e] = step[row];
+            ev_cov[i0 + e] = cov[row];
+        }
+    }
+}

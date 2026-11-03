@@ -179,16 +179,28 @@ pub fn assemble(
         }
     }
     let (total, k) = top?;
+    Some(joint(spec, job, p, Pick { total, k }, &win))
+}
+
+/// The winning clock index of a job and its summed z (`assemble`'s choice; the CUDA `pick_k` makes the same).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Pick {
+    pub total: f64,
+    pub k: usize,
+}
+
+/// `JointScore` of `job` at `pick.k`, `win` holding each event's `StepBest` there.
+pub fn joint(spec: &LogSpectrogram, job: &Job, p: &ScoreParams, pick: Pick, win: &[StepBest]) -> JointScore {
     let events = job
         .events
         .iter()
-        .zip(&win)
+        .zip(win)
         .map(|(pr, sb)| EventScore {
             z: sb.z,
             f0: spec.freq_of(pr.b0(sb.step, p)),
             coverage: sb.covered as f64 / pr.frames.len().max(1) as f64,
         })
         .collect();
-    let clock_offset = job.clock_nominal + (k as i64 - job.k_max as i64) as f64 * spec.dt;
-    Some(JointScore { total, clock_offset, events })
+    let clock_offset = job.clock_nominal + (pick.k as i64 - job.k_max as i64) as f64 * spec.dt;
+    JointScore { total: pick.total, clock_offset, events }
 }

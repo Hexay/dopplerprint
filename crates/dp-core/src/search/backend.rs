@@ -87,7 +87,7 @@ impl<'a> Scorer<'a> {
         #[cfg(feature = "cuda")]
         if let Some(g) = &self.gpu {
             match g.sweep(&self.plane.spec, jobs, p, tracks) {
-                Ok(table) => return assemble_table(self.plane, jobs, p, &table),
+                Ok((picks, evs)) => return joint_scores(self.plane, jobs, p, &picks, &evs),
                 Err(e) => eprintln!("warning: {e}; scoring this batch on the CPU"),
             }
         }
@@ -96,27 +96,22 @@ impl<'a> Scorer<'a> {
     }
 }
 
+/// `JointScore`s from the GPU's picks; `evs` holds each job's events at its pick, in job order.
 #[cfg(feature = "cuda")]
-fn assemble_table(
+fn joint_scores(
     plane: &ScoringPlane,
     jobs: &[Job],
     p: &ScoreParams,
-    table: &[super::job::StepBest],
+    picks: &[super::job::Pick],
+    evs: &[super::job::StepBest],
 ) -> Vec<Option<JointScore>> {
-    use rayon::prelude::*;
-    let starts: Vec<usize> = jobs
-        .iter()
-        .scan(0, |base, job| {
-            let start = *base;
-            *base += job.events.len() * job.n_k();
-            Some(start)
-        })
-        .collect();
-    jobs.par_iter()
-        .zip(starts)
-        .map(|(job, base)| {
-            let n_k = job.n_k();
-            super::job::assemble(&plane.spec, job, p, |e, k| table[base + e * n_k + k])
+    let mut rest = evs;
+    jobs.iter()
+        .zip(picks)
+        .map(|(job, &pick)| {
+            let (win, tail) = rest.split_at(job.events.len());
+            rest = tail;
+            Some(super::job::joint(&plane.spec, job, p, pick, win))
         })
         .collect()
 }

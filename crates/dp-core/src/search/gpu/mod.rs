@@ -12,7 +12,7 @@ use cudarc::driver::{CudaContext, CudaFunction, CudaSlice, CudaStream, LaunchCon
 use cudarc::nvrtc::Ptx;
 
 use super::fixed;
-use super::job::{Job, StepBest, harmonic_shifts};
+use super::job::{Job, Pick, StepBest, harmonic_shifts};
 use super::score::ScoreParams;
 use crate::audio::LogSpectrogram;
 use crate::track::Track;
@@ -27,6 +27,7 @@ const WARPS: u64 = 4;
 struct Device {
     stream: Arc<CudaStream>,
     sweep: CudaFunction,
+    pick: CudaFunction,
     offsets: CudaFunction,
     name: String,
 }
@@ -44,14 +45,14 @@ fn open() -> Result<Device, String> {
     }
     let ctx = CudaContext::new(0).map_err(|e| format!("CUDA device 0: {e}"))?;
     let name = ctx.name().map_err(|e| format!("CUDA device name: {e}"))?;
-    let load = |ptx: &str, f: &str| {
-        let m = ctx
-            .load_module(Ptx::from_src(ptx))
-            .map_err(|e| format!("loading kernel on {name}: {e} (driver older than the PTX ISA?)"))?;
-        m.load_function(f).map_err(|e| format!("kernel {f}: {e}"))
+    let module = |ptx: &str| {
+        ctx.load_module(Ptx::from_src(ptx))
+            .map_err(|e| format!("loading kernel on {name}: {e} (driver older than the PTX ISA?)"))
     };
-    let (sweep, offsets) = (load(SWEEP_PTX, "best_f0")?, load(EMISSION_PTX, "offsets")?);
-    Ok(Device { stream: ctx.default_stream(), sweep, offsets, name })
+    let (sw, em) = (module(SWEEP_PTX)?, module(EMISSION_PTX)?);
+    let f = |m: &Arc<cudarc::driver::CudaModule>, f: &str| m.load_function(f).map_err(|e| format!("kernel {f}: {e}"));
+    let (sweep, pick, offsets) = (f(&sw, "best_f0")?, f(&sw, "pick_k")?, f(&em, "offsets")?);
+    Ok(Device { stream: ctx.default_stream(), sweep, pick, offsets, name })
 }
 
 /// A recording's scoring plane resident on the GPU.
@@ -76,11 +77,17 @@ impl GpuPlane {
         &self.dev.name
     }
 
-    /// Best f0 step per (event instance, k), event instances in job-then-event order, k fastest. Offsets
-    /// come from the jobs (uploaded) or, when every instance is deferred, from the device (`tracks` is
-    /// the catalogue they index). A mix is an error, so the caller rescores on the CPU.
-    pub fn sweep(&self, spec: &LogSpectrogram, jobs: &[Job], p: &ScoreParams, tracks: &[Track]) -> Result<Vec<StepBest>, String> {
-        let Some(n_k) = jobs.first().map(Job::n_k) else { return Ok(Vec::new()) };
+    /// Each job's `Pick` and its events' `StepBest` at the picked k (event instances in job-then-event
+    /// order). Offsets come from the jobs (uploaded) or, when every instance is deferred, from the device
+    /// (`tracks` is the catalogue they index). A mix is an error, so the caller rescores on the CPU.
+    pub fn sweep(
+        &self,
+        spec: &LogSpectrogram,
+        jobs: &[Job],
+        p: &ScoreParams,
+        tracks: &[Track],
+    ) -> Result<(Vec<Pick>, Vec<StepBest>), String> {
+        let Some(n_k) = jobs.first().map(Job::n_k) else { return Ok(Default::default()) };
         let (n_inst, deferred) = jobs
             .iter()
             .flat_map(|j| &j.events)
@@ -105,7 +112,7 @@ impl GpuPlane {
             (b, d_off)
         };
         if b.frame0.is_empty() {
-            return Ok(Vec::new());
+            return Ok(Default::default());
         }
         let (hs, hw): (Vec<i64>, Vec<f32>) = harmonic_shifts(spec, p).into_iter().unzip();
         let d_off_start = s.clone_htod(&b.off_start).map_err(e)?;
@@ -129,9 +136,46 @@ impl GpuPlane {
         l.arg(&n_pairs).arg(&mut d_z).arg(&mut d_step).arg(&mut d_cov);
         // SAFETY: argument order and types match best_f0 in sweep.cu; the kernel bounds-checks pair < n_pairs.
         unsafe { l.launch(cfg) }.map_err(e)?;
-        let z = s.clone_dtoh(&d_z).map_err(e)?;
-        let st = s.clone_dtoh(&d_step).map_err(e)?;
-        let cov = s.clone_dtoh(&d_cov).map_err(e)?;
-        Ok(z.into_iter().zip(st).zip(cov).map(|((z, step), covered)| StepBest { z, step: step as usize, covered }).collect())
+        self.pick(jobs, n_k, &d_z, &d_step, &d_cov)
+    }
+
+    /// `pick_k` over the sweep's (instance, k) table, which stays on the device.
+    fn pick(
+        &self,
+        jobs: &[Job],
+        n_k: usize,
+        d_z: &CudaSlice<f64>,
+        d_step: &CudaSlice<u32>,
+        d_cov: &CudaSlice<u32>,
+    ) -> Result<(Vec<Pick>, Vec<StepBest>), String> {
+        let s = &self.dev.stream;
+        let e = |e: cudarc::driver::DriverError| format!("CUDA pick_k: {e}");
+        let (mut inst0, mut ne) = (Vec::with_capacity(jobs.len()), Vec::with_capacity(jobs.len()));
+        let mut n_inst = 0u32;
+        for j in jobs {
+            inst0.push(n_inst);
+            ne.push(j.events.len() as u32);
+            n_inst += j.events.len() as u32;
+        }
+        let (d_inst0, d_ne) = (s.clone_htod(&inst0).map_err(e)?, s.clone_htod(&ne).map_err(e)?);
+        let (n_jobs, n_k32) = (jobs.len() as u32, n_k as u32);
+        let mut d_total = s.alloc_zeros::<f64>(jobs.len()).map_err(e)?;
+        let mut d_k = s.alloc_zeros::<u32>(jobs.len()).map_err(e)?;
+        let mut ev_z = s.alloc_zeros::<f64>(n_inst as usize).map_err(e)?;
+        let mut ev_step = s.alloc_zeros::<u32>(n_inst as usize).map_err(e)?;
+        let mut ev_cov = s.alloc_zeros::<u32>(n_inst as usize).map_err(e)?;
+        let blocks = (n_jobs as u64).div_ceil(WARPS) as u32;
+        let cfg = LaunchConfig { grid_dim: (blocks, 1, 1), block_dim: (32 * WARPS as u32, 1, 1), shared_mem_bytes: 0 };
+        let mut l = s.launch_builder(&self.dev.pick);
+        l.arg(d_z).arg(d_step).arg(d_cov).arg(&d_inst0).arg(&d_ne).arg(&n_k32).arg(&n_jobs);
+        l.arg(&mut d_total).arg(&mut d_k).arg(&mut ev_z).arg(&mut ev_step).arg(&mut ev_cov);
+        // SAFETY: argument order and types match pick_k in sweep.cu; the kernel bounds-checks job < n_jobs
+        // and reads rows (inst0 + e)·n_k + k of the n_inst·n_k table.
+        unsafe { l.launch(cfg) }.map_err(e)?;
+        let (total, k) = (s.clone_dtoh(&d_total).map_err(e)?, s.clone_dtoh(&d_k).map_err(e)?);
+        let picks = total.into_iter().zip(k).map(|(total, k)| Pick { total, k: k as usize }).collect();
+        let (z, st, cov) = (s.clone_dtoh(&ev_z).map_err(e)?, s.clone_dtoh(&ev_step).map_err(e)?, s.clone_dtoh(&ev_cov).map_err(e)?);
+        let evs = z.into_iter().zip(st).zip(cov).map(|((z, step), covered)| StepBest { z, step: step as usize, covered }).collect();
+        Ok((picks, evs))
     }
 }
