@@ -12,7 +12,12 @@ decode_band ─► log-f STFT (wins 0.5/1/2 s) ─► whiten ─► combine_max 
 
 ## Decode (`audio/decode.rs`, `audio/resample.rs`)
 
-- Symphonia decodes mp3, aac/m4a, flac, wav/pcm/adpcm and ogg/vorbis. Gapless decoding is on.
+- Symphonia demuxes and decodes mp3, aac/m4a, flac, wav/pcm/adpcm, ogg/vorbis and mkv/webm. Gapless decoding is on.
+- **Opus** (Ogg or WebM; YouTube itag 251) is decoded by the pure-Rust `opus-decoder` crate (`audio/packet.rs`), because symphonia 0.5 has no Opus codec. It needs no system libopus and no ffmpeg. `moosicbox_opus` was rejected because it binds libopus through `audiopus`.
+- **Encoder delay** (`audio/priming.rs`). Symphonia trims MP3 gapless delay itself but leaves AAC priming (1024 samples) and Opus pre-skip (312) in the stream. Both are trimmed:
+  - AAC: from the m4a edit list (`moov/trak/edts/elst` media_time, rescaled from the `mdhd` timescale), else iTunSMPB, else the codec delay, else 1024.
+  - Opus: from the OpusHead pre-skip.
+  - The number trimmed is reported as `AudioInfo::trimmed_samples`. `events/measure/decode_align.rs` checks the lag against ffmpeg: 0 samples for AAC, Opus/Ogg, Opus/WebM and MP3. Opus end padding is not trimmed, so the output is about 650 samples longer than ffmpeg's at the tail.
 - Channels are averaged to mono f32.
 - A corrupt packet is skipped and counted in `AudioInfo::skipped_packets`. A sample-rate change in mid-stream is an error.
 - `decode_band(path, f_max)` decimates while it decodes, so a 1 h, 48 kHz file never sits in memory at full rate.

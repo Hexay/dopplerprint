@@ -3,6 +3,8 @@
 mod decode;
 mod frontend;
 mod lines;
+mod packet;
+mod priming;
 mod refine;
 pub mod resample;
 pub mod spectrogram;
@@ -34,7 +36,7 @@ impl Audio {
     }
 }
 
-/// Decode any container symphonia supports (wav/mp3/aac/m4a/flac/ogg) and downmix to mono.
+/// Decode wav/mp3/aac/m4a/flac/ogg/webm/mkv (Vorbis or Opus included) and downmix to mono; encoder delay trimmed.
 /// `sample_rate` is the container's declared rate, unmodified.
 pub fn decode(path: &std::path::Path) -> anyhow::Result<Audio> {
     decode::decode_all(path, None)

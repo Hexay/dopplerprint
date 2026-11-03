@@ -32,7 +32,9 @@ flate2 = "1"
 rstar = "0.14"
 rustc-hash = "2"
 realfft = "3.5"
-symphonia = { version = "0.5", default-features = false, features = ["mp3", "aac", "isomp4", "flac", "wav", "pcm", "ogg", "vorbis", "adpcm"] }
+symphonia = { version = "0.5", default-features = false, features = ["mp3", "aac", "isomp4", "flac", "wav", "pcm", "ogg", "vorbis", "adpcm", "mkv"] }
+# Pure-Rust Opus (symphonia 0.5 has none): YouTube itag 251 is Opus in WebM. No system libopus needed.
+opus-decoder = "0.1.1"
 
 [dev-dependencies]
 tempfile = "3"
