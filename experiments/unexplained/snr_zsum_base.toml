@@ -1,0 +1,11 @@
+# snr_zsum.toml with the calibration table pinned explicitly (baseline for snr_zsum_lsil*.toml).
+# Run with --sim-dir experiments/sim_snr.
+[eval]
+cases = ["snr_g"]
+time_prior_s = 2.0
+
+[search]
+calibration = "auto"
+
+[search.score]
+clock_sweep_s = 2.0

@@ -10,5 +10,8 @@ oracle_d_range = [150.0, 8000.0]
 oracle_v_range = [20.0, 250.0]
 oracle_events = false
 
+[search]
+calibration = "auto"
+
 [search.score]
 clock_sweep_s = 2.0

@@ -1,4 +1,4 @@
-# livermore_all40_discovered.toml + unexplained events (λ_u = −6) and the likelihood silence term (r50 5 km).
+# livermore_all40_discovered.toml + unexplained events (λ_u = −6) and the likelihood silence term (r50 2 km).
 # Reporting only; never tune on it.
 [eval]
 cases = ["livermore"]
@@ -10,13 +10,15 @@ oracle_d_range = [150.0, 8000.0]
 oracle_v_range = [20.0, 250.0]
 oracle_events = false
 
+[search]
+calibration = "auto"
+
 [search.assoc]
 unexplained_cost = -6.0
-silence_range_m = 6000.0
 
 [search.assoc.silence]
 mode = "likelihood"
-r50_m = 5000.0
+r50_m = 2000.0
 
 [search.score]
 clock_sweep_s = 2.0

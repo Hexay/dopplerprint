@@ -13,5 +13,8 @@ oracle_events = false
 [search.assoc]
 unexplained_cost = -6.0
 
+[search]
+calibration = "auto"
+
 [search.score]
 clock_sweep_s = 2.0

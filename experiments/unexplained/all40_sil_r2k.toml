@@ -14,5 +14,8 @@ oracle_events = false
 mode = "likelihood"
 r50_m = 2000.0
 
+[search]
+calibration = "auto"
+
 [search.score]
 clock_sweep_s = 2.0
