@@ -25,12 +25,13 @@ const METRICS: [Metric; 5] = [
     ("|clock err| s", |r| r.clock_err_s.map(f64::abs), true),
 ];
 
-/// Markdown table of paired deltas B − A with bootstrap CIs and win/loss counts.
-pub fn compare(a_dir: &Path, b_dir: &Path) -> Result<String> {
+/// Markdown table of paired deltas B − A with bootstrap CIs and win/loss counts, over cases whose id
+/// contains one of `only` (all when empty).
+pub fn compare(a_dir: &Path, b_dir: &Path, only: &[String]) -> Result<String> {
     let (a, b) = (load(a_dir)?, load(b_dir)?);
     let pairs: Vec<(&CaseResult, &CaseResult)> = a
         .iter()
-        .filter(|r| r.status == "ok")
+        .filter(|r| r.status == "ok" && (only.is_empty() || only.iter().any(|f| r.id.contains(f.as_str()))))
         .filter_map(|ra| b.iter().find(|rb| rb.id == ra.id && rb.status == "ok").map(|rb| (ra, rb)))
         .collect();
     let mut md = format!("# {} vs {}\n\n{} paired cases. Δ = B − A.\n\n", b_dir.display(), a_dir.display(), pairs.len());
