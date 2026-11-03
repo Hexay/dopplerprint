@@ -14,7 +14,7 @@ def locate(path, start=None, near=None, *, quiet=False, **opts):
 
     `start` is e.g. "2026-05-14 10:02 -07:00" (optionally "±10m"), `near` a place name, "lat,lon",
     "lat,lon,radius_km" or "west,south,east,north". Other options: radius_km, start_tolerance, out, cache,
-    dem, mains_hz, offline, yes, keep_raw, max_cache_gb, max_events. Downloads need yes=True.
+    dem, mains_hz, offline, no_weather, yes, keep_raw, max_cache_gb, max_events. Downloads need yes=True.
 
     Returns the report dict: "status" is "found", "needs_input" (see "message") or "inconclusive".
     """

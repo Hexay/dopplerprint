@@ -58,6 +58,9 @@ pub fn render(r: &Report) -> String {
     if !r.terrain.is_empty() {
         let _ = writeln!(s, "Terrain:     {}", r.terrain);
     }
+    if !r.air.is_empty() {
+        let _ = writeln!(s, "Air:         {}", r.air);
+    }
     if !r.files.is_empty() {
         let dir = std::path::Path::new(&r.files[0]).parent().map(|p| p.display().to_string()).unwrap_or_default();
         let names: Vec<String> = r.files.iter().filter_map(|f| std::path::Path::new(f).file_name()).map(|n| n.to_string_lossy().into_owned()).collect();

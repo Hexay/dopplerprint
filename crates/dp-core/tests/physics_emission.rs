@@ -62,7 +62,7 @@ fn cv_closed_form_matches_numeric_solve() {
 
 #[test]
 fn newton_warm_start_converges_in_three() {
-    let atm = Atmosphere { c: 340.0, wind: Vec3::new(3.0, -6.0, 1.0) };
+    let atm = Atmosphere::uniform(340.0, Vec3::new(3.0, -6.0, 1.0));
     for tr in [straight(110.0, 300.0).0, turning_track()] {
         let obs = observer();
         let mut prev: Option<(f64, f64, f64)> = None;
@@ -86,8 +86,8 @@ fn zero_wind_equals_still_air_and_factor_is_dtau_dt() {
     let tr = turning_track();
     let obs = observer();
     let still = Atmosphere::default();
-    let calm = Atmosphere { c: 343.0, wind: Vec3::new(1e-12, 0.0, 0.0) };
-    let windy = Atmosphere { c: 343.0, wind: Vec3::new(8.0, -5.0, 0.0) };
+    let calm = Atmosphere::uniform(343.0, Vec3::new(1e-12, 0.0, 0.0));
+    let windy = Atmosphere::uniform(343.0, Vec3::new(8.0, -5.0, 0.0));
     for i in 0..50 {
         let t = T0 + 20.0 + i as f64 * 5.0;
         let a = emission(&tr, obs, t, &still).unwrap();
@@ -105,7 +105,7 @@ fn zero_wind_equals_still_air_and_factor_is_dtau_dt() {
 #[test]
 fn along_track_wind_asymptotes() {
     let (tr, line) = straight(80.0, 500.0);
-    let atm = Atmosphere { c: 340.0, wind: line.dir * 10.0 };
+    let atm = Atmosphere::uniform(340.0, line.dir * 10.0);
     // Emissions ~500 s either side of CPA (40 km away), so k̂ is within 0.7° of the track.
     let t = [line.t_cpa_emit - 380.0, line.t_cpa_emit + 620.0];
     let k = doppler_factors(&tr, observer(), &t, &atm);
@@ -122,7 +122,7 @@ fn cpa_on_straight_track() {
     assert!((c.slant_m - 1200.0).abs() < 1e-6);
     assert!((c.t_arrive - (line.t_cpa_emit + 1200.0 / 343.0)).abs() < 1e-5);
     assert!((c.ground_speed - 80.0).abs() < 1e-3);
-    let windy = Atmosphere { c: 343.0, wind: up_vector(LAT, LON) * -5.0 };
+    let windy = Atmosphere::uniform(343.0, up_vector(LAT, LON) * -5.0);
     let cw = cpa(&tr, observer(), &windy).unwrap();
     // A downdraft carries the sound from the overhead aircraft down to the observer faster.
     assert!((cw.t_arrive - (line.t_cpa_emit + 1200.0 / 348.0)).abs() < 1e-5);

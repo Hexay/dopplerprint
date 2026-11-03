@@ -1,6 +1,6 @@
 //! Closest point of approach over a Hermite track: range-rate root per bracketing segment.
 
-use super::{Atmosphere, Cpa};
+use super::{Atmosphere, Cpa, Medium};
 use crate::geo::{Vec3, ecef_to_geodetic, up_vector};
 use crate::track::{Track, TrackPoint, hermite};
 
@@ -28,15 +28,15 @@ pub fn closest_approach(track: &Track, obs: Vec3, atm: &Atmosphere) -> Option<Cp
     let horiz = s.vel - up * s.vel.dot(up);
     Some(Cpa {
         t_emit: best.0,
-        t_arrive: best.0 + travel_time(obs - s.pos, atm),
+        t_arrive: best.0 + travel_time(obs - s.pos, &atm.medium(obs, s.pos)),
         slant_m: best.1.sqrt(),
         ground_speed: horiz.norm(),
     })
 }
 
 /// Delay s solving |q − w·s| = c·s for the chord q = obs − source (positive root).
-pub fn travel_time(q: Vec3, atm: &Atmosphere) -> f64 {
-    let (c2, w2, qw, q2) = (atm.c * atm.c, atm.wind.dot(atm.wind), q.dot(atm.wind), q.dot(q));
+pub fn travel_time(q: Vec3, m: &Medium) -> f64 {
+    let (c2, w2, qw, q2) = (m.c * m.c, m.wind.dot(m.wind), q.dot(m.wind), q.dot(q));
     (-qw + (qw * qw + (c2 - w2) * q2).sqrt()) / (c2 - w2)
 }
 

@@ -1,0 +1,14 @@
+# Sim, experiments/sim_wind (see simwind_still.toml). Supplied wind off by 3 m/s (a typical reanalysis
+# error, docs/research/localization_deeper_factors.md), 90° from the true wind: is imperfect weather still
+# better than still air?
+[eval]
+cases = ["sim_wind"]
+time_prior_s = 5.0
+weather = "truth"
+wind_enu_mps = [-1.5, 2.6, 0.0]
+
+[search]
+keep_top = 100
+
+[search.score]
+clock_sweep_s = 2.0

@@ -43,6 +43,7 @@ US for now (the embedded geoid and the EPSG:5070 lattice); whole-country search 
 | `adsb/raw/<release>/` | adsb.lol archive parts while downloading (deleted after processing unless `--keep-raw`) |
 | `typedb/` | tar1090-db aircraft types and registry (~8 MB, fetched once) |
 | `geocode.json` | Place-name lookups |
+| `weather/openmeteo-*.json` | Archived hourly weather profiles, one per ~1 km site and UTC day (~10 kB) |
 | `dem/*.u16` | Optional ground models from `python/dopplerprint/prep/dem.py`; the first one covering the area is used |
 
 ADS-B comes from the adsb.lol `globe_history` daily archives (ODbL). A day the cache doesn't have is
@@ -50,6 +51,19 @@ downloaded (~3.5 GB per UTC day the time window touches) after a yes/no question
 skips the question, `--offline` never downloads, and `--max-cache-gb` (default 20) refuses a download that
 would grow the cache past it. Downloads resume after an interruption. Without a DEM the ground is taken as
 flat at the local geoid height, and the report says so.
+
+<a id="weather"></a>**Weather.** The search models sound with the wind and temperature at the recording's time
+and place: hourly temperature, humidity and wind on the 10 m, 80–180 m and 1000–300 hPa levels from the
+[Open-Meteo](https://open-meteo.com/) Historical Forecast API (`best_match`: NOAA HRRR, 3 km, over the US),
+interpolated to the middle of the recording. Each pass uses the mean wind vector and sound speed of the layer
+from the ground to the aircraft (docs/PHYSICS.md §4a); the report's `Air:` line gives what was used, e.g.
+"wind 6 m/s from 250° averaged 0–900 m; c 341.2 m/s". One request per UTC day and site; the only things sent
+are latitude and longitude rounded to 0.01° (~1 km) and the date. `--no-weather` searches in still air
+(c 343 m/s, or the `--config` atmosphere); `--offline` uses cached weather only and otherwise falls back to
+still air with a note. A day is cached once it is two days old (the archive fills in over the first day).
+Terms: data CC BY 4.0; the free API is for non-commercial use, 600 requests/min, 5,000/hour, 10,000/day per
+IP, no key; commercial use needs an Open-Meteo API plan. The archive has HRRR from 2018 and most other models
+from 2021–22. With weather on, a `--config` `[search.atmosphere]` is replaced, not combined.
 
 <a id="output"></a>
 ## What you get

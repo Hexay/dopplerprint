@@ -13,14 +13,19 @@ use crate::search::{SearchParams, SearchResult};
 
 /// One `SearchParams` per grid point; just `base` when no grid is configured.
 pub fn variants(base: &SearchParams, c: &Posed, e: &EvalParams) -> Vec<SearchParams> {
-    let cs: Vec<f64> = if e.nuisance_c.is_empty() { vec![base.atmosphere.c] } else { e.nuisance_c.clone() };
+    let c0 = base.atmosphere.c;
+    let cs: Vec<f64> = match (e.nuisance_c.is_empty(), e.nuisance_dc.is_empty()) {
+        (false, _) => e.nuisance_c.clone(),
+        (true, false) => e.nuisance_dc.iter().map(|d| c0 + d).collect(),
+        (true, true) => vec![c0],
+    };
     let ws: Vec<[f64; 2]> = if e.nuisance_wind_en.is_empty() { vec![[0.0, 0.0]] } else { e.nuisance_wind_en.clone() };
     let (east, north) = east_north(c.truth_lat, c.truth_lon);
     let mut out = Vec::with_capacity(cs.len() * ws.len());
     for &sound in &cs {
         for &[we, wn] in &ws {
             let mut p = base.clone();
-            p.atmosphere = Atmosphere { c: sound, wind: base.atmosphere.wind + east * we + north * wn };
+            p.atmosphere = Atmosphere { c: sound, wind: base.atmosphere.wind + east * we + north * wn, ..base.atmosphere };
             out.push(p);
         }
     }

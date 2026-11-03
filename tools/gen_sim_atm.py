@@ -1,6 +1,7 @@
 """Write experiments/sim_atm/*.toml: GA/turboprop flyovers rendered in a known non-default atmosphere
 (c = 337 m/s, ~10 °C; 6 m/s wind toward the east) so model-atmosphere mismatch can be measured with exact
-truth. Deterministic; rerun to regenerate. Usage: python3 -I tools/gen_sim_atm.py"""
+truth; plus experiments/sim_wind/ (see wind_set). Deterministic; rerun to regenerate.
+Usage: python3 -I tools/gen_sim_atm.py"""
 
 import math
 import pathlib
@@ -82,6 +83,40 @@ def main():
         body += aircraft(rng, 0xA71000 + 2 * i, 60.0, h1)
         body += aircraft(rng, 0xA71001 + 2 * i, 200.0, (h1 + rng.uniform(90, 180)) % 360)
         (OUT / f"atm_pair_{i:02d}.toml").write_text(body)
+    wind_set()
+
+
+# experiments/sim_wind: a stronger wind (12 m/s from 240°) and a mix of GA and low jets, where the
+# straight-ray wind bias is largest; for the weather/wind A/B (docs/research/weather_wind_2026-11-03.md).
+OUT_WIND = OUT.parent / "sim_wind"
+WIND_STRONG = [round(12 * math.sin(math.radians(60)), 2), round(12 * math.cos(math.radians(60)), 2), 0.0]
+
+
+def jet(rng, icao, tc, hdg):
+    alt = rng.choice([1200, 1800, 2500, 3000])
+    off = rng.uniform(-1.2, 1.2) * alt
+    slant = math.hypot(alt, off)
+    body = AIRCRAFT.format(
+        icao=icao, amp=0.5 * max(1.0, slant / 1000.0), f0=rng.uniform(90, 160), hdg=hdg,
+        v=rng.uniform(110, 180), alt=alt, off=off, tc=tc,
+    )
+    return body.replace('type_code = "C172"\nengine = "Piston"', 'type_code = "CRJ9"\nengine = "Jet"')
+
+
+def wind_set():
+    OUT_WIND.mkdir(parents=True, exist_ok=True)
+    rng = random.Random(20261104)
+    for i in range(16):
+        body = HEADER.format(c=C_TRUE, w=WIND_STRONG, seed=300 + i, dur=120.0)
+        make = jet if i % 2 else aircraft
+        body += make(rng, 0xA72000 + i, 60.0, rng.uniform(0, 360))
+        (OUT_WIND / f"wind_single_{i:02d}.toml").write_text(body)
+    for i in range(8):
+        h1 = rng.uniform(0, 360)
+        body = HEADER.format(c=C_TRUE, w=WIND_STRONG, seed=400 + i, dur=260.0)
+        body += aircraft(rng, 0xA73000 + 2 * i, 60.0, h1)
+        body += (jet if i % 2 else aircraft)(rng, 0xA73001 + 2 * i, 200.0, (h1 + rng.uniform(90, 180)) % 360)
+        (OUT_WIND / f"wind_pair_{i:02d}.toml").write_text(body)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,13 @@
+# oysterbay_dg_parity with archived weather (Open-Meteo best_match) instead of still air c 343.
+[eval]
+cases = ["oysterbay"]
+region_radius_m = 5600.0
+region_offset_m = 450.0
+time_prior_s = 5.0
+oracle_events = true
+weather = "archive"
+
+[search]
+coarse_step_m = 200
+min_step_m = 25
+keep_top = 200

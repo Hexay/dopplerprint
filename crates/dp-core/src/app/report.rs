@@ -49,6 +49,8 @@ pub struct Report {
     pub start: Option<StartPrior>,
     pub area: Option<Area>,
     pub terrain: String,
+    /// Model atmosphere: archived layer winds and c, or why still air was used.
+    pub air: String,
     pub events_found: usize,
     pub events_used: usize,
     pub tracks_considered: usize,
@@ -73,6 +75,7 @@ impl Report {
             start: None,
             area: None,
             terrain: String::new(),
+            air: String::new(),
             events_found: 0,
             events_used: 0,
             tracks_considered: 0,

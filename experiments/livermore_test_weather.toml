@@ -1,0 +1,11 @@
+# Frozen test split with archived weather; pair against livermore_test_still.
+[eval]
+cases = ["livermore"]
+split = "test"
+time_prior_s = 2.0
+oracle_d_range = [150.0, 8000.0]
+oracle_v_range = [20.0, 250.0]
+weather = "archive"
+
+[search.score]
+clock_sweep_s = 2.0

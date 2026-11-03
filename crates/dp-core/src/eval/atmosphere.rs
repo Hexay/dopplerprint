@@ -7,6 +7,50 @@ use super::metrics::same_flight;
 use crate::config::EvalParams;
 use crate::geo::{Vec3, east_north, up_vector};
 use crate::physics::Atmosphere;
+use crate::search::Region;
+use crate::weather::{self, Site};
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WeatherSource {
+    /// `search.atmosphere` as configured.
+    #[default]
+    None,
+    /// Open-Meteo archive at the search-region centre and true start (corpus cases; cache
+    /// `<data_dir>/weather`). Sim cases keep `search.atmosphere`.
+    Archive,
+    /// The medium a sim case was rendered in (sim cases only).
+    Truth,
+}
+
+/// The case's starting atmosphere and a note on where it came from (`None` = `search.atmosphere`).
+pub fn sourced(base: Atmosphere, c: &Posed, e: &EvalParams, region: &Region) -> (Atmosphere, Option<String>) {
+    match e.weather {
+        WeatherSource::None => (base, None),
+        WeatherSource::Truth => match c.sim_atmosphere {
+            Some(a) => (a, Some("sim truth".into())),
+            None => (base, None),
+        },
+        WeatherSource::Archive if c.sim_atmosphere.is_some() => (base, None),
+        WeatherSource::Archive => archived(base, c, e, region),
+    }
+}
+
+fn archived(base: Atmosphere, c: &Posed, e: &EvalParams, r: &Region) -> (Atmosphere, Option<String>) {
+    let got = weather::archive(&e.data_dir.join("weather"), r.lat_deg, r.lon_deg, c.t_start_true, false);
+    let profile = match got {
+        Ok(Some(p)) => p,
+        Ok(None) => return (base, Some("archive: no data, still air".into())),
+        Err(err) => return (base, Some(format!("archive failed ({err:#}), still air"))),
+    };
+    let dem_ground = c.dem.as_ref().and_then(|d| d.height_ellipsoid_latlon(r.lat_deg, r.lon_deg));
+    let ground_ell = dem_ground.or(c.truth_h_ell).unwrap_or_else(|| profile.ground_ell(r.lat_deg, r.lon_deg));
+    let site = Site { lat: r.lat_deg, lon: r.lon_deg, ground_ell };
+    match profile.atmosphere(&site) {
+        Some(a) => (a, Some(format!("{}: {}", profile.source, weather::describe(&a, &site, ground_ell + weather::REF_DEPTH_M)))),
+        None => (base, Some("archive: unusable profile, still air".into())),
+    }
+}
 
 pub fn case_atmosphere(base: Atmosphere, c: &Posed, e: &EvalParams) -> Atmosphere {
     let (east, north) = east_north(c.truth_lat, c.truth_lon);
@@ -20,7 +64,7 @@ pub fn case_atmosphere(base: Atmosphere, c: &Posed, e: &EvalParams) -> Atmospher
         // Cross-track is positive to the right of the direction of flight.
         wind += east * (a * de + x * dn) + north * (a * dn - x * de);
     }
-    Atmosphere { c: base.c, wind }
+    Atmosphere { wind, ..base }
 }
 
 /// Unit ground-track direction (east, north) of the first event's truth flight at its CPA.
@@ -60,6 +104,7 @@ mod tests {
             truth_flights: vec![Some("x".into())],
             tracks: vec![track],
             dem: None,
+            sim_atmosphere: None,
         };
         let e = EvalParams { wind_along_track_mps: 5.0, wind_cross_track_mps: 2.0, ..Default::default() };
         let w = case_atmosphere(Atmosphere::default(), &c, &e).wind;

@@ -14,3 +14,4 @@ pub mod physics;
 pub mod search;
 pub mod sim;
 pub mod track;
+pub mod weather;

@@ -27,7 +27,8 @@ This tool works out where an audio recording was made. It matches the aircraft D
 9. `sim`: an independent time-domain synthesiser that serves as ground truth for tests and eval.
 10. `output`: GeoPackage (QGIS), GeoJSON and a single-file HTML viewer.
 11. `config`: all tunables, overridable from TOML.
-12. `app`: the end-user `locate` pipeline (inputs → decode → discover → cached/fetched ADS-B → `search::locate` → report and files). See `docs/USAGE.md`.
+12. `app`: the end-user `locate` pipeline (inputs → decode → discover → cached/fetched ADS-B → archived weather → `search::locate` → report and files). See `docs/USAGE.md`.
+13. `weather`: Open-Meteo archive fetch/cache and profile → `physics::Column` (per-emission layer-mean c and wind vector, `docs/PHYSICS.md` §4a). Used by `app` and by eval (`[eval] weather = "archive"`).
 
 ## Search
 
