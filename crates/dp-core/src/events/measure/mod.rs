@@ -8,7 +8,10 @@ mod corpus;
 mod decode_align;
 mod drift;
 mod fitbias;
+mod fitvariants;
+mod passdiag;
 mod picket;
+mod selecteval;
 
 use super::testsynth::Rng;
 
