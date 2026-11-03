@@ -11,3 +11,13 @@ serde.workspace = true
 serde_json.workspace = true
 toml.workspace = true
 rayon.workspace = true
+arrow-array = "60"
+arrow-schema = "60"
+arrow-select = "60"
+parquet = { version = "60", default-features = false, features = ["arrow", "zstd"] }
+tar = "0.4"
+flate2 = "1"
+rstar = "0.14"
+
+[dev-dependencies]
+tempfile = "3"
