@@ -54,13 +54,17 @@ flat at the local geoid height, and the report says so.
 <a id="output"></a>
 ## What you get
 
-The terminal report gives the best location with an OpenStreetMap link, a confidence level, other spots
-that score nearly as well (a single pass can't tell the two sides of its track apart: the "mirror
-solution"), the aircraft each pass was matched to, and the recording's start time as fitted. `--json` prints
-the same report as JSON.
+The terminal report gives the best location with an OpenStreetMap link, a calibrated 90% region (its area,
+and how many separate islands it covers), the probability of each distinct solution (a single pass can't tell
+the two sides of its track apart: the "mirror solution"), the aircraft each pass was matched to, and the
+recording's start time as fitted. `--json` prints the same report as JSON (`posterior`).
 
-Confidence is a heuristic on the score gap to the next distinct spot (z units): **high** ≥ 6 or nothing
-close, **medium** ≥ 2, **low** below that. It is not a probability.
+The region is calibrated so that it held the true spot about 90% of the time on held-out recordings: real
+recordings for one pass, simulated ones for two or more passes (the report says which). With one aircraft
+heard, the mirror is always listed: its probability reflects model error, not evidence about the side.
+Calibration and its limits: docs/research/calibration_2026-11-03.md. The JSON also keeps `confidence`, a
+heuristic on the score gap to the next distinct spot (z units: **high** ≥ 6, **medium** ≥ 2, **low** below);
+it is not a probability.
 
 Files go to `./dopplerprint-results/<name>/` (`--out` to change):
 
