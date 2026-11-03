@@ -403,6 +403,7 @@ dependencies = [
  "realfft",
  "rstar",
  "rusqlite",
+ "rustc-hash",
  "serde",
  "serde_json",
  "symphonia",

@@ -2,7 +2,7 @@
 //! hour × altitude band. A detection-probability proxy for the silence stage (docs/research/adsb_data.md §3):
 //! many airborne vanishes at low bands mark the local reception floor.
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap as HashMap;
 
 use super::model::CleanTrack;
 use super::pieces::hour_of;
@@ -42,7 +42,7 @@ pub fn cov_key(t: f64, lat: f64, lon: f64, alt_m: f64, day0: f64) -> CovKey {
 
 /// One aircraft's contribution (`n_aircraft` = 1 per key it touches); each leg's dt goes to its start bin.
 pub fn aircraft_coverage(tracks: &[CleanTrack], day0: f64) -> Vec<(CovKey, CovVal)> {
-    let mut m: HashMap<CovKey, CovVal> = HashMap::new();
+    let mut m: HashMap<CovKey, CovVal> = HashMap::default();
     let key = |p: &super::model::CleanPoint| cov_key(p.t, p.lat, p.lon, p.alt_m, day0);
     for tr in tracks {
         for (i, p) in tr.points.iter().enumerate() {
