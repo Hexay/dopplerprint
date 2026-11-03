@@ -43,7 +43,7 @@ impl Tone {
 }
 
 /// Pure-tone air absorption (dB/km), log-log interpolation of ISO 9613-1 at 20 °C / 70 % RH
-/// (research/aircraft_acoustics.md §2.3), ∝ f² outside the table.
+/// (docs/research/aircraft_acoustics.md §2.3), ∝ f² outside the table.
 pub fn absorption_db_per_km(f: f64) -> f64 {
     const TABLE: [(f64, f64); 7] =
         [(63.0, 0.09), (125.0, 0.33), (250.0, 1.12), (500.0, 2.79), (1000.0, 4.98), (2000.0, 9.0), (4000.0, 23.1)];

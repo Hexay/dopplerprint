@@ -1,6 +1,6 @@
 # doppler_print architecture
 
-This tool works out where an audio recording was made. It matches the aircraft Doppler curves in the recording against historical ADS-B trajectories. The method is colsto's, summarised in `research/transcript/analysis.md`. The structure follows thunderprint: a Rust core, a CLI and an evaluation harness. Python bindings are added with PyO3 and numpy so the algorithm can be iterated on interactively.
+This tool works out where an audio recording was made. It matches the aircraft Doppler curves in the recording against historical ADS-B trajectories. The method is colsto's, summarised in `docs/research/transcript/analysis.md`. The structure follows thunderprint: a Rust core, a CLI and an evaluation harness. Python bindings are added with PyO3 and numpy so the algorithm can be iterated on interactively.
 
 ## Crates
 
@@ -8,8 +8,8 @@ This tool works out where an audio recording was made. It matches the aircraft D
 |---|---|
 | `crates/dp-core` | All computation. Has no Python dependency. |
 | `crates/dp-cli` | `doppler-print` binary. Each subcommand is one file in `src/cmd/` and is a thin call into dp-core. |
-| `crates/dp-py` | `doppler_print._core`, an abi3 wheel. Each file registers the bindings for one dp-core area. Arrays are passed as numpy, and long calls release the GIL with `py.detach`. |
-| `python/doppler_print` | Python package with offline prep scripts (DEM, geoid, weather), notebooks and the QGIS plugin. Display and orchestration only. |
+| `crates/dp-py` | `dopplerprint._core`, an abi3 wheel. Each file registers the bindings for one dp-core area. Arrays are passed as numpy, and long calls release the GIL with `py.detach`. |
+| `python/dopplerprint` | Python package with offline prep scripts (DEM, geoid, weather), notebooks and the QGIS plugin. Display and orchestration only. |
 | `tools/` | Scripts for the corpus and the eval loop. |
 | `experiments/*.toml` | One file per hypothesis. Each overrides `config` defaults. |
 
@@ -29,7 +29,7 @@ This tool works out where an audio recording was made. It matches the aircraft D
 
 ## Search
 
-The stages follow the video, plus fixes taken from prior art (see `research/prior_art_landscape.md`):
+The stages follow the video, plus fixes taken from prior art (see `docs/research/prior_art_landscape.md`):
 
 1. **Window.** Load prop and helicopter tracks (jets flagged, not dropped) for the time prior and region.
 2. **CPA table.** For each track segment and each 200 m cell within 10 km, compute the delayed-CPA arrival time and slant range in closed form per segment.

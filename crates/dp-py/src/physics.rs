@@ -9,7 +9,7 @@ use dp_core::sim;
 use dp_core::track::{EngineClass, Track, TrackPoint};
 
 /// Immutable handle to a dp-core `Track` (ECEF metres, UNIX seconds).
-#[pyclass(name = "Track", frozen, module = "doppler_print._core")]
+#[pyclass(name = "Track", frozen, module = "dopplerprint._core")]
 pub struct PyTrack {
     pub inner: Track,
 }

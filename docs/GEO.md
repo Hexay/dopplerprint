@@ -1,6 +1,6 @@
 # Geodesy, terrain and GIS outputs
 
-Design rationale: `research/geo_compute_stack.md` ("Design implications"). This file is the contract for the formats.
+Design rationale: `docs/research/geo_compute_stack.md` ("Design implications"). This file is the contract for the formats.
 
 ## Projection: EPSG:5070
 
@@ -17,7 +17,7 @@ Design rationale: `research/geo_compute_stack.md` ("Design implications"). This 
 - Source: NGA EGM2008 (public domain), as PROJ-data's `us_nga_egm08_25.tif` (2.5′ grid, pixel-is-point,
   WGS84 → EGM2008 height, from `https://cdn.proj.org/us_nga_egm08_25.tif`, file dated 2018-10-08 from
   `egm08_25.gtx`). Cached at `data/dem/egm2008/`.
-- Built by `python -I python/doppler_print/prep/geoid.py <src.tif> assets/geoid/egm2008_conus_2p5.bin`.
+- Built by `python -I python/dopplerprint/prep/geoid.py <src.tif> assets/geoid/egm2008_conus_2p5.bin`.
 - Crop: 24–50° N, 125.5–66° W at 2.5′ (625 × 1429 nodes). N ranges −52.5 to −7.1 m in the crop.
 - Layout, little-endian: `b"DPGEOID1"`, f64 lat_south, f64 lon_west, f64 step_deg, u32 nrows, u32 ncols,
   f32 scale, f32 offset, then `nrows × ncols` u16, row 0 = south, N = raw·scale + offset (1 mm steps).
@@ -26,7 +26,7 @@ Design rationale: `research/geo_compute_stack.md` ("Design implications"). This 
 
 ## DEM raster (`dp-dem-u16-v1`)
 
-- Built by `python -m doppler_print.prep.dem` (needs the `prep` extra). Run with `DP_DATA=<repo>/data`:
+- Built by `python -m dopplerprint.prep.dem` (needs the `prep` extra). Run with `DP_DATA=<repo>/data`:
   - case region: `--case data/cases/<id> --radius-km 25` (default step 30 m, bilinear)
   - CONUS: `--bbox -125 24 -66 50 --step 100 --name conus_100m` (average resampling, ~2.7 GB, streams ~40 GB of
     tiles; processed in 1024-row strips so memory stays at a few hundred MB)
@@ -80,6 +80,6 @@ Approach from thunderprint's writer (MIT): hand-written GPKG 1.4 core tables and
 
 ## QGIS plugin
 
-`python/doppler_print/qgis/` is a Processing provider skeleton. Install it by copying the directory into the QGIS
+`python/dopplerprint/qgis/` is a Processing provider skeleton. Install it by copying the directory into the QGIS
 plugins folder under a name other than `qgis` (e.g. `doppler_print_qgis`), and `pip install doppler-print` into
 QGIS's Python. "Locate recording" calls `doppler_print.search(...)` (not implemented yet) and loads the GPKG layers.

@@ -1,5 +1,5 @@
 //! Per-point altitude basis selection: geometric (HAE) → baro + own geom−baro offset → baro.
-//! Rationale: research/adsb_data.md §2.2.
+//! Rationale: docs/research/adsb_data.md §2.2.
 
 use super::model::AltSource;
 use super::trace::{Alt, FLAG_ALT_GEOM, RawPoint};

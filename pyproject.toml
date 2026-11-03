@@ -3,7 +3,7 @@ requires = ["maturin>=1.9,<2"]
 build-backend = "maturin"
 
 [project]
-name = "doppler-print"
+name = "dopplerprint"
 version = "0.1.0"
 description = "Locate an audio recording from aircraft Doppler curves matched to historical ADS-B"
 requires-python = ">=3.11"
@@ -16,6 +16,6 @@ dev = ["pytest>=8", "matplotlib>=3.9"]
 
 [tool.maturin]
 manifest-path = "crates/dp-py/Cargo.toml"
-module-name = "doppler_print._core"
+module-name = "dopplerprint._core"
 python-source = "python"
 features = ["pyo3/extension-module"]

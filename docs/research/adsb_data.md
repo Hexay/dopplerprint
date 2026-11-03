@@ -2,8 +2,8 @@
 
 Scope: where to get a full day of continental-US (CONUS) trajectories in 2026, with emphasis on low-altitude
 piston/turboprop GA; field semantics and pitfalls; coverage limits; national-scale storage and indexing.
-Researched 2026-11-03. "Measured" means this session computed it from samples in `research/samples/`
-(scripts in `research/samples/scripts/`). Everything else comes from the sources listed at the end.
+Researched 2026-11-03. "Measured" means this session computed it from samples in `docs/research/samples/`
+(scripts in `docs/research/samples/scripts/`). Everything else comes from the sources listed at the end.
 
 ## 0. What DOPPLERGEIST does (data side only)
 
@@ -318,7 +318,7 @@ DELTA_BINARY_PACKED on t/lat/lon within the (icao, t) sort should beat 16 B/row 
    any shared derived DB under ODbL, and do not commingle with ADSBx or OpenSky data in a redistributed
    artifact.
 
-## Samples in `research/samples/` (all < 50 MB total)
+## Samples in `docs/research/samples/` (all < 50 MB total)
 - `adsblol_2026-09-08_head/prod-0.tar.aa.head30M`: first 30 MB of the prod tar (786 complete traces; the
   last member is truncated). Extract with `tar -xf … ` and ignore the EOF error.
 - `adsbx_2026-10-01/readsb-hist_180000Z.json.gz`: one 5 s global snapshot (plain JSON despite the name).

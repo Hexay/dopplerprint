@@ -1,7 +1,7 @@
 # Forward acoustic physics
 
 Code: `crates/dp-core/src/{track.rs, physics/, sim/}`. Background and error budgets:
-`research/doppler_physics_dsp.md` §1–2, `research/aircraft_acoustics.md` §2–5.
+`docs/research/doppler_physics_dsp.md` §1–2, `docs/research/aircraft_acoustics.md` §2–5.
 
 Conventions: positions ECEF metres, velocities ECEF m/s (ground-relative, as ADS-B reports), time UNIX
 seconds for tracks. Wind `w` is a uniform ECEF vector, `c` the still-air sound speed.

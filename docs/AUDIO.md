@@ -188,7 +188,7 @@ doppler-print discover file.mp3 --out events.json [--params cfg.json] [--wins 0.
 
 The CLI prints timing and one line per event to stderr, and writes a JSON array of `Event` to `--out` (stdout if `--out` is omitted).
 
-## Python (`doppler_print._core`)
+## Python (`dopplerprint._core`)
 
 Every call except `probe` releases the GIL while the Rust work runs.
 

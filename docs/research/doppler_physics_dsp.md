@@ -1,7 +1,7 @@
 # Doppler physics and signal processing for doppler_print
 
 Scope: the physics and DSP behind matching aircraft Doppler curves in a spectrogram against ADS-B
-trajectories. See `research/transcript/analysis.md` for the pipeline this feeds. Numerical claims marked
+trajectories. See `docs/research/transcript/analysis.md` for the pipeline this feeds. Numerical claims marked
 [verified] were checked numerically with a throwaway numpy script, which is not committed (closed form
 against a Newton solve, CRB example, wind asymmetry). Everything else comes from the cited sources or textbook acoustics.
 

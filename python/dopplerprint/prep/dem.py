@@ -2,8 +2,8 @@
 
 Format, alignment and sources: docs/GEO.md. Examples:
 
-    python -m doppler_print.prep.dem --case data/cases/livermore_N86LP_R01 --radius-km 25
-    python -m doppler_print.prep.dem --bbox -125 24 -66 50 --step 100 --name conus_100m
+    python -m dopplerprint.prep.dem --case data/cases/livermore_N86LP_R01 --radius-km 25
+    python -m dopplerprint.prep.dem --bbox -125 24 -66 50 --step 100 --name conus_100m
 """
 
 import argparse
@@ -15,7 +15,7 @@ from pathlib import Path
 
 import numpy as np
 
-from doppler_print.prep import dem_sources
+from dopplerprint.prep import dem_sources
 
 FORMAT = "dp-dem-u16-v1"
 SCALE_M, OFFSET_M, NODATA = 0.1, -100.0, 0

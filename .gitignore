@@ -3,8 +3,8 @@
 /reference/
 /data/*
 !/data/MANIFEST.md
-/research/samples/
-/research/transcript/transcript_raw.txt
+/docs/research/samples/
+/docs/research/transcript/transcript_raw.txt
 /research_notes/
 /runs/
 .venv/

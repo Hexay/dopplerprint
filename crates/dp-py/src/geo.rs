@@ -71,7 +71,7 @@ fn geoid_undulation<'py>(py: Python<'py>, lat: In<'py>, lon: In<'py>) -> PyResul
     map1(py, lat, lon, dem::geoid_undulation)
 }
 
-/// Memory-mapped EPSG:5070 ground raster from `doppler_print.prep.dem`. Heights are NaN off-raster.
+/// Memory-mapped EPSG:5070 ground raster from `dopplerprint.prep.dem`. Heights are NaN off-raster.
 #[pyclass(name = "Dem", frozen)]
 struct PyDem(Dem);
 

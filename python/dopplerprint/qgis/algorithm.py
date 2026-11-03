@@ -43,12 +43,12 @@ class LocateRecordingAlgorithm(QgsProcessingAlgorithm):
 
     def processAlgorithm(self, parameters, context, feedback):  # noqa: N802
         try:
-            import doppler_print
+            import dopplerprint
         except ImportError as e:
-            raise QgsProcessingException("doppler-print is not installed in QGIS's Python (pip install doppler-print)") from e
-        search = getattr(doppler_print, "search", None)
+            raise QgsProcessingException("dopplerprint is not installed in QGIS's Python (pip install dopplerprint)") from e
+        search = getattr(dopplerprint, "search", None)
         if search is None:
-            raise QgsProcessingException("this doppler_print build has no search() API yet")
+            raise QgsProcessingException("this dopplerprint build has no search() API yet")
 
         out = self.parameterAsFileOutput(parameters, self.OUTPUT, context)
         start = self.parameterAsDateTime(parameters, self.START, context)

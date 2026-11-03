@@ -1,5 +1,5 @@
 //! Drop non-ICAO (`~`, TIS-B / anonymous) tracks that shadow an ICAO track: FAA radar rebroadcasts of
-//! aircraft already seen on ADS-B (research/adsb_data.md §2.4). Unmatched `~` tracks stay as audible traffic.
+//! aircraft already seen on ADS-B (docs/research/adsb_data.md §2.4). Unmatched `~` tracks stay as audible traffic.
 
 use std::collections::HashMap;
 

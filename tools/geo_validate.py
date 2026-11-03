@@ -37,7 +37,7 @@ def main() -> None:
             print("({:.6f}, {:.6f}, {:.4f}, {:.4f}, {:.4f}),".format(*row))
         return
 
-    from doppler_print import _core
+    from dopplerprint import _core
 
     rng = np.random.default_rng(5070)
     lat = rng.uniform(CONUS[0], CONUS[1], a.n)

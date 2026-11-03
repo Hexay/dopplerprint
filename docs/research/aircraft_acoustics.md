@@ -2,7 +2,7 @@
 
 Scope: which aircraft produce Doppler-trackable tones, how loud they are and how far they carry, how stable
 f0 is, how to label engine type from ADS-B, and how ground reflection shapes the spectrogram. Context:
-`research/transcript/analysis.md`.
+`docs/research/transcript/analysis.md`.
 
 Evidence tags: **[S]** stated in a cited source. **[D]** derived here from cited inputs (formula shown).
 **[E]** engineering estimate or general acoustics knowledge, not verified this session. Calibrate every [E]

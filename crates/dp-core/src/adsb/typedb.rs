@@ -1,5 +1,5 @@
 //! icao24 / ICAO type designator → engine class.
-//! Join order (research/adsb_data.md §5): trace `t` → registry `aircraft.csv` type → ADS-B category → Unknown.
+//! Join order (docs/research/adsb_data.md §5): trace `t` → registry `aircraft.csv` type → ADS-B category → Unknown.
 
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read};

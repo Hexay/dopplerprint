@@ -5,13 +5,13 @@ from .algorithm import LocateRecordingAlgorithm
 
 class DopplerPrintProvider(QgsProcessingProvider):
     def id(self):
-        return "doppler_print"
+        return "dopplerprint"
 
     def name(self):
-        return "doppler_print"
+        return "dopplerprint"
 
     def longName(self):  # noqa: N802 (QGIS API name)
-        return "doppler_print: Doppler/ADS-B recording locator"
+        return "dopplerprint: Doppler/ADS-B recording locator"
 
     def loadAlgorithms(self):  # noqa: N802
         self.addAlgorithm(LocateRecordingAlgorithm())

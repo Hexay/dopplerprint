@@ -1,4 +1,4 @@
-//! readsb `trace_full_*.json` parser (adsb.lol / ADSBx globe_history). Field layout: research/adsb_data.md §2.1.
+//! readsb `trace_full_*.json` parser (adsb.lol / ADSBx globe_history). Field layout: docs/research/adsb_data.md §2.1.
 
 use std::fmt;
 use std::io::Read;

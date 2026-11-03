@@ -1,5 +1,5 @@
 //! Coverage table: distinct aircraft, track-seconds and airborne appear/vanish counts per coarse cell ×
-//! hour × altitude band. A detection-probability proxy for the silence stage (research/adsb_data.md §3):
+//! hour × altitude band. A detection-probability proxy for the silence stage (docs/research/adsb_data.md §3):
 //! many airborne vanishes at low bands mark the local reception floor.
 
 use std::collections::HashMap;

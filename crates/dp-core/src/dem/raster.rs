@@ -1,4 +1,4 @@
-//! Memory-mapped EPSG:5070 u16 ground raster written by python/doppler_print/prep/dem.py.
+//! Memory-mapped EPSG:5070 u16 ground raster written by python/dopplerprint/prep/dem.py.
 
 use std::path::Path;
 

@@ -2,7 +2,7 @@
 
 Scope: DEMs and geoids, fast distance math, candidate grid design, the Rust/Python crate stack, QGIS output, and
 atmosphere data. Researched 2026-11-03. Crate versions come from the crates.io API on that date. Method context:
-`research/transcript/analysis.md`. Reference implementation: `reference/thunderprint`, which uses rusqlite 0.40
+`docs/research/transcript/analysis.md`. Reference implementation: `reference/thunderprint`, which uses rusqlite 0.40
 (bundled), rustfft 6.2, hound, rayon 1.10, and hand-written GPKG with GP-header WKB in EPSG:4326 and no rtree or styles.
 
 Items marked **[verify]** were not confirmed from a primary source during this pass.

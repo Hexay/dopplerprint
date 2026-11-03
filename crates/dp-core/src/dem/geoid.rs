@@ -1,4 +1,4 @@
-//! EGM2008 undulation from the embedded CONUS crop built by python/doppler_print/prep/geoid.py.
+//! EGM2008 undulation from the embedded CONUS crop built by python/dopplerprint/prep/geoid.py.
 
 use std::sync::LazyLock;
 

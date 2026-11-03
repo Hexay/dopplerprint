@@ -1,8 +1,8 @@
 # ADS-B track store
 
 Built by `doppler-print ingest <archive> --out <store>` (`dp_core::adsb::ingest_day`). Read with
-`load_tracks` / `doppler-print tracks` / `doppler_print._core.load_tracks`. Source rationale:
-`research/adsb_data.md`.
+`load_tracks` / `doppler-print tracks` / `dopplerprint._core.load_tracks`. Source rationale:
+`docs/research/adsb_data.md`.
 
 ## Input
 

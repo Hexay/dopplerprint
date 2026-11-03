@@ -1,7 +1,7 @@
 """Crop PROJ-data's EGM2008 2.5' grid (us_nga_egm08_25.tif) to CONUS into the compact asset read by
 `dp_core::dem::geoid`. Binary layout: see docs/GEO.md "Geoid asset".
 
-    python -I -m doppler_print.prep.geoid SRC.tif assets/geoid/egm2008_conus_2p5.bin
+    python -I -m dopplerprint.prep.geoid SRC.tif assets/geoid/egm2008_conus_2p5.bin
 """
 
 import argparse
