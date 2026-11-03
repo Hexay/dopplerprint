@@ -21,6 +21,8 @@ pub trait Catalog: Sync {
 #[derive(Clone)]
 pub struct Nearby<'a> {
     pub track: &'a Track,
+    /// Position of `track` in `Catalog::all()`.
+    pub index: u32,
     pub bounds: &'a TrackBounds,
     /// Ascending indices of the chunks whose curve box meets the query cube; every other chunk's curve
     /// lies farther than `query_m` from the query point.
@@ -104,7 +106,13 @@ impl Catalog for MemCatalog {
                     t.points[ch.first..=ch.last].iter().any(|q| (q.pos - p).norm() <= reach)
                 };
                 (in_time && run.iter().any(point_near))
-                    .then(|| Nearby { track: t, bounds: b, chunks: run.iter().map(|h| h.1).collect(), query_m: reach })
+                    .then(|| Nearby {
+                        track: t,
+                        index: i as u32,
+                        bounds: b,
+                        chunks: run.iter().map(|h| h.1).collect(),
+                        query_m: reach,
+                    })
             })
             .collect()
     }

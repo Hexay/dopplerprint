@@ -28,11 +28,13 @@ fn best_f0(
     acc.clear();
     acc.resize(pr.n_steps, 0);
     let (step, top) = (fixed::pos(p.f0_step_bins), fixed::top(spec.n_f));
+    let mut covered = 0;
     for (i, frame) in pr.frames.clone().enumerate() {
         let off = pr.offsets[i + k];
         if off == fixed::NONE {
             continue;
         }
+        covered += 1;
         let row = spec.row(frame);
         for &(hs, w) in shifts {
             let base = pr.b0_start_fx + off + hs;
@@ -44,11 +46,11 @@ fn best_f0(
             }
         }
     }
-    let mut best = StepBest { z: f64::NEG_INFINITY, step: 0 };
+    let mut best = StepBest { z: f64::NEG_INFINITY, step: 0, covered };
     for (s, &a) in acc.iter().enumerate() {
         let z = fixed::total(a) / pr.norm;
         if z > best.z {
-            best = StepBest { z, step: s };
+            best = StepBest { z, step: s, covered };
         }
     }
     best

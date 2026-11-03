@@ -1,9 +1,11 @@
 //! Where the f0 sweep runs. `Auto` (default) uses CUDA when a usable NVIDIA GPU is present, else the CPU.
-//! Both give bit-identical scores (see search/gpu/mod.rs), so the choice only affects speed.
+//! Given the same Doppler offsets both sweeps are bit-identical; CUDA computes offsets on the device,
+//! equal to the CPU's to rounding (see search/gpu/mod.rs), so scores agree to ~1e-9 relative.
 
-use super::job::Job;
+use super::job::{Job, materialise};
 use super::score::{JointScore, ScoreMode, ScoreParams, ScoringPlane};
 use super::sweep;
+use crate::track::Track;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -65,43 +67,51 @@ impl<'a> Scorer<'a> {
         "cpu".into()
     }
 
-    /// One `JointScore` per job. A failing GPU launch is reported once per batch and rescored on the CPU.
-    pub fn score(&self, jobs: &[Job], p: &ScoreParams) -> Vec<Option<JointScore>> {
+    /// Whether jobs should leave their Doppler offsets to the scorer (`job::prepare_job_with`).
+    /// `DP_CUDA_HOST_OFFSETS=1` keeps them on the CPU: tools/gpu_parity.sh's sweep bit-identity check.
+    pub fn defers_offsets(&self) -> bool {
+        #[cfg(feature = "cuda")]
+        if self.gpu.is_some() {
+            return std::env::var_os("DP_CUDA_HOST_OFFSETS").is_none_or(|v| v != "1");
+        }
+        false
+    }
+
+    /// One `JointScore` per job; deferred offsets index `tracks`. A failing GPU launch is reported once
+    /// per batch and the batch is rescored on the CPU, offsets included.
+    pub fn score(&self, jobs: &mut [Job], p: &ScoreParams, tracks: &[Track]) -> Vec<Option<JointScore>> {
         if self.plane.mode == ScoreMode::PowerLlr {
+            materialise(&self.plane.spec, jobs, tracks);
             return super::power_llr::score_jobs(&self.plane.spec, jobs, p);
         }
         #[cfg(feature = "cuda")]
         if let Some(g) = &self.gpu {
-            match g.sweep(&self.plane.spec, jobs, p) {
-                Ok(table) => return assemble_table(self.plane, jobs, p, &table),
+            match g.sweep(&self.plane.spec, jobs, p, tracks) {
+                Ok((picks, evs)) => return joint_scores(self.plane, jobs, p, &picks, &evs),
                 Err(e) => eprintln!("warning: {e}; scoring this batch on the CPU"),
             }
         }
+        materialise(&self.plane.spec, jobs, tracks);
         sweep::score_jobs(&self.plane.spec, jobs, p)
     }
 }
 
+/// `JointScore`s from the GPU's picks; `evs` holds each job's events at its pick, in job order.
 #[cfg(feature = "cuda")]
-fn assemble_table(
+fn joint_scores(
     plane: &ScoringPlane,
     jobs: &[Job],
     p: &ScoreParams,
-    table: &[super::job::StepBest],
+    picks: &[super::job::Pick],
+    evs: &[super::job::StepBest],
 ) -> Vec<Option<JointScore>> {
-    use rayon::prelude::*;
-    let starts: Vec<usize> = jobs
-        .iter()
-        .scan(0, |base, job| {
-            let start = *base;
-            *base += job.events.len() * job.n_k();
-            Some(start)
-        })
-        .collect();
-    jobs.par_iter()
-        .zip(starts)
-        .map(|(job, base)| {
-            let n_k = job.n_k();
-            super::job::assemble(&plane.spec, job, p, |e, k| table[base + e * n_k + k])
+    let mut rest = evs;
+    jobs.iter()
+        .zip(picks)
+        .map(|(job, &pick)| {
+            let (win, tail) = rest.split_at(job.events.len());
+            rest = tail;
+            Some(super::job::joint(&plane.spec, job, p, pick, win))
         })
         .collect()
 }

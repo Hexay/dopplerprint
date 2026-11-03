@@ -1,0 +1,13 @@
+# Large scale benchmark (not an accuracy experiment): oysterbay parity with a 50 km radius (~7850 km², ~196k
+# coarse cells) and a ±60 min start prior. Shows how plan and score grow beyond scale_oysterbay_r25k.toml.
+[eval]
+cases = ["oysterbay"]
+region_radius_m = 50000.0
+region_offset_m = 450.0
+time_prior_s = 3600.0
+oracle_events = true
+
+[search]
+coarse_step_m = 200
+min_step_m = 25
+keep_top = 200

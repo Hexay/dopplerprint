@@ -9,7 +9,7 @@ use rayon::prelude::*;
 use super::backend::{Backend, Scorer};
 use super::catalog::{Catalog, Nearby};
 use super::hypothesis::{AssocParams, EventSpec, Hypothesis, associate, clock_window, cpa_reach_m};
-use super::job::{Job, prepare_job};
+use super::job::{Job, prepare_job_with};
 use super::score::{EventScore, EventTarget, JointScore, ScoreParams};
 use crate::dem::Dem;
 use crate::geo::albers::{self, Cell};
@@ -209,8 +209,8 @@ fn plan_batch<'c>(inp: &SearchInput<'c>, p: &SearchParams, cells: &[Cell]) -> Ba
     Batch { plans, jobs }
 }
 
-fn score_planned(inp: &SearchInput<'_>, p: &SearchParams, b: Batch<'_>) -> Vec<(Option<Candidate>, usize)> {
-    let mut scores = inp.scorer.score(&b.jobs, &p.score).into_iter();
+fn score_planned(inp: &SearchInput<'_>, p: &SearchParams, mut b: Batch<'_>) -> Vec<(Option<Candidate>, usize)> {
+    let mut scores = inp.scorer.score(&mut b.jobs, &p.score, inp.catalog.all()).into_iter();
     b.plans
         .iter()
         .map(|pl| (best_candidate(pl, scores.by_ref().take(pl.hyps.len()), p), pl.hyps.len()))
@@ -237,6 +237,7 @@ fn plan_cell<'c>(inp: &SearchInput<'c>, p: &SearchParams, cell: Cell) -> CellPla
     let cpas: Vec<_> = nearby.iter().map(|n| n.cpa(obs, &p.atmosphere, reach)).collect();
     let hyps = associate(inp.events, &cpas, inp.duration_s, &p.assoc, half_diag);
     let spec = &inp.scorer.plane().spec;
+    let defer = inp.scorer.defers_offsets();
     let jobs = hyps
         .iter()
         .map(|h| {
@@ -246,7 +247,8 @@ fn plan_cell<'c>(inp: &SearchInput<'c>, p: &SearchParams, cell: Cell) -> CellPla
                 .zip(&h.tracks)
                 .map(|(e, &ti)| EventTarget { track: nearby[ti].track, window: e.window, f0_range: e.f0_range })
                 .collect();
-            prepare_job(spec, &targets, obs, &p.atmosphere, h.clock, &p.score)
+            let index: Vec<u32> = h.tracks.iter().map(|&ti| nearby[ti].index).collect();
+            prepare_job_with(spec, &targets, defer.then_some(&index[..]), obs, &p.atmosphere, h.clock, &p.score)
         })
         .collect();
     CellPlan { cell, lat, lon, nearby, hyps, jobs }
