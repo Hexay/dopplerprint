@@ -34,7 +34,7 @@ pub fn locate(cfg: &Config, c: &mut Posed, events: &[Event], labels: &[Truthed],
         c.events = used.iter().map(|&i| EventSpec::from_event(&events[i])).collect();
         c.truth_flights = used.iter().map(|&i| labels[i].flight.clone()).collect();
         let r = run_case(cfg, c);
-        if r.status != "ok" || r.best.is_some() || used.len() <= 1 {
+        if r.status != "ok" || r.best.is_some() || r.abstained || used.len() <= 1 {
             return (r, used);
         }
         let weakest = (0..used.len()).min_by(|&a, &b| events[used[a]].snr.total_cmp(&events[used[b]].snr)).unwrap_or(0);

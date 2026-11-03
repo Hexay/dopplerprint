@@ -17,6 +17,7 @@ pub mod modes;
 pub mod pipeline;
 pub mod power_llr;
 pub mod score;
+pub mod silence;
 pub mod surface;
 mod sweep;
 

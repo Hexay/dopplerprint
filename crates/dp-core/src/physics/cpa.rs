@@ -95,6 +95,7 @@ fn finish(track: &Track, best: (f64, f64), obs: Vec3, atm: &Atmosphere) -> Optio
         t_arrive: best.0 + travel_time(obs - s.pos, &atm.medium(obs, s.pos)),
         slant_m: best.1.sqrt(),
         ground_speed: horiz.norm(),
+        at_track_end: track.points.first().is_some_and(|p| best.0 <= p.t) || track.points.last().is_some_and(|p| best.0 >= p.t),
     })
 }
 

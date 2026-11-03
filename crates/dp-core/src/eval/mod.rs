@@ -73,6 +73,9 @@ pub struct CaseResult {
     /// Where the atmosphere came from when `eval.weather` is set (see `eval::atmosphere::sourced`).
     #[serde(default)]
     pub weather: Option<String>,
+    /// No answer: the all-unexplained null won (`SearchResult::abstains`); `best` is None.
+    #[serde(default)]
+    pub abstained: bool,
     pub best: Option<Candidate>,
     pub tuples: Vec<Candidate>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -128,6 +131,7 @@ pub fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
     let region = displaced_region(c, e.region_offset_m, e.region_radius_m);
     let (base, weather) = atmosphere::sourced(p.atmosphere, c, e, &region);
     p.atmosphere = atmosphere::case_atmosphere(base, c, e);
+    p.assoc.silence.measure_recording(&c.audio, &cfg.spec);
     let variants = nuisance::variants(&p, c, e);
     // Not search::locate: the truth metrics need the plane and catalogue the search used.
     let t_plane = Instant::now();
@@ -153,7 +157,8 @@ pub fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
     let (res, chosen) = nuisance::merge(variants.iter().map(|q| search(&inp, q)).collect());
     let surface = Surface::new(&res.ranked, &inp.region, p.coarse_step_m);
     let tuples = best_per_tuple(&res.ranked);
-    let best = tuples.first().cloned();
+    let abstained = res.abstains();
+    let best = tuples.first().filter(|_| !abstained).cloned();
     let truth_ids: Option<Vec<String>> = c.truth_flights.iter().cloned().collect();
     let is_truth = |cand: &Candidate| truth_ids.as_ref().is_some_and(|t| same_flights(&cand.track_ids, t));
     let truth = Truth { lat: c.truth_lat, lon: c.truth_lon, flights: truth_ids.as_deref() };
@@ -171,7 +176,7 @@ pub fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
         id: c.id.clone(),
         status: "ok".into(),
         error_m: best.as_ref().map(|b| distance_m(b.lat_deg, b.lon_deg, c.truth_lat, c.truth_lon)),
-        flights_correct: truth_ids.as_ref().and(best.as_ref()).map(is_truth),
+        flights_correct: truth_ids.as_ref().and(best.as_ref()).map(is_truth).or(truth_ids.as_ref().filter(|_| abstained).map(|_| false)),
         truth_tuple_rank: tuples.iter().position(&is_truth).map(|i| i + 1),
         margin: match tuples.as_slice() {
             [a, b, ..] => Some(a.score - b.score),
@@ -188,9 +193,10 @@ pub fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
         metrics,
         atmosphere: Some(variants[chosen].atmosphere),
         truth_lat_lon: Some((c.truth_lat, c.truth_lon)),
-        coverage: Some(coverage::measure(&surface, c.truth_lat, c.truth_lon, coverage::Shape::of(&cal), &coverage::masses(&cal, c.events.len()))),
+        coverage: (!abstained).then(|| coverage::measure(&surface, c.truth_lat, c.truth_lon, coverage::Shape::of(&cal), &coverage::masses(&cal, c.events.len()))),
         surface: Some(surface),
         weather,
+        abstained,
         best,
         tuples: tuples.into_iter().take(10).collect(),
         global: None,

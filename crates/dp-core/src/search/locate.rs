@@ -33,6 +33,11 @@ impl SearchResult {
     pub fn from_json(s: &str) -> anyhow::Result<Self> {
         Ok(serde_json::from_str(s)?)
     }
+
+    /// No cell beats the all-unexplained null, so no location should be reported.
+    pub fn abstains(&self) -> bool {
+        self.null_score.is_some_and(|n| self.ranked.first().is_none_or(|b| b.score <= n))
+    }
 }
 
 /// `p.assoc.t_start_prior` and `p.flat_h_ell_m` must already be set by the caller.
@@ -50,5 +55,7 @@ pub fn locate(
     let scorer = Scorer::new(&plane, p.backend)?;
     let catalog = MemCatalog::new(tracks);
     let inp = SearchInput { scorer: &scorer, events, catalog: &catalog, region, duration_s: audio.duration_s(), dem };
-    Ok(search(&inp, p))
+    let mut p = p.clone();
+    p.assoc.silence.measure_recording(audio, spec);
+    Ok(search(&inp, &p))
 }

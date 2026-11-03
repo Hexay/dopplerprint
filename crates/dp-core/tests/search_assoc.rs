@@ -23,7 +23,7 @@ fn event(t_cpa: f64) -> EventSpec {
 }
 
 fn cpa(t_arrive: f64, slant_m: f64, ground_speed: f64) -> Option<Cpa> {
-    Some(Cpa { t_emit: t_arrive - slant_m / 340.0, t_arrive, slant_m, ground_speed })
+    Some(Cpa { t_emit: t_arrive - slant_m / 340.0, t_arrive, slant_m, ground_speed, at_track_end: false })
 }
 
 fn params(soft: SoftGates) -> AssocParams {
@@ -172,8 +172,8 @@ fn reach_and_clock_window_bound_every_admission_and_pruning_beyond_them_is_exact
                 assert_eq!(full.len(), cut.len());
                 for (a, b) in full.iter().zip(&cut) {
                     assert_eq!((&a.tracks, a.unexplained, a.gate_cost), (&b.tracks, b.unexplained, b.gate_cost));
-                    for (e, &i) in events.iter().zip(&a.tracks) {
-                        let c = cpas[i].unwrap();
+                    for (e, i) in events.iter().zip(&a.tracks) {
+                        let c = cpas[i.unwrap()].unwrap();
                         let clock = c.t_arrive - e.t_cpa_audio;
                         assert!(c.slant_m <= reach && clock >= w0 && clock <= w1);
                     }
@@ -205,7 +205,7 @@ fn cap_keeps_the_cheapest_hypotheses() {
     let t = T0 + 100.0;
     let cpas: Vec<Option<Cpa>> = (0..40).rev().map(|i| cpa(t, 2_000.0 + 50.0 * i as f64, 50.0)).collect();
     let h = associate(&[event(100.0)], &cpas, 600.0, &p, 0.0);
-    assert_eq!(h.iter().map(|h| h.tracks[0]).collect::<Vec<_>>(), vec![39, 38, 37]);
+    assert_eq!(h.iter().map(|h| h.tracks[0]).collect::<Vec<_>>(), vec![Some(39), Some(38), Some(37)]);
     assert_eq!(h[0].gate_cost, 0.0);
     assert!(h[1].gate_cost < h[2].gate_cost);
 }

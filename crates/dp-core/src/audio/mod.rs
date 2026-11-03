@@ -2,6 +2,7 @@
 
 mod decode;
 mod frontend;
+pub mod highpass;
 pub mod hum;
 mod lines;
 mod packet;

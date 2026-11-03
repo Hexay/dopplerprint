@@ -49,12 +49,13 @@ pub fn write(dir: &Path, cfg: &Config, results: &[CaseResult]) -> Result<()> {
     errs.sort_by(f64::total_cmp);
     let median = errs.get(errs.len() / 2).copied();
     let correct = ok.iter().filter(|r| r.flights_correct == Some(true)).count();
+    let abstained = ok.iter().filter(|r| r.abstained).count();
     let within = |m: f64| errs.iter().filter(|&&e| e <= m).count();
 
     let mut md = String::from("# doppler_print eval\n\n");
     let _ = writeln!(
         md,
-        "{} cases, {} ran, {} skipped. Correct flights {}/{}. Median error {} m; ≤100 m {}, ≤500 m {}.\n",
+        "{} cases, {} ran, {} skipped. Correct flights {}/{}. Median error {} m; ≤100 m {}, ≤300 m {}, ≤500 m {}. No answer (abstained) {}.\n",
         results.len(),
         ok.len(),
         results.len() - ok.len(),
@@ -62,7 +63,9 @@ pub fn write(dir: &Path, cfg: &Config, results: &[CaseResult]) -> Result<()> {
         ok.len(),
         opt(median, 1),
         within(100.0),
-        within(500.0)
+        within(300.0),
+        within(500.0),
+        abstained
     );
     md.push_str("| case | status | error m | flights | rank | margin | clock s | tracks | cells | s | lost at | gap | cell rank | log score | in 90% |\n");
     md.push_str("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n");

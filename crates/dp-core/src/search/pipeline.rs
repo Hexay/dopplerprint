@@ -11,6 +11,7 @@ use super::catalog::{Catalog, Nearby};
 use super::hypothesis::{AssocParams, EventSpec, Hypothesis, associate, clock_window, cpa_reach_m};
 use super::job::{Job, prepare_job_with};
 use super::score::{EventScore, EventTarget, JointScore, ScoreParams};
+use super::silence::score_per_nat;
 use crate::dem::Dem;
 use crate::geo::albers::{self, Cell};
 use crate::geo::{Geodetic, Vec3, geodetic_to_ecef};
@@ -87,6 +88,9 @@ pub struct SearchResult {
     pub ranked: Vec<Candidate>,
     pub cells_scored: usize,
     pub hypotheses_scored: usize,
+    /// All-unexplained null score (`AssocParams::null_score`); None when every event must take a flight.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub null_score: Option<f64>,
     /// Wall time per stage; not serialised, so ranking dumps stay comparable across runs.
     #[serde(skip)]
     pub timing: SearchTiming,
@@ -133,7 +137,8 @@ pub fn search(inp: &SearchInput<'_>, p: &SearchParams) -> SearchResult {
         all.extend(found);
         if step / 2 < p.min_step_m || next.is_empty() {
             all.sort_by(|a, b| b.score.total_cmp(&a.score));
-            return SearchResult { ranked: all, cells_scored: cells, hypotheses_scored: hyps, timing };
+            let null_score = p.assoc.null_score(inp.events.len());
+            return SearchResult { ranked: all, cells_scored: cells, hypotheses_scored: hyps, null_score, timing };
         }
         level = next;
     }
@@ -252,7 +257,7 @@ fn plan_cell<'c>(inp: &SearchInput<'c>, p: &SearchParams, cell: Cell) -> CellPla
                 .events
                 .iter()
                 .zip(&h.tracks)
-                .map(|(e, &ti)| EventTarget { track: nearby[ti].track, window: e.window, f0_range: e.f0_range })
+                .filter_map(|(e, ti)| ti.map(|ti| EventTarget { track: nearby[ti].track, window: e.window, f0_range: e.f0_range }))
                 .collect();
             let index: Vec<u32> = h.tracks.iter().map(|&ti| nearby[ti].index).collect();
             prepare_job_with(spec, &targets, defer.then_some(&index[..]), obs, &p.atmosphere, h.clock, &p.score)
@@ -267,9 +272,10 @@ fn best_candidate(
     p: &SearchParams,
 ) -> Option<Candidate> {
     let mut best: Option<Candidate> = None;
+    let per_nat = score_per_nat(p.score.mode, p.assoc.soft.z_per_nat);
     for (h, js) in pl.hyps.iter().zip(scores) {
         let Some(js) = js else { continue };
-        let score = js.total - h.penalty(&p.assoc);
+        let score = js.total - h.penalty(&p.assoc, per_nat);
         if best.as_ref().is_none_or(|b| score > b.score) {
             best = Some(Candidate {
                 cell: pl.cell,
@@ -278,8 +284,8 @@ fn best_candidate(
                 score,
                 raw: js.total,
                 clock: js.clock_offset,
-                track_ids: h.tracks.iter().map(|&i| pl.nearby[i].track.id.clone()).collect(),
-                events: js.events,
+                track_ids: h.track_ids(|i| pl.nearby[i].track.id.clone()),
+                events: h.per_event_scores(js.events),
                 unexplained: h.unexplained,
             });
         }

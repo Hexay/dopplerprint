@@ -1,14 +1,24 @@
 //! Per-cell association: which flights could explain each event, with one shared recording clock,
-//! plus the soft silence penalty for unexplained audible flights. Gate costs: see `soft`.
+//! plus the silence term for unexplained audible flights (`silence`). Gate costs: see `soft`.
+//!
+//! With `unexplained_cost` = Some(λ_u) an event may also stay unexplained (an unknown source or clutter):
+//! it is not scored and adds λ_u to the penalty. A hypothesis needs ≥ 1 explained event and takes its
+//! clock from the explained events only. The all-unexplained null scores −N·λ_u (silence 0: some cell in
+//! the region hears no flight), and the search abstains when no cell beats it (`SearchResult::abstains`).
 
 mod soft;
 
 pub use soft::{Admit, SoftGates};
 
+use super::score::EventScore;
+use super::silence::{SilenceMode, SilenceParams};
 use crate::physics::Cpa;
 
 /// Enumeration budget per cell, as a multiple of `max_hypotheses`, before keeping the cheapest.
 const ENUM_FACTOR: usize = 8;
+
+/// `Candidate::track_ids` entry of an unexplained event.
+pub const UNEXPLAINED_ID: &str = "";
 
 /// What the search needs to know about one audio event (from `events::Event` or oracle truth).
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -43,8 +53,11 @@ pub struct AssocParams {
     pub max_hypotheses: usize,
     /// Slant range (m) inside which an unassigned flight during the recording counts against a cell.
     pub silence_range_m: f64,
-    /// Score penalty per unexplained audible flight (z units).
+    /// Flat silence penalty per unexplained audible flight (score units).
     pub silence_penalty: f64,
+    pub silence: SilenceParams,
+    /// λ_u (score units) per unexplained event; None = every event takes a flight. Negative = a credit.
+    pub unexplained_cost: Option<f64>,
     pub soft: SoftGates,
 }
 
@@ -56,26 +69,68 @@ impl Default for AssocParams {
             max_hypotheses: 64,
             silence_range_m: 3_000.0,
             silence_penalty: 3.0,
+            silence: SilenceParams::default(),
+            unexplained_cost: None,
             soft: SoftGates::default(),
         }
+    }
+}
+
+impl AssocParams {
+    /// Score of the all-unexplained null for `n_events`, when events may stay unexplained.
+    pub fn null_score(&self, n_events: usize) -> Option<f64> {
+        self.unexplained_cost.map(|l| -(n_events as f64) * l)
     }
 }
 
 /// One way the recording could be explained from a cell: track index per event and the clock.
 #[derive(Clone, Debug)]
 pub struct Hypothesis {
-    pub tracks: Vec<usize>,
+    /// Track index per event; None = the event is unexplained.
+    pub tracks: Vec<Option<usize>>,
     /// UNIX = audio + clock.
     pub clock: f64,
+    /// Audible flights no event is assigned to.
     pub unexplained: usize,
     /// Summed soft-gate cost of the pairings (z units).
     pub gate_cost: f64,
+    /// Likelihood-mode silence cost (nats).
+    pub silence_nats: f64,
 }
 
 impl Hypothesis {
-    /// Everything subtracted from the joint score: gate cost plus the silence penalty.
-    pub fn penalty(&self, p: &AssocParams) -> f64 {
-        self.gate_cost + p.silence_penalty * self.unexplained as f64
+    /// Everything subtracted from the joint score; `per_nat` = score units per nat (`silence::score_per_nat`).
+    pub fn penalty(&self, p: &AssocParams, per_nat: f64) -> f64 {
+        let silence = match p.silence.mode {
+            SilenceMode::Flat => p.silence_penalty * self.unexplained as f64,
+            SilenceMode::Likelihood => per_nat * self.silence_nats,
+        };
+        let base = self.gate_cost + silence;
+        match p.unexplained_cost {
+            Some(l) => base + l * self.n_unexplained_events() as f64,
+            None => base,
+        }
+    }
+
+    pub fn n_unexplained_events(&self) -> usize {
+        self.tracks.iter().filter(|t| t.is_none()).count()
+    }
+
+    /// Per-event ids, `UNEXPLAINED_ID` for unexplained events.
+    pub fn track_ids(&self, id: impl Fn(usize) -> String) -> Vec<String> {
+        self.tracks.iter().map(|t| t.map_or_else(|| UNEXPLAINED_ID.to_string(), &id)).collect()
+    }
+
+    /// Per-event scores from the explained events' scores (in event order); unexplained events get z = 0.
+    pub fn per_event_scores(&self, scored: Vec<EventScore>) -> Vec<EventScore> {
+        let mut it = scored.into_iter();
+        self.tracks
+            .iter()
+            .map(|t| match t {
+                Some(_) => it.next().expect("one score per explained event"),
+                None => EventScore { z: 0.0, f0: 0.0, coverage: 0.0 },
+            })
+            .collect()
     }
 }
 
@@ -89,7 +144,7 @@ pub fn associate(
     half_diag_m: f64,
 ) -> Vec<Hypothesis> {
     let slack = p.soft.slack_m(half_diag_m);
-    let options: Vec<Vec<(usize, Admit)>> = events
+    let options: Vec<Vec<Choice>> = events
         .iter()
         .map(|e| {
             let mut o: Vec<(usize, Admit)> = cpas
@@ -98,17 +153,23 @@ pub fn associate(
                 .filter_map(|(i, c)| c.as_ref().and_then(|c| p.soft.admit(e, c, p.t_start_prior, slack)).map(|a| (i, a)))
                 .collect();
             o.sort_by(|a, b| a.1.cost_z.total_cmp(&b.1.cost_z));
-            o
+            // Unexplained first, so the enumeration budget cannot starve it.
+            p.unexplained_cost.map(|_| None).into_iter().chain(o.into_iter().map(Some)).collect()
         })
         .collect();
     let mut out = Vec::new();
     let mut stack = Vec::with_capacity(events.len());
     let budget = p.max_hypotheses.saturating_mul(ENUM_FACTOR);
     expand(&options, &mut stack, p, budget, &mut out);
-    out.sort_by(|a, b| a.gate_cost.total_cmp(&b.gate_cost));
+    // A credit (λ_u < 0) does not rank a partial hypothesis ahead of a full one; ties keep the fuller.
+    let rank = |h: &Hypothesis| match p.unexplained_cost {
+        Some(l) => h.gate_cost + l.max(0.0) * h.n_unexplained_events() as f64,
+        None => h.gate_cost,
+    };
+    out.sort_by(|a, b| rank(a).total_cmp(&rank(b)).then(a.n_unexplained_events().cmp(&b.n_unexplained_events())));
     out.truncate(p.max_hypotheses);
     for h in &mut out {
-        h.unexplained = unexplained(cpas, h, duration_s, p);
+        silence(cpas, h, duration_s, p);
     }
     out
 }
@@ -126,34 +187,55 @@ pub fn clock_window(events: &[EventSpec], p: &AssocParams, half_diag_m: f64) -> 
     let pad = events.iter().map(|e| p.soft.max_clock_pad_s(e, slack)).fold(0.0, f64::max);
     (p.t_start_prior.0 - pad, p.t_start_prior.1 + pad)
 }
-fn expand(opts: &[Vec<(usize, Admit)>], stack: &mut Vec<(usize, Admit)>, p: &AssocParams, budget: usize, out: &mut Vec<Hypothesis>) {
+
+/// One event's pairing; None = unexplained.
+type Choice = Option<(usize, Admit)>;
+
+fn expand(opts: &[Vec<Choice>], stack: &mut Vec<Choice>, p: &AssocParams, budget: usize, out: &mut Vec<Hypothesis>) {
     if out.len() >= budget {
         return;
     }
     if stack.len() == opts.len() {
+        let n = stack.iter().flatten().count();
+        if n == 0 {
+            return;
+        }
         // Plain mean on purpose: an inverse-σ_t² mean moved N788BM_R03 41 → 364 m (band width ≠ error).
-        let clock = stack.iter().map(|s| s.1.clock).sum::<f64>() / stack.len() as f64;
-        let gate_cost = stack.iter().map(|s| s.1.cost_z).sum();
-        out.push(Hypothesis { tracks: stack.iter().map(|s| s.0).collect(), clock, unexplained: 0, gate_cost });
+        let clock = stack.iter().flatten().map(|s| s.1.clock).sum::<f64>() / n as f64;
+        let gate_cost = stack.iter().flatten().map(|s| s.1.cost_z).sum();
+        let tracks = stack.iter().map(|s| s.map(|s| s.0)).collect();
+        out.push(Hypothesis { tracks, clock, unexplained: 0, gate_cost, silence_nats: 0.0 });
         return;
     }
-    for &(i, a) in &opts[stack.len()] {
-        let distinct = stack.iter().all(|s| s.0 != i);
-        let agrees = stack.iter().all(|s| (s.1.clock - a.clock).abs() <= p.clock_tol_s + s.1.tau_s + a.tau_s);
-        if distinct && agrees {
-            stack.push((i, a));
+    for &c in &opts[stack.len()] {
+        let fits = c.is_none_or(|(i, a)| {
+            stack.iter().flatten().all(|s| s.0 != i && (s.1.clock - a.clock).abs() <= p.clock_tol_s + s.1.tau_s + a.tau_s)
+        });
+        if fits {
+            stack.push(c);
             expand(opts, stack, p, budget, out);
             stack.pop();
         }
     }
 }
 
-fn unexplained(cpas: &[Option<Cpa>], h: &Hypothesis, duration_s: f64, p: &AssocParams) -> usize {
+/// Sets the silence count and likelihood cost of `h`: audible flights whose CPA sound arrives during
+/// the recording and that no event is assigned to.
+fn silence(cpas: &[Option<Cpa>], h: &mut Hypothesis, duration_s: f64, p: &AssocParams) {
     let (a, b) = (h.clock, h.clock + duration_s);
-    cpas.iter()
+    let s = &p.silence;
+    let silent = cpas
+        .iter()
         .enumerate()
-        .filter(|(i, _)| !h.tracks.contains(i))
-        .filter_map(|(_, c)| *c)
-        .filter(|c| c.t_arrive >= a && c.t_arrive <= b && c.slant_m <= p.silence_range_m)
-        .count()
+        .filter(|(i, _)| !h.tracks.contains(&Some(*i)))
+        .filter_map(|(_, c)| c.as_ref())
+        .filter(|c| c.t_arrive >= a && c.t_arrive <= b && c.slant_m <= p.silence_range_m && s.counts(c));
+    let (mut n, mut nats) = (0, 0.0);
+    for c in silent {
+        n += 1;
+        if s.mode == SilenceMode::Likelihood {
+            nats += s.miss_cost_nats(c.slant_m);
+        }
+    }
+    (h.unexplained, h.silence_nats) = (n, nats);
 }

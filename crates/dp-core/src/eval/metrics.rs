@@ -67,7 +67,7 @@ pub fn measure(inp: &SearchInput<'_>, ps: &[SearchParams], res: &SearchResult, t
         score_gap: best.zip(truth_score).map(|(b, s)| b - s),
         ..Default::default()
     };
-    posterior(inp, p, &res.ranked, t, pp, &mut m);
+    posterior(inp, p, &res.ranked, t, pp, res.abstains(), &mut m);
     m
 }
 
@@ -107,7 +107,7 @@ fn flight_stages(inp: &SearchInput<'_>, ps: &[SearchParams], t: &Truth<'_>) -> V
     for q in ps {
         let cpas: Vec<_> = nearby.iter().map(|n| n.cpa(obs, &q.atmosphere, cpa_reach_m(inp.events, &q.assoc, 0.0))).collect();
         let hyps = associate(inp.events, &cpas, inp.duration_s, &q.assoc, 0.0);
-        assoc_ok |= hyps.iter().any(|h| h.tracks.iter().zip(truth).all(|(&i, f)| same_flight(&near[i].id, f)));
+        assoc_ok |= hyps.iter().any(|h| h.tracks.iter().zip(truth).all(|(i, f)| i.is_some_and(|i| same_flight(&near[i].id, f))));
         n_hyps = n_hyps.max(hyps.len());
     }
     vec![
@@ -139,11 +139,16 @@ fn level_stages(p: &SearchParams, res: &SearchResult, t: &Truth<'_>) -> Vec<Stag
     }
 }
 
-fn posterior(inp: &SearchInput<'_>, p: &SearchParams, ranked: &[Candidate], t: &Truth<'_>, pp: PosteriorParams, m: &mut Metrics) {
+/// An abstained search gets the uniform posterior's log score and no region.
+fn posterior(inp: &SearchInput<'_>, p: &SearchParams, ranked: &[Candidate], t: &Truth<'_>, pp: PosteriorParams, abstained: bool, m: &mut Metrics) {
     let step = p.coarse_step_m;
     let cells = coarse_cells(&inp.region, step);
     let truth = Cell::of(albers::forward(t.lat, t.lon), step);
     if cells.is_empty() || !cells.contains(&truth) {
+        return;
+    }
+    if abstained {
+        m.log_score = Some(-(cells.len() as f64).ln());
         return;
     }
     let mut best: HashMap<Cell, f64> = HashMap::new();

@@ -21,6 +21,7 @@ use crate::audio::{self, Audio};
 use crate::config::Config;
 use crate::dem::{Dem, geoid_undulation};
 use crate::events::{DiscoverConfig, Event, discover_refined, select};
+use crate::search::hypothesis::UNEXPLAINED_ID;
 use crate::search::{self, EventSpec, Region, SearchParams, SearchResult};
 use crate::track::Track;
 
@@ -98,6 +99,9 @@ fn steps(req: &LocateRequest, ui: &dyn Ui, rep: &mut Report, started: Instant) -
     let (res, used) = search_dropping_weakest(&audio, events, &tracks, &area, dem.as_ref(), &cfg, &p)?;
     rep.cells_scored = res.cells_scored;
     rep.events_used = used.len();
+    if res.abstains() {
+        return stop(rep, "no logged flight explains the passes heard better than an unknown aircraft would; no location is reported.");
+    }
     let Some(best) = res.ranked.first() else {
         let msg = format!(
             "none of the {} passes heard matches a logged flight within {:.0} km of {} for a start between {} and {}; check --start (and its UTC offset) and --near.",
@@ -121,7 +125,8 @@ fn steps(req: &LocateRequest, ui: &dyn Ui, rep: &mut Report, started: Instant) -
     let t_cpa: Vec<f64> = used.iter().map(|e| e.fit.best.t_cpa_arrive).collect();
     rep.aircraft = matched(best, &t_cpa, &tracks, &|icao| regs.get(&icao).cloned());
     rep.clock = Some(Clock { start_unix: best.clock, start_utc: fmt_utc(best.clock), offset_from_given_s: best.clock - prior.nominal });
-    let weakest = best.events.iter().enumerate().min_by(|a, b| a.1.z.total_cmp(&b.1.z));
+    let explained = |i: &(usize, &search::score::EventScore)| best.track_ids[i.0] != UNEXPLAINED_ID;
+    let weakest = best.events.iter().enumerate().filter(explained).min_by(|a, b| a.1.z.total_cmp(&b.1.z));
     match weakest {
         Some((i, w)) if w.z < MIN_EVENT_Z => {
             rep.status = Status::Inconclusive;

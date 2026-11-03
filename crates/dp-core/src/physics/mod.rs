@@ -66,6 +66,9 @@ pub struct Cpa {
     pub t_arrive: f64,
     pub slant_m: f64,
     pub ground_speed: f64,
+    /// The minimum is the track's first or last point: coverage began or ended, the true CPA is unseen.
+    #[serde(default)]
+    pub at_track_end: bool,
 }
 
 /// Cold-start emission solve. For sequences use `doppler_factors` or `emission::emission_warm`.
