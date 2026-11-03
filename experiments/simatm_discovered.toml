@@ -1,0 +1,12 @@
+# simatm_model_default.toml searched with discovered events (oracle alongside as baseline).
+# Run with --sim-dir experiments/sim_atm or any experiments/sim_chain_<preset>.
+[eval]
+cases = ["sim_atm"]
+time_prior_s = 5.0
+oracle_events = false
+
+[search]
+keep_top = 100
+
+[search.score]
+clock_sweep_s = 2.0

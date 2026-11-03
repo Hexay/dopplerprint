@@ -9,6 +9,7 @@ pub mod calibrate;
 pub mod compare;
 pub mod conformal;
 pub mod coverage;
+pub mod discovered;
 pub mod global;
 pub mod livermore;
 pub mod metrics;
@@ -90,6 +91,9 @@ pub struct CaseTiming {
 }
 
 pub fn run(cfg: &Config, sim_dir: &Path, out_dir: &Path) -> Result<Vec<CaseResult>> {
+    if !cfg.eval.oracle_events {
+        return discovered::run(cfg, sim_dir, out_dir);
+    }
     std::fs::create_dir_all(out_dir)?;
     let mut results = Vec::new();
     for src in case::list(&cfg.eval, sim_dir)? {

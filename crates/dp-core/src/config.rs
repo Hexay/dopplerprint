@@ -23,7 +23,10 @@ pub struct EvalParams {
     /// Recording-start prior half-width around the true start (s).
     pub time_prior_s: f64,
     /// Use truth event windows/CPA times instead of automatic discovery (isolates the search stage).
+    /// `false`: search with discovered events, oracle alongside as baseline (see `eval::discovered`).
     pub oracle_events: bool,
+    /// Front end and truth matching for `oracle_events = false`.
+    pub discovery: crate::eval::discovered::DiscoveryParams,
     /// ± fraction around oracle f0 when `oracle_events`.
     pub oracle_f0_frac: f64,
     /// Slant-range and speed bounds used for oracle events (truth has neither).
@@ -76,6 +79,7 @@ impl Default for EvalParams {
             region_offset_m: 1_500.0,
             time_prior_s: 120.0,
             oracle_events: true,
+            discovery: Default::default(),
             oracle_f0_frac: 0.06,
             oracle_d_range: (300.0, 8_000.0),
             oracle_v_range: (25.0, 170.0),
