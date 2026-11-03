@@ -6,7 +6,13 @@ license.workspace = true
 repository.workspace = true
 homepage.workspace = true
 
+[features]
+default = ["net"]
+# Downloads (ADS-B days, type DB) and place-name geocoding for `app::locate`.
+net = ["dep:ureq"]
+
 [dependencies]
+ureq = { version = "3", default-features = false, features = ["rustls"], optional = true }
 anyhow.workspace = true
 thiserror.workspace = true
 serde.workspace = true
