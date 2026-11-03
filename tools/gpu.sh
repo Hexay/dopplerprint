@@ -13,7 +13,10 @@ REMOTE=/root/doppler_print
 case "${1:-}" in
   sync)
     RS=(rsync -az --delete -e "ssh -o BatchMode=yes -p $PORT")
+    # The main checkout also holds .uv-cache/, reference/ and .claude/worktrees/ (2.5 GB, 35k files); the box needs none.
     "${RS[@]}" --exclude /data/ --exclude target/ --exclude .git/ --exclude .venv/ --exclude runs/ --exclude .gpu-host \
+      --exclude /.claude/ --exclude /.uv-cache/ --exclude /reference/ --exclude /research_notes/ \
+      --exclude .ruff_cache/ --exclude __pycache__/ --exclude '*.so' --exclude /docs/research/samples/ \
       "$ROOT/" "$HOST:$REMOTE/"
     DATA="$MAIN/data"
     # ADS-B store: only the days of cases that read it (oysterbay parity); other cases carry their own adsb/.

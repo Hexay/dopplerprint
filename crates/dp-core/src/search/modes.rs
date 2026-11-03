@@ -64,6 +64,40 @@ pub fn modes(s: &Surface, post: &Posterior, temperature: f64, persistence_nats: 
     collect(s, post, &mut parent, level)
 }
 
+/// Depth (nats below the peak) of the core whose centre is reported; chosen on Livermore dev, see
+/// docs/research/refine_keep_mode_centre_2026-11-03.md.
+pub const ANSWER_DEPTH_NATS: f64 = 0.5;
+
+/// The reported location: `core_centroid` of the best-scoring leaf.
+pub fn answer(s: &Surface, post: &Posterior, m: &Modes, temperature: f64) -> Option<(f64, f64)> {
+    let peak = (0..s.leaves.len()).max_by(|&a, &b| s.leaves[a].score.total_cmp(&s.leaves[b].score))?;
+    Some(core_centroid(s, post, m, temperature, peak, ANSWER_DEPTH_NATS))
+}
+
+/// Probability-weighted centre (lat, lon) of the leaves of `peak`'s mode connected to it and scoring within
+/// `depth_nats` of it. Not the basin centroid: a basin can join two clusters, e.g. a mirror pair, over a
+/// saddle shallower than the merge persistence, and its centroid then falls between them.
+pub fn core_centroid(s: &Surface, post: &Posterior, m: &Modes, temperature: f64, peak: usize, depth_nats: f64) -> (f64, f64) {
+    let floor = s.leaves[peak].score - depth_nats * temperature;
+    let mode = m.label[peak];
+    let nb = Neighbours::new(s);
+    let mut seen = vec![false; s.leaves.len()];
+    seen[peak] = true;
+    let mut stack = vec![peak];
+    let (mut mass, mut x, mut y) = (0.0, 0.0, 0.0);
+    while let Some(i) = stack.pop() {
+        let (w, c) = (post.mass(i), s.leaves[i].cell.center());
+        (mass, x, y) = (mass + w, x + w * c.x, y + w * c.y);
+        for j in nb.of(s, i) {
+            if !seen[j] && m.label[j] == mode && s.leaves[j].score >= floor {
+                seen[j] = true;
+                stack.push(j);
+            }
+        }
+    }
+    albers::inverse(Xy { x: x / mass, y: y / mass })
+}
+
 fn find(parent: &mut [usize], mut i: usize) -> usize {
     while parent[i] != i {
         parent[i] = parent[parent[i]];
@@ -178,6 +212,13 @@ mod tests {
         let total: f64 = m.modes.iter().map(|x| x.mass).sum();
         assert!((total - 1.0).abs() < 1e-9 && m.modes[0].mass > m.modes[1].mass);
         assert_eq!(m.by_peak(), Some(0));
+        // Core of the left peak: deep enough for the ripple (cells 1..3), never across the valley to the mirror.
+        let x = |depth| albers::forward(core_centroid(&s, &p, &m, 1.0, 1, depth).0, core_centroid(&s, &p, &m, 1.0, 1, depth).1).x;
+        assert!((x(0.5) - 150.0).abs() < 1.0);
+        assert!(x(1.5) > 150.0 && x(1.5) < 350.0);
+        assert!(x(50.0) < 450.0, "never pulled toward the mirror at x=750");
+        let (lat, lon) = answer(&s, &p, &m, 1.0).unwrap();
+        assert!((albers::forward(lat, lon).x - x(ANSWER_DEPTH_NATS)).abs() < 1e-6);
     }
 
     #[test]

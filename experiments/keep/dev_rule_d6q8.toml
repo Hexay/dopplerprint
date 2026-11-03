@@ -1,0 +1,24 @@
+# Hypothesis: keeping every cell within 6 nats of the level's best plus the best 8 cells of every basin
+# within 12 nats (search/keep.rs) keeps truths that keep_top drops on ridges and mirrors. Needs the
+# pipeline.rs keep hook (an unknown [search.keep] table is ignored without it). Paired against dev_k200.toml.
+[eval]
+cases = ["livermore"]
+split = "dev"
+data_dir = "/srv/agents/work/doppler_print/data"
+store_dir = "/srv/agents/work/doppler_print/data/adsb/store"
+time_prior_s = 2.0
+oracle_d_range = [150.0, 8000.0]
+oracle_v_range = [20.0, 250.0]
+oracle_events = false
+
+[search]
+keep_top = 200
+
+[search.keep]
+delta_nats = 6.0
+per_basin = 8
+basin_delta_nats = 12.0
+cap = 3000
+
+[search.score]
+clock_sweep_s = 2.0

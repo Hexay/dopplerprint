@@ -1,11 +1,13 @@
 //! Truth-referenced scores of the area-weighted posterior over refined cells at one temperature: log score,
 //! HPD-split score, region areas, and which mode (by peak or by mass) holds the truth.
 
-use crate::search::modes::{Modes, modes};
+use crate::search::modes::{Modes, answer, core_centroid, modes};
 use crate::search::surface::Surface;
 
 /// Nominal HPD masses reported everywhere.
 pub const NOMINAL: [f64; 3] = [0.5, 0.8, 0.9];
+/// Core depths whose centroid error is recorded (`Coverage::core_err_m`).
+pub const CORE_DEPTHS_NATS: [f64; 4] = [0.5, 1.0, 2.0, 4.0];
 /// Modes lighter than this are not counted or offered as alternatives.
 pub const MIN_MODE_MASS: f64 = 0.01;
 /// Same-flight modes closer than this are one solution, not a mirror pair.
@@ -59,6 +61,13 @@ pub struct Coverage {
     pub mode_loss_peak: Option<f64>,
     pub mass_choice_err_m: Option<f64>,
     pub peak_choice_err_m: Option<f64>,
+    /// Error of the probability-weighted centroid of the heaviest mode, and of the peak's mode.
+    pub mass_centroid_err_m: Option<f64>,
+    pub peak_centroid_err_m: Option<f64>,
+    /// Error of the peak's core centroid (`modes::core_centroid`) at each of CORE_DEPTHS_NATS.
+    pub core_err_m: Vec<f64>,
+    /// Error of the reported answer (`modes::answer`).
+    pub answer_err_m: Option<f64>,
     /// Heaviest mode and its heaviest same-flight rival ≥ 300 m away, when the truth is in one of them.
     pub mirror: Option<Mirror>,
 }
@@ -81,6 +90,13 @@ pub fn measure(s: &Surface, lat: f64, lon: f64, sh: Shape, masses: &[f64]) -> Co
     let top = m.modes.iter().map(|x| x.peak_score).fold(f64::NEG_INFINITY, f64::max);
     let zp: f64 = m.modes.iter().map(|x| ((x.peak_score - top) / sh.temperature).exp()).sum();
     let err = |k: usize| m.modes.get(k).map(|x| super::distance_m(x.lat, x.lon, lat, lon));
+    let err_c = |k: usize| m.modes.get(k).map(|x| super::distance_m(x.centroid_lat, x.centroid_lon, lat, lon));
+    let err_at = |p: (f64, f64)| super::distance_m(p.0, p.1, lat, lon);
+    let peak = (0..s.leaves.len()).max_by(|&a, &b| s.leaves[a].score.total_cmp(&s.leaves[b].score));
+    let core_err_m = peak.map_or_else(Vec::new, |pk| {
+        CORE_DEPTHS_NATS.iter().map(|&d| err_at(core_centroid(s, &post, &m, sh.temperature, pk, d))).collect()
+    });
+    let answer_err_m = answer(s, &post, &m, sh.temperature).map(err_at);
     Coverage {
         temperature: sh.temperature,
         log_score: d.ln(),
@@ -94,6 +110,10 @@ pub fn measure(s: &Surface, lat: f64, lon: f64, sh: Shape, masses: &[f64]) -> Co
         mode_loss_peak: truth_mode.map(|k| -(((m.modes[k].peak_score - top) / sh.temperature).exp() / zp).ln()),
         mass_choice_err_m: err(0),
         peak_choice_err_m: err(peak_mode),
+        mass_centroid_err_m: err_c(0),
+        peak_centroid_err_m: err_c(peak_mode),
+        core_err_m,
+        answer_err_m,
         mirror: mirror(&m, truth_mode),
     }
 }

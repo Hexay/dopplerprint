@@ -91,7 +91,10 @@ fn plain(msg: &str) -> String {
 fn summary(rep: &Report) -> Summary {
     let alt = rep.alternatives.first();
     Summary {
-        best: rep.location.as_ref().map(|l| Location { lat: l.lat, lon: l.lon, radius_m: None }),
+        best: match (&rep.posterior, &rep.location) {
+            (Some(p), Some(_)) => Some(Location { lat: p.answer.lat, lon: p.answer.lon, radius_m: None }),
+            (_, l) => l.as_ref().map(|l| Location { lat: l.lat, lon: l.lon, radius_m: None }),
+        },
         confidence: rep.confidence.as_ref().map(|c| c.level.clone()),
         ambiguity: alt.map(|a| {
             let at = format!("{:.1} km {}", a.distance_km, a.direction);

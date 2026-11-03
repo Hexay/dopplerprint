@@ -15,9 +15,16 @@ pub fn render(r: &Report) -> String {
     }
     s.push('\n');
     match (r.status, &r.location) {
-        (Status::Found, Some(l)) => {
-            let _ = writeln!(s, "\nFound:       {:.5}, {:.5}\n             {}", l.lat, l.lon, l.osm_url);
-        }
+        (Status::Found, Some(l)) => match &r.posterior {
+            Some(p) => {
+                let a = &p.answer;
+                let _ = writeln!(s, "\nFound:       {:.5}, {:.5} (centre of the best solution)\n             {}", a.lat, a.lon, a.osm_url);
+                let _ = writeln!(s, "             best-scoring cell {:.5}, {:.5} is {:.0} m away", l.lat, l.lon, a.from_peak_m);
+            }
+            None => {
+                let _ = writeln!(s, "\nFound:       {:.5}, {:.5}\n             {}", l.lat, l.lon, l.osm_url);
+            }
+        },
         (Status::Inconclusive, _) => {
             let _ = writeln!(s, "\nInconclusive: {}", r.message.as_deref().unwrap_or("no location stands out"));
         }
@@ -126,7 +133,7 @@ mod tests {
 
     fn mode(probability: f64, mirror: bool) -> ModeReport {
         let direction = "NE".into();
-        ModeReport { lat: 0.0, lon: 0.0, probability, region_km2: 0.2, distance_km: 1.2, direction, same_aircraft: true, mirror }
+        ModeReport { lat: 0.0, lon: 0.0, centroid_lat: 0.0, centroid_lon: 0.0, probability, region_km2: 0.2, distance_km: 1.2, direction, same_aircraft: true, mirror }
     }
 
     #[test]
@@ -137,6 +144,7 @@ mod tests {
             calibrated: true,
             source: "real".into(),
             area_km2: 0.4,
+            answer: crate::app::posterior::Answer { lat: 0.0, lon: 0.0, osm_url: String::new(), from_peak_m: 0.0 },
             modes: vec![mode(0.77, false), mode(0.23, true)],
             side_resolved: false,
         };

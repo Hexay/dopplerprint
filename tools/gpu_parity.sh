@@ -4,29 +4,39 @@
 # PASS/FAIL sweep = CPU vs CUDA on host offsets (DP_CUDA_HOST_OFFSETS=1), must be bit-identical.
 # PASS/FAIL e2e   = CPU vs CUDA with device offsets: same ranking keys, scores within TOL relative.
 # DRIFT           = vs the f64 reference. Usage: tools/gpu_parity.sh   (syncs first).
+# DP_PROFILE=fastrel|release (default fastrel: no LTO, incremental; results are profile-independent).
+# CPU outputs are reused when no CPU-side input changed (key: crates/ minus search/gpu, manifests, experiment,
+# profile); DP_PARITY_FULL=1 forces the CPU runs.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 "$ROOT/tools/gpu.sh" sync
-"$ROOT/tools/gpu.sh" run bash -s <<'EOF'
+"$ROOT/tools/gpu.sh" run "P=${DP_PROFILE:-fastrel} FULL=${DP_PARITY_FULL:-0} bash -s" <<'EOF'
 set -euo pipefail
-cargo build -q --release -p dp-cli 2>&1 | tail -n 20
+EXP=experiments/oysterbay_dg_parity.toml
+BIN=target/$P/dopplerprint
+KEY=$( (find crates Cargo.toml Cargo.lock $EXP -type f -not -path 'crates/dp-core/src/search/gpu/*' -print0 \
+  | sort -z | xargs -0 sha256sum; echo "$P") | sha256sum | cut -c1-16)
+REUSE=$([[ $FULL == 0 && -f /root/ref/cpu.key && $(cat /root/ref/cpu.key) == "$KEY" ]] && echo 1 || echo 0)
+[[ $REUSE == 1 ]] && echo "cpu: reusing outputs for key $KEY (DP_PARITY_FULL=1 to rerun)"
+cargo build -q --profile "$P" -p dp-cli 2>&1 | tail -n 20
 T='test(two_event_search_recovers_observer)'
 dump() {  # name, then env assignments
   local name=$1; shift
-  env "$@" DP_SEARCH_DUMP=/root/ref/dump_$name.json cargo nextest run --release -p dp-core --cargo-quiet \
-    --run-ignored all --no-capture -E "$T" 2>&1 | grep -E "scoring on|PASS|FAIL" | head -n 3
+  env "$@" DP_SEARCH_DUMP=/root/ref/dump_$name.json cargo nextest run --cargo-profile "$P" -p dp-core \
+    --test search_pipeline --cargo-quiet --run-ignored all --no-capture -E "$T" 2>&1 | grep -E "scoring on|PASS|FAIL" | head -n 3
 }
-dump cpu DP_BACKEND=cpu
+[[ $REUSE == 0 ]] && dump cpu DP_BACKEND=cpu
 dump cudahost DP_BACKEND=cuda DP_CUDA_HOST_OFFSETS=1
 dump cuda DP_BACKEND=cuda
 cmp -s /root/ref/dump_cpu.json /root/ref/dump_cudahost.json && echo "PASS sweep dump cpu == cuda(host offsets)" \
   || echo "FAIL sweep dump cpu != cuda(host offsets)"
-EXP=experiments/oysterbay_dg_parity.toml
 sed 's/^\[search\]$/[search]\nbackend = "cpu"/' $EXP > /root/ref/parity_cpu.toml
-for exp in $EXP /root/ref/parity_cpu.toml; do
-  target/release/dopplerprint eval --experiment $exp > /dev/null 2>&1
+EXPS=$([[ $REUSE == 1 ]] && echo $EXP || echo "$EXP /root/ref/parity_cpu.toml")
+for exp in $EXPS; do
+  $BIN eval --experiment $exp > /dev/null 2>&1
   cp runs/$(ls -t runs | head -1)/oysterbay_20260908_colsto.json /root/ref/case_$(basename $exp .toml).json
 done
+[[ $REUSE == 0 ]] && echo "$KEY" > /root/ref/cpu.key
 python3 -I - <<'PY'
 import json
 L = lambda p: json.load(open(p))

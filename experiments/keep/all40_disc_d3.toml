@@ -1,0 +1,21 @@
+# livermore_all40_discovered.toml with the dev-chosen keep rule (search/keep.rs: Δ = 3 nats, cap 3000).
+# Needs the pipeline.rs keep hook. Reporting only; never tune on it. Paired against livermore_all40_discovered.toml.
+[eval]
+cases = ["livermore"]
+split = "all"
+data_dir = "/srv/agents/work/doppler_print/data"
+store_dir = "/srv/agents/work/doppler_print/data/adsb/store"
+time_prior_s = 2.0
+oracle_d_range = [150.0, 8000.0]
+oracle_v_range = [20.0, 250.0]
+oracle_events = false
+
+[search]
+keep_top = 200
+
+[search.keep]
+delta_nats = 3.0
+cap = 3000
+
+[search.score]
+clock_sweep_s = 2.0

@@ -10,6 +10,7 @@ pub mod global;
 mod gpu;
 pub mod hypothesis;
 pub mod job;
+pub mod keep;
 pub mod likelihood;
 pub mod locate;
 pub mod modes;
