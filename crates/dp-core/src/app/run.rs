@@ -9,6 +9,7 @@ use super::cache::Cache;
 use super::fetch::{FetchOptions, dates_between, ensure_days};
 use super::inputs::{given_start, registrations, resolve_area, start_prior, terrain};
 use super::place::Area;
+use super::posterior;
 use super::report::{Clock, MIN_EVENT_Z, Report, Status, alternatives, location, matched};
 use super::results::{self, ResultInput};
 use super::ui::Ui;
@@ -108,6 +109,8 @@ fn steps(req: &LocateRequest, ui: &dyn Ui, rep: &mut Report, started: Instant) -
     };
 
     rep.location = Some(location(best));
+    let calibrated = posterior::posterior(&res.ranked, &search_region(&area), p.coarse_step_m, used.len());
+    rep.posterior = calibrated.as_ref().map(|c| c.0.clone());
     let (alts, conf) = alternatives(&res.ranked);
     (rep.alternatives, rep.confidence) = (alts, Some(conf));
     let icaos: Vec<u32> = tracks.iter().filter(|t| best.track_ids.contains(&t.id)).map(|t| t.icao24).collect();
@@ -140,6 +143,7 @@ fn steps(req: &LocateRequest, ui: &dyn Ui, rep: &mut Report, started: Instant) -
         tracks: &tracks,
         window: clock_window,
         spec: Some(&spec),
+        region: calibrated.as_ref().map(|c| (&c.1, c.2.as_slice())),
     };
     results::write(&dir, &inp)
 }
@@ -175,6 +179,10 @@ fn search_params(cfg: &Config, prior: &StartPrior, a: &Area) -> SearchParams {
     p
 }
 
+fn search_region(a: &Area) -> Region {
+    Region { lat_deg: a.lat, lon_deg: a.lon, radius_m: a.radius_km * 1000.0 }
+}
+
 /// A hypothesis must explain every event, so one spurious event blocks the search: drop the weakest and retry.
 fn search_dropping_weakest(
     audio: &Audio,
@@ -185,7 +193,7 @@ fn search_dropping_weakest(
     cfg: &Config,
     p: &SearchParams,
 ) -> (SearchResult, Vec<Event>) {
-    let region = Region { lat_deg: a.lat, lon_deg: a.lon, radius_m: a.radius_km * 1000.0 };
+    let region = search_region(a);
     loop {
         let specs: Vec<EventSpec> = events.iter().map(EventSpec::from_event).collect();
         let res = search::locate(audio, &specs, tracks.to_vec(), region, dem, &cfg.spec, p);

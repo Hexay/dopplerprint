@@ -8,6 +8,7 @@ pub mod geocode;
 pub mod http;
 mod inputs;
 pub mod place;
+pub mod posterior;
 pub mod report;
 pub mod results;
 mod run;

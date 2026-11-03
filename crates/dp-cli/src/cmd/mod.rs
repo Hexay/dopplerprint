@@ -1,3 +1,4 @@
+pub mod calibrate;
 pub mod compare;
 pub mod discover;
 pub mod eval;

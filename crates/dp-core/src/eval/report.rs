@@ -91,7 +91,7 @@ pub fn write(dir: &Path, cfg: &Config, results: &[CaseResult]) -> Result<()> {
         let _ = writeln!(md, "\n## Skipped\n\n{}", skipped.join("\n"));
     }
     std::fs::write(dir.join("summary.md"), md)?;
-    let slim: Vec<_> = results.iter().map(|r| CaseResult { tuples: Vec::new(), ..r.clone() }).collect();
+    let slim: Vec<_> = results.iter().map(|r| CaseResult { tuples: Vec::new(), surface: None, ..r.clone() }).collect();
     let json = serde_json::json!({ "config": cfg, "aggregate": agg, "results": slim });
     std::fs::write(dir.join("summary.json"), serde_json::to_vec_pretty(&json)?)?;
     Ok(())

@@ -2,6 +2,7 @@
 
 use std::fmt::Write;
 
+use super::posterior::Posterior;
 use super::report::{Alternative, Matched, Report, Status};
 use super::when::fmt_duration;
 
@@ -25,7 +26,9 @@ pub fn render(r: &Report) -> String {
             return s;
         }
     }
-    if let (Some(c), Some(l)) = (&r.confidence, &r.location) {
+    if let Some(p) = &r.posterior {
+        posterior_lines(&mut s, p);
+    } else if let (Some(c), Some(l)) = (&r.confidence, &r.location) {
         let why = match (c.margin, r.alternatives.first()) {
             (Some(m), Some(a)) => format!("the next spot ({}) scores {m:.1} lower", describe(a)),
             _ => "no other spot comes close".into(),
@@ -63,6 +66,30 @@ pub fn render(r: &Report) -> String {
     s
 }
 
+fn posterior_lines(s: &mut String, p: &Posterior) {
+    let how = match (p.calibrated, p.source.as_str()) {
+        (false, _) => "uncalibrated for this many passes".to_string(),
+        (true, "real") => "calibrated on real recordings".to_string(),
+        (true, src) => format!("calibrated on {src} recordings"),
+    };
+    let islands = p.modes.iter().filter(|m| m.region_km2 > 0.0).count();
+    let _ = writeln!(
+        s,
+        "90% region:  {:.2} km² ({how}){}; best spot's solution holds {:.0}%",
+        p.area_km2,
+        if islands > 1 { format!(" in {islands} islands") } else { String::new() },
+        100.0 * p.modes[0].probability
+    );
+    for m in p.modes.iter().skip(1) {
+        let what = if m.mirror { "mirror solution" } else if m.same_aircraft { "same aircraft" } else { "other aircraft" };
+        let _ = writeln!(s, "             {what} {:.1} km {} holds {:.0}%", m.distance_km, m.direction, 100.0 * m.probability);
+    }
+    if !p.side_resolved && p.modes.iter().any(|m| m.mirror) {
+        s.push_str("             one aircraft heard: a straight pass cannot tell the two sides of its track apart, and only a turn\n");
+        s.push_str("             (which a ~2% sound-speed error can fake) breaks the tie; do not rule out the mirror\n");
+    }
+}
+
 fn describe(a: &Alternative) -> String {
     let what = if a.same_aircraft { "mirror solution" } else { "other aircraft" };
     format!("{what} {:.1} km {}", a.distance_km, a.direction)
@@ -87,4 +114,33 @@ fn aircraft_line(m: &Matched) -> String {
 
 fn plural(n: usize, suffix: &str) -> &str {
     if n == 1 { "" } else { suffix }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::posterior::ModeReport;
+
+    fn mode(probability: f64, mirror: bool) -> ModeReport {
+        let direction = "NE".into();
+        ModeReport { lat: 0.0, lon: 0.0, probability, region_km2: 0.2, distance_km: 1.2, direction, same_aircraft: true, mirror }
+    }
+
+    #[test]
+    fn single_aircraft_mirror_is_listed_with_caveat() {
+        let p = Posterior {
+            nominal: 0.9,
+            hpd_mass: 0.988,
+            calibrated: true,
+            source: "real".into(),
+            area_km2: 0.4,
+            modes: vec![mode(0.77, false), mode(0.23, true)],
+            side_resolved: false,
+        };
+        let mut s = String::new();
+        posterior_lines(&mut s, &p);
+        assert!(s.contains("0.40 km² (calibrated on real recordings) in 2 islands; best spot's solution holds 77%"));
+        assert!(s.contains("mirror solution 1.2 km NE holds 23%"));
+        assert!(s.contains("do not rule out the mirror"));
+    }
 }
