@@ -5,16 +5,17 @@ use std::fs::File;
 use std::path::Path;
 
 use arrow_array::RecordBatch;
-use arrow_array::types::{Float32Type, Float64Type, UInt8Type, UInt32Type};
+use arrow_array::types::{Int32Type, Int64Type, UInt8Type, UInt32Type};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::file::metadata::RowGroupMetaData;
 use parquet::file::statistics::Statistics;
 
 use super::TrackQuery;
+use super::dedup::{DedupParams, drop_shadow_tracks};
 use super::manifest::{hour_dir, list_days, points_file_name};
 use super::model::{engine_code, engine_from_code, enu_to_track_point, track_id};
 use super::pieces::MAX_PIECE_S;
-use super::schema::{column, opt_str, string_column};
+use super::schema::{ALT_SCALE, DEG_SCALE, T_SCALE, VEL_SCALE, column, opt_str, string_column, to_ms};
 use crate::track::{EngineClass, Track};
 
 /// Track key: (icao, track_no).
@@ -25,14 +26,18 @@ struct Want {
     type_code: Option<String>,
 }
 
-fn stat_range(rg: &RowGroupMetaData, name: &str) -> Option<(f64, f64)> {
+/// Row-group (min, max) of a column divided by its storage `scale`. Unsigned columns here stay below
+/// 2^31, so their INT32 statistics read correctly as signed.
+fn stat_range(rg: &RowGroupMetaData, name: &str, scale: f64) -> Option<(f64, f64)> {
     let col = rg.columns().iter().find(|c| c.column_path().string() == name)?;
-    match col.statistics()? {
-        Statistics::Double(s) => Some((*s.min_opt()?, *s.max_opt()?)),
-        Statistics::Float(s) => Some((f64::from(*s.min_opt()?), f64::from(*s.max_opt()?))),
-        Statistics::Int32(s) => Some((f64::from(*s.min_opt()? as u32), f64::from(*s.max_opt()? as u32))),
-        _ => None,
-    }
+    let (a, b) = match col.statistics()? {
+        Statistics::Double(s) => (*s.min_opt()?, *s.max_opt()?),
+        Statistics::Float(s) => (f64::from(*s.min_opt()?), f64::from(*s.max_opt()?)),
+        Statistics::Int32(s) => (f64::from(*s.min_opt()?), f64::from(*s.max_opt()?)),
+        Statistics::Int64(s) => (*s.min_opt()? as f64, *s.max_opt()? as f64),
+        _ => return None,
+    };
+    Some((a / scale, b / scale))
 }
 
 /// Read the row groups for which `keep(rg)` holds (missing statistics never prune).
@@ -52,26 +57,29 @@ fn overlaps(range: Option<(f64, f64)>, lo: f64, hi: f64) -> bool {
 fn select_segments(path: &Path, q: &TrackQuery, wants: &mut HashMap<Key, Want>) -> anyhow::Result<()> {
     let excluded: HashSet<u8> = q.exclude_engines.iter().map(|e| engine_code(*e)).collect();
     let batches = read_pruned(path, |rg| {
+        let deg = |n| stat_range(rg, n, DEG_SCALE);
         let space = q.bbox.is_none_or(|(la0, lo0, la1, lo1)| {
-            overlaps(stat_range(rg, "lat_max"), la0, f64::INFINITY)
-                && overlaps(stat_range(rg, "lat_min"), f64::NEG_INFINITY, la1)
-                && overlaps(stat_range(rg, "lon_max"), lo0, f64::INFINITY)
-                && overlaps(stat_range(rg, "lon_min"), f64::NEG_INFINITY, lo1)
+            overlaps(deg("lat_max_e6"), la0, f64::INFINITY)
+                && overlaps(deg("lat_min_e6"), f64::NEG_INFINITY, la1)
+                && overlaps(deg("lon_max_e6"), lo0, f64::INFINITY)
+                && overlaps(deg("lon_min_e6"), f64::NEG_INFINITY, lo1)
         });
-        let alt = q.max_alt_m.is_none_or(|m| overlaps(stat_range(rg, "alt_min_m"), f64::NEG_INFINITY, m));
-        space && alt && overlaps(stat_range(rg, "t1"), q.t_start, f64::INFINITY)
+        let alt = q.max_alt_m.is_none_or(|m| overlaps(stat_range(rg, "alt_min_m", 1.0), f64::NEG_INFINITY, m));
+        space && alt && overlaps(stat_range(rg, "t1_ms", T_SCALE), q.t_start, f64::INFINITY)
     })?;
+    let (ts, te) = (to_ms(q.t_start), to_ms(q.t_end));
+    let bbox_e6 = q.bbox.map(|(a0, o0, a1, o1)| [a0, o0, a1, o1].map(|v| (v * DEG_SCALE).round() as i32));
     for b in &batches {
         let (icao, trk) = (column::<UInt32Type>(b, "icao"), column::<UInt32Type>(b, "track_no"));
-        let (t0, t1) = (column::<Float64Type>(b, "t0"), column::<Float64Type>(b, "t1"));
-        let (la0, la1) = (column::<Float64Type>(b, "lat_min"), column::<Float64Type>(b, "lat_max"));
-        let (lo0, lo1) = (column::<Float64Type>(b, "lon_min"), column::<Float64Type>(b, "lon_max"));
-        let alt_min = column::<Float32Type>(b, "alt_min_m");
+        let (t0, t1) = (column::<Int64Type>(b, "t0_ms"), column::<Int64Type>(b, "t1_ms"));
+        let (la0, la1) = (column::<Int32Type>(b, "lat_min_e6"), column::<Int32Type>(b, "lat_max_e6"));
+        let (lo0, lo1) = (column::<Int32Type>(b, "lon_min_e6"), column::<Int32Type>(b, "lon_max_e6"));
+        let alt_min = column::<Int32Type>(b, "alt_min_m");
         let engine = column::<UInt8Type>(b, "engine");
         let types = string_column(b, "type_code");
         for i in 0..b.num_rows() {
-            let in_time = t1.value(i) >= q.t_start && t0.value(i) <= q.t_end;
-            let in_box = q.bbox.is_none_or(|(a0, o0, a1, o1)| {
+            let in_time = t1.value(i) >= ts && t0.value(i) <= te;
+            let in_box = bbox_e6.is_none_or(|[a0, o0, a1, o1]| {
                 la1.value(i) >= a0 && la0.value(i) <= a1 && lo1.value(i) >= o0 && lo0.value(i) <= o1
             });
             let low = q.max_alt_m.is_none_or(|m| f64::from(alt_min.value(i)) <= m);
@@ -102,23 +110,28 @@ fn collect_points(day: &Path, q: &TrackQuery, wants: &HashMap<Key, Want>, pad: f
     files.sort();
     for f in files {
         let batches = read_pruned(&f, |rg| {
-            overlaps(stat_range(rg, "icao"), f64::from(lo), f64::from(hi))
-                && overlaps(stat_range(rg, "t"), q.t_start - pad, q.t_end + pad)
-                && stat_range(rg, "icao").is_none_or(|(a, b)| icaos.iter().any(|&i| (a..=b).contains(&f64::from(i))))
+            let ic = stat_range(rg, "icao", 1.0);
+            overlaps(ic, f64::from(lo), f64::from(hi))
+                && overlaps(stat_range(rg, "t_ms", T_SCALE), q.t_start - pad, q.t_end + pad)
+                && ic.is_none_or(|(a, b)| icaos.iter().any(|&i| (a..=b).contains(&f64::from(i))))
         })?;
+        let (ts, te) = (to_ms(q.t_start - pad), to_ms(q.t_end + pad));
         for b in &batches {
             let (icao, trk) = (column::<UInt32Type>(b, "icao"), column::<UInt32Type>(b, "track_no"));
-            let t = column::<Float64Type>(b, "t");
-            let (lat, lon) = (column::<Float64Type>(b, "lat"), column::<Float64Type>(b, "lon"));
-            let f32s = ["alt_m", "ve", "vn", "vu"].map(|n| column::<Float32Type>(b, n));
+            let t = column::<Int64Type>(b, "t_ms");
+            let ints = ["lat_e6", "lon_e6", "alt_dm", "ve_cms", "vn_cms", "vu_cms"].map(|n| column::<Int32Type>(b, n));
+            let scales = [DEG_SCALE, DEG_SCALE, ALT_SCALE, VEL_SCALE, VEL_SCALE, VEL_SCALE];
             for i in 0..b.num_rows() {
                 let key = (icao.value(i), trk.value(i));
                 let ti = t.value(i);
-                if ti < q.t_start - pad || ti > q.t_end + pad || !wants.contains_key(&key) {
+                if ti < ts || ti > te || !wants.contains_key(&key) {
                     continue;
                 }
-                let v = f32s.map(|c| f64::from(c.value(i)));
-                out.entry(key).or_default().push([ti, lat.value(i), lon.value(i), v[0], v[1], v[2], v[3]]);
+                let mut p = [ti as f64 / T_SCALE, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+                for (k, (c, s)) in ints.iter().zip(scales).enumerate() {
+                    p[k + 1] = f64::from(c.value(i)) / s;
+                }
+                out.entry(key).or_default().push(p);
             }
         }
     }
@@ -134,9 +147,26 @@ fn trim(pts: &mut Vec<Pt>, t_start: f64, t_end: f64) {
     pts.drain(..first.min(pts.len()));
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct LoadOptions {
+    /// Drop `~` tracks that shadow an ICAO track (see `dedup`).
+    pub dedup: Option<DedupParams>,
+}
+
+impl Default for LoadOptions {
+    fn default() -> Self {
+        Self { dedup: Some(DedupParams::default()) }
+    }
+}
+
+/// `load_tracks_with` and default options (TIS-B shadow dedup on).
+pub fn load_tracks(store: &Path, q: &TrackQuery) -> anyhow::Result<Vec<Track>> {
+    load_tracks_with(store, q, &LoadOptions::default())
+}
+
 /// Tracks with any segment piece inside the query window, bbox, altitude ceiling and engine filter.
 /// Points are not clipped to the bbox; they are clipped to the time window plus one point either side.
-pub fn load_tracks(store: &Path, q: &TrackQuery) -> anyhow::Result<Vec<Track>> {
+pub fn load_tracks_with(store: &Path, q: &TrackQuery, opts: &LoadOptions) -> anyhow::Result<Vec<Track>> {
     let mut tracks = Vec::new();
     for (day, mf) in list_days(store)? {
         let h_lo = ((q.t_start - MAX_PIECE_S - mf.day0) / 3600.0).floor() as i64;
@@ -165,7 +195,10 @@ pub fn load_tracks(store: &Path, q: &TrackQuery) -> anyhow::Result<Vec<Track>> {
         }
     }
     tracks.sort_by(|a, b| a.t_start().total_cmp(&b.t_start()).then_with(|| a.id.cmp(&b.id)));
-    Ok(tracks)
+    Ok(match &opts.dedup {
+        Some(p) => drop_shadow_tracks(tracks, p).0,
+        None => tracks,
+    })
 }
 
 #[cfg(test)]

@@ -33,7 +33,7 @@ fn ingest_then_load_roundtrip() {
     assert!(mf.segment_rows > 0 && mf.coverage_rows > 0);
     assert_eq!(mf.typedb_types, 7);
     let day = store.path().join("date=2026-09-08");
-    for f in ["manifest.json", "coverage.parquet", "points/part-080.parquet"] {
+    for f in ["manifest.json", "coverage.parquet", "points/part-160.parquet"] {
         assert!(day.join(f).is_file(), "{f}");
     }
     assert_eq!(list_days(store.path()).unwrap().len(), 1);

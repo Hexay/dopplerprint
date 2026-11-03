@@ -26,8 +26,10 @@ fn track_dict<'py>(py: Python<'py>, tr: &Track) -> PyResult<Bound<'py, PyDict>> 
 
 /// Tracks touching [t0, t1] (UNIX s) and bbox (lat_min, lon_min, lat_max, lon_max).
 /// Each is a dict: id, icao24 (hex str), type_code, engine, t (N,), pos (N,3) and vel (N,3) ECEF m, m/s.
+/// `dedup` drops TIS-B/anonymous `~` tracks that shadow an ADS-B track.
 #[pyfunction]
-#[pyo3(signature = (store, t0, t1, bbox=None, exclude=Vec::new(), max_alt_m=None))]
+#[pyo3(signature = (store, t0, t1, bbox=None, exclude=Vec::new(), max_alt_m=None, dedup=true))]
+#[allow(clippy::too_many_arguments)]
 fn load_tracks<'py>(
     py: Python<'py>,
     store: PathBuf,
@@ -36,13 +38,15 @@ fn load_tracks<'py>(
     bbox: Option<(f64, f64, f64, f64)>,
     exclude: Vec<String>,
     max_alt_m: Option<f64>,
+    dedup: bool,
 ) -> PyResult<Vec<Bound<'py, PyDict>>> {
     let exclude_engines = exclude
         .iter()
         .map(|e| engine_from_name(e).ok_or_else(|| PyValueError::new_err(format!("unknown engine class {e:?}"))))
         .collect::<PyResult<_>>()?;
     let q = TrackQuery { t_start: t0, t_end: t1, bbox, max_alt_m, exclude_engines };
-    let tracks = py.detach(|| adsb::load_tracks(&store, &q))?;
+    let opts = adsb::LoadOptions { dedup: dedup.then(Default::default) };
+    let tracks = py.detach(|| adsb::load_tracks_with(&store, &q, &opts))?;
     tracks.iter().map(|t| track_dict(py, t)).collect()
 }
 

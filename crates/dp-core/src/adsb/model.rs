@@ -15,6 +15,9 @@ pub enum AltSource {
     BaroOffset = 1,
     /// Pressure altitude only; not a height above anything.
     Baro = 2,
+    /// Baro plus the mean geom−baro offset of other aircraft in the same hour / 1° cell / 2000 ft band.
+    /// Better than `Baro`, worse than `BaroOffset`; assigned at finalize (see `neighbour`).
+    BaroNeighbour = 3,
 }
 
 impl AltSource {
@@ -22,6 +25,7 @@ impl AltSource {
         match c {
             0 => Self::Geometric,
             1 => Self::BaroOffset,
+            3 => Self::BaroNeighbour,
             _ => Self::Baro,
         }
     }
@@ -128,6 +132,10 @@ pub struct CleanTrack {
     pub type_code: Option<String>,
     pub engine: EngineClass,
     pub points: Vec<CleanPoint>,
+    /// The track begins right after a ground point (takeoff), rather than appearing airborne.
+    pub starts_on_ground: bool,
+    /// The track ends at a ground point (landing), rather than vanishing airborne.
+    pub ends_on_ground: bool,
 }
 
 /// Equirectangular ground distance in metres; exact enough for consecutive ADS-B points.

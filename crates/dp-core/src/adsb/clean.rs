@@ -64,16 +64,19 @@ struct Splitter<'a> {
     p: &'a CleanParams,
     cur: Vec<CleanPoint>,
     pending: Vec<CleanPoint>,
-    done: Vec<Vec<CleanPoint>>,
+    /// (points, starts_on_ground, ends_on_ground)
+    done: Vec<(Vec<CleanPoint>, bool, bool)>,
     stats: CleanStats,
+    after_ground: bool,
+    cur_from_ground: bool,
 }
 
 impl Splitter<'_> {
-    fn close(&mut self) {
+    fn close(&mut self, on_ground: bool) {
         self.pending.clear();
         let run = std::mem::take(&mut self.cur);
         if run.len() >= 2 {
-            self.done.push(run);
+            self.done.push((run, self.cur_from_ground, on_ground));
         } else if !run.is_empty() {
             self.stats.short_tracks += 1;
         }
@@ -88,6 +91,7 @@ impl Splitter<'_> {
 
     fn push(&mut self, pt: CleanPoint) {
         let Some(last) = self.cur.last().copied() else {
+            self.cur_from_ground = std::mem::take(&mut self.after_ground);
             self.cur.push(pt);
             return;
         };
@@ -96,8 +100,8 @@ impl Splitter<'_> {
             return;
         }
         if pt.t - last.t > self.p.max_gap_s {
-            self.close();
-            self.cur.push(pt);
+            self.close(false);
+            self.push(pt);
             return;
         }
         if !self.is_jump(&last, &pt) {
@@ -109,7 +113,7 @@ impl Splitter<'_> {
         self.pending.push(pt);
         if self.pending.len() >= self.p.max_consecutive_rejects {
             let replay = std::mem::take(&mut self.pending);
-            self.close();
+            self.close(false);
             for q in replay {
                 self.push(q);
             }
@@ -126,12 +130,21 @@ pub fn clean_trace(
     p: &CleanParams,
 ) -> (Vec<CleanTrack>, CleanStats) {
     let alts = select_altitudes(&raw.trace);
-    let mut s = Splitter { p, cur: Vec::new(), pending: Vec::new(), done: Vec::new(), stats: CleanStats::default() };
+    let mut s = Splitter {
+        p,
+        cur: Vec::new(),
+        pending: Vec::new(),
+        done: Vec::new(),
+        stats: CleanStats::default(),
+        after_ground: false,
+        cur_from_ground: false,
+    };
     s.stats.points_in = raw.trace.len() as u64;
     for (rp, alt) in raw.trace.iter().zip(alts) {
         if matches!(rp.alt, super::trace::Alt::Ground) {
             s.stats.ground += 1;
-            s.close();
+            s.close(true);
+            s.after_ground = true;
             continue;
         }
         let Some((alt_m, alt_source)) = alt else {
@@ -139,7 +152,7 @@ pub fn clean_trace(
             continue;
         };
         if rp.flags & FLAG_NEW_LEG != 0 {
-            s.close();
+            s.close(false);
         }
         let (ve, vn) = match (rp.gs_kt, rp.track_deg) {
             (Some(gs), Some(trk)) => {
@@ -162,15 +175,23 @@ pub fn clean_trace(
             flags: rp.flags,
         });
     }
-    s.close();
+    s.close(false);
     let mut stats = s.stats;
     let tracks: Vec<CleanTrack> = s
         .done
         .into_iter()
         .enumerate()
-        .map(|(i, mut pts)| {
+        .map(|(i, (mut pts, starts_on_ground, ends_on_ground))| {
             fill_missing_velocity(&mut pts);
-            CleanTrack { icao, track_no: i as u32, type_code: type_code.clone(), engine, points: pts }
+            CleanTrack {
+                icao,
+                track_no: i as u32,
+                type_code: type_code.clone(),
+                engine,
+                points: pts,
+                starts_on_ground,
+                ends_on_ground,
+            }
         })
         .collect();
     stats.tracks = tracks.len() as u64;

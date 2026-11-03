@@ -18,10 +18,16 @@ pub struct Manifest {
     /// UNIX seconds of 00:00 UTC on `date`; hour partitions are relative to it.
     pub day0: f64,
     pub elapsed_s: f64,
+    /// Wall seconds per ingest phase (stream, coverage, points, segments).
+    pub phase_s: BTreeMap<String, f64>,
     pub trace_files: u64,
     pub truncated_archive: bool,
     pub parse_errors: u64,
     pub other_day_traces: u64,
+    /// Towers, ground vehicles and ships, dropped whole (see `typedb`).
+    pub non_aircraft_traces: u64,
+    /// (hour, 1° cell, 2000 ft band) bins with a neighbour geom−baro offset (see `neighbour`).
+    pub neighbour_offset_bins: u64,
     pub aircraft: u64,
     pub tracks: u64,
     pub points_in: u64,
@@ -107,9 +113,9 @@ pub fn day_dir(store: &Path, date: &str) -> PathBuf {
     store.join(format!("date={date}"))
 }
 
-/// Points are bucketed by `icao >> 17` so ascending file names are ascending icao.
+/// Points are bucketed by `icao >> 16` so ascending file names are ascending icao.
 pub fn points_bucket(icao: u32) -> i64 {
-    i64::from(icao >> 17)
+    i64::from(icao >> 16)
 }
 
 pub fn points_file_name(icao: u32) -> String {
