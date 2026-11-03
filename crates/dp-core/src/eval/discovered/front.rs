@@ -1,6 +1,6 @@
-//! The locate front end on a posed case, as `app::run` does it: band-limit, `discover_refined`, keep the
-//! `max_events` strongest, search with `EventSpec::from_event`, and drop the weakest event while nothing
-//! matches. The search itself is `eval::run_case`, so metrics are those of oracle mode.
+//! The locate front end on a posed case, as `app::run` does it: band-limit, `discover_refined`,
+//! `events::select`, search with `EventSpec::from_event`, and drop the weakest event while nothing matches
+//! (select can still keep a plausible pass with no ADS-B track). The search itself is `eval::run_case`, so metrics are those of oracle mode.
 
 use super::DiscoveryParams;
 use super::truth::Truthed;
@@ -10,7 +10,7 @@ use crate::config::Config;
 use crate::eval::case::Posed;
 use crate::eval::metrics::{Metrics, Stage};
 use crate::eval::{CaseResult, run_case};
-use crate::events::{Event, discover_refined};
+use crate::events::{Event, discover_refined, select};
 use crate::search::pipeline::coarse_cells;
 use crate::search::{EventSpec, Region};
 
@@ -20,13 +20,9 @@ pub fn discover(audio: &Audio, p: &DiscoveryParams) -> Vec<Event> {
     discover_refined(&a, &spec, &p.discover)
 }
 
-/// Indices of the `max_events` highest-SNR events, in CPA order.
+/// The events `app::run` searches (`events::select`), in CPA order.
 pub fn strongest(events: &[Event], max_events: usize) -> Vec<usize> {
-    let mut idx: Vec<usize> = (0..events.len()).collect();
-    idx.sort_by(|&a, &b| events[b].snr.total_cmp(&events[a].snr));
-    idx.truncate(max_events.max(1));
-    idx.sort_by(|&a, &b| events[a].fit.best.t_cpa_arrive.total_cmp(&events[b].fit.best.t_cpa_arrive));
-    idx
+    select(events, max_events)
 }
 
 /// Overwrites `c.events` / `c.truth_flights` with the searched subset. Returns the result and that subset.
