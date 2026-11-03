@@ -1,0 +1,14 @@
+[general]
+name=doppler_print
+qgisMinimumVersion=3.34
+description=Locate an audio recording from aircraft Doppler curves matched to historical ADS-B.
+about=Processing provider for doppler_print. Requires the doppler-print Python package in QGIS's Python (pip install doppler-print). Runs the search and loads the result GeoPackage with its default styles.
+version=0.1.0
+author=doppler_print contributors
+email=
+category=Analysis
+tags=audio,doppler,adsb,geolocation,processing
+experimental=True
+deprecated=False
+hasProcessingProvider=yes
+plugin_dependencies=

@@ -1,0 +1,169 @@
+<!doctype html>
+<!-- Adapted from thunderprint's assets/viewer.html (MIT, (c) 2026 Hexay). Data slot is filled by dp-core output::viewer. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>doppler_print</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root { --bg: #f6f6f4; --panel: #ffffffee; --fg: #1d1d1f; --muted: #6b6b70; --line: #d8d8dc; --accent: #e8590c; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #141416; --panel: #1e1e22ee; --fg: #ececf0; --muted: #9a9aa2; --line: #34343a; }
+  }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
+    font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  body { display: flex; flex-direction: column; }
+  #top { position: relative; flex: 1; min-height: 0; }
+  #map { position: absolute; inset: 0; }
+  #spec { height: 34vh; border-top: 1px solid var(--line); display: flex; flex-direction: column; }
+  #spec .axis { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; padding: 2px 8px; }
+  #spec .img { flex: 1; min-height: 0; position: relative; }
+  #spec img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; image-rendering: pixelated; }
+  .panel { position: absolute; z-index: 1000; top: 12px; right: 12px; width: 290px; max-height: calc(100% - 24px);
+    overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+    backdrop-filter: blur(6px); }
+  .panel h1 { font-size: 14px; margin: 0 0 2px; }
+  .panel h2 { font-size: 12px; margin: 12px 0 4px; color: var(--muted); font-weight: 600; text-transform: uppercase; }
+  .sub { color: var(--muted); margin-bottom: 8px; }
+  .row { display: flex; gap: 10px; align-items: center; margin: 6px 0; flex-wrap: wrap; }
+  .item { border-top: 1px solid var(--line); padding: 5px 0; }
+  .cand { cursor: pointer; }
+  .cand:hover { color: var(--accent); }
+  b, .num { font-variant-numeric: tabular-nums; }
+  .warn { color: #e03131; }
+  .ramp { height: 8px; border-radius: 4px; margin: 4px 0 2px;
+    background: linear-gradient(90deg, #30123b, #4662d7, #1ae4b6, #a2fc3c, #fabb39, #e4460a, #7a0403); }
+  .legend { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; }
+  .sw { display: inline-block; width: 14px; height: 3px; vertical-align: middle; margin-right: 4px; }
+  @media (max-width: 600px) { .panel { left: 16px; right: 16px; width: auto; top: auto; bottom: 16px; max-height: 45%; } }
+</style>
+</head>
+<body>
+<div id="top">
+<div id="map"></div>
+<div class="panel">
+  <h1>doppler_print</h1>
+  <div class="sub" id="runinfo"></div>
+  <div class="row">
+    <label><input type="checkbox" id="showCells" checked> cells</label>
+    <label><input type="checkbox" id="showTracks" checked> tracks</label>
+    <label><input type="checkbox" id="cr90"> 90% only</label>
+  </div>
+  <div class="row"><label>colour <select id="metric"></select></label></div>
+  <div class="ramp"></div><div class="legend"><span>low</span><span>score (min–max in view set)</span><span>high</span></div>
+  <div id="engines"></div>
+  <h2>Candidates</h2><div id="cands"></div>
+  <h2>Events</h2><div id="events"></div>
+</div>
+</div>
+<div id="spec"></div>
+<script>
+const DATA = /*DATA*/null;
+const RAMP = ["#30123b","#4662d7","#1ae4b6","#a2fc3c","#fabb39","#e4460a","#7a0403"];
+const ENGINE = { piston: "#1c7ed6", turboprop: "#e8590c", helicopter: "#2f9e44", jet: "#868e96", unknown: "#ae3ec9" };
+const color = t => RAMP[Math.max(0, Math.min(RAMP.length - 1, Math.round(t * (RAMP.length - 1))))];
+const fmt = (v, d = 2) => (v === null || v === undefined || Number.isNaN(v)) ? "–" : Number(v).toFixed(d);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const utc = s => new Date(s * 1000).toISOString().slice(0, 19).replace("T", " ") + "Z";
+
+const fc = DATA.fc, feats = fc.features;
+const byKind = k => feats.filter(f => f.properties.kind === k);
+const cells = byKind("cell"), cands = byKind("candidate"), tracks = byKind("track"), events = byKind("event");
+const run = fc.run || {};
+document.getElementById("runinfo").textContent = [run.audio, run.date_utc, run.note, run.version && "v" + run.version]
+  .filter(Boolean).join(" · ");
+
+const map = L.map("map", { preferCanvas: true });
+// Keyless and works from file://: OSM tiles 403 without a Referer.
+const topo = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+  { maxZoom: 19, attribution: "Esri, HERE, Garmin, © OpenStreetMap contributors" }).addTo(map);
+const sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+  { maxZoom: 19, attribution: "Esri" });
+L.control.layers({ "Map": topo, "Satellite": sat }, {}, { position: "topleft" }).addTo(map);
+L.control.scale({ imperial: false }).addTo(map);
+
+// Spread would overflow the call stack for >100k cells.
+const nEv = cells.reduce((n, f) => Math.max(n, f.properties.event_scores.length), 0);
+const metricSel = document.getElementById("metric");
+metricSel.innerHTML = `<option value="-1">combined score</option>` +
+  [...Array(nEv).keys()].map(i => `<option value="${i}">event ${i + 1} score</option>`).join("");
+const metricOf = (p, m) => m < 0 ? p.score : p.event_scores[m];
+
+let cellLayer;
+function drawCells() {
+  if (cellLayer) cellLayer.remove();
+  if (!document.getElementById("showCells").checked) return;
+  const m = +metricSel.value, only = document.getElementById("cr90").checked;
+  const shown = cells.filter(f => !only || f.properties.in_cr90);
+  const vals = shown.map(f => metricOf(f.properties, m)).filter(Number.isFinite);
+  const lo = vals.reduce((a, b) => Math.min(a, b), Infinity), hi = vals.reduce((a, b) => Math.max(a, b), -Infinity);
+  cellLayer = L.geoJSON({ type: "FeatureCollection", features: shown }, {
+    style: f => { const v = metricOf(f.properties, m), t = hi > lo ? (v - lo) / (hi - lo) : 1;
+      return { stroke: false, fillColor: color(t), fillOpacity: 0.15 + 0.6 * t }; },
+    onEachFeature: (f, l) => { const p = f.properties;
+      l.bindTooltip(`cell ${p.ix},${p.iy} (${p.step_m} m) · score <b>${fmt(p.score)}</b>` +
+        p.event_scores.map((s, i) => `<br>event ${i + 1}: ${fmt(s)}`).join("") + (p.in_cr90 ? "<br>in 90% region" : "")); },
+  }).addTo(map);
+  cellLayer.bringToBack();
+}
+
+const trackLayer = L.layerGroup().addTo(map);
+for (const f of tracks) {
+  const p = f.properties, ll = f.geometry.coordinates.map(c => [c[1], c[0]]);
+  L.polyline(ll, { color: ENGINE[p.engine] ?? ENGINE.unknown, weight: p.engine === "jet" ? 1.5 : 2.5,
+    dashArray: p.engine === "jet" ? "5 4" : null, opacity: 0.9 })
+    .bindPopup(`<b>${esc(p.icao24)}</b> ${esc(p.type_code)} · ${esc(p.engine)}<br>${esc(p.id)}<br>` +
+      `${utc(p.t_start)} → ${utc(p.t_end)}`).addTo(trackLayer);
+}
+document.getElementById("engines").innerHTML = Object.entries(ENGINE)
+  .filter(([k]) => tracks.some(f => (f.properties.engine || "unknown") === k))
+  .map(([k, c]) => `<span style="margin-right:8px"><span class="sw" style="background:${c}"></span>${k}</span>`).join("");
+
+L.geoJSON({ type: "FeatureCollection", features: byKind("region") }, {
+  style: f => f.properties.region === "credible90"
+    ? { color: "#e8590c", weight: 1.5, fillOpacity: 0.08 }
+    : { color: "#e8590c", weight: 1.5, dashArray: "6 4", fill: false },
+  onEachFeature: (f, l) => l.bindTooltip(`${f.properties.region} #${f.properties.rank} · mass ${fmt(f.properties.mass)}` +
+    ` · ${fmt(f.properties.area_km2)} km²`),
+}).addTo(map);
+
+const markers = cands.map(f => {
+  const p = f.properties, [lon, lat] = f.geometry.coordinates;
+  const html = `<b>#${p.rank}</b> <span class="num">${lat.toFixed(6)}, ${lon.toFixed(6)}</span><br>` +
+    `score <b>${fmt(p.score)}</b> · posterior ${fmt(100 * p.posterior, 1)}%<br>` +
+    p.event_scores.map((s, i) => `event ${i + 1}: ${fmt(s)} · ${esc(p.flight_ids[i] ?? "–")}`).join("<br>") +
+    `<br>clock offset ${fmt(p.clock_offset_s, 3)} s` +
+    (p.reliable ? "" : `<br><b class="warn">inconclusive: not separable from the null</b>`);
+  const t = p.score_norm ?? 1;
+  const mk = L.circleMarker([lat, lon], { radius: 5 + 4 * t, color: "#fff", weight: 2, fillColor: color(t), fillOpacity: 1 })
+    .bindPopup(html).addTo(map);
+  const div = document.createElement("div");
+  div.className = "item cand"; div.innerHTML = html;
+  div.onclick = () => { map.setView([lat, lon], 15); mk.openPopup(); };
+  document.getElementById("cands").appendChild(div);
+  return mk;
+});
+
+document.getElementById("events").innerHTML = events.map(f => { const p = f.properties;
+  return `<div class="item"><b>${esc(p.name)}</b> CPA ${fmt(p.t_cpa_s, 1)} s · f₀ ${fmt(p.f0_hz, 1)} Hz<br>` +
+    `band ${fmt(p.band_lo_hz, 0)}–${fmt(p.band_hi_hz, 0)} Hz · SNR ${fmt(p.snr_db, 1)} dB · ${esc(p.flight_id ?? "unmatched")}</div>`;
+}).join("") || `<div class="sub">none</div>`;
+
+const S = DATA.spectrogram, specEl = document.getElementById("spec");
+if (S) {
+  specEl.innerHTML = `<div class="axis"><span>${fmt(S.f_hi_hz, 0)} Hz${S.log_freq ? " (log)" : ""}</span>` +
+    `<span>spectrogram</span><span></span></div><div class="img"><img alt="spectrogram" src="data:image/png;base64,${S.png_b64}"></div>` +
+    `<div class="axis"><span>${fmt(S.t0_s, 1)} s · ${fmt(S.f_lo_hz, 0)} Hz</span><span>audio time</span><span>${fmt(S.t1_s, 1)} s</span></div>`;
+} else specEl.remove();
+
+document.querySelectorAll("#showCells, #cr90, #metric").forEach(e => e.addEventListener("change", drawCells));
+document.getElementById("showTracks").addEventListener("change", e => e.target.checked ? trackLayer.addTo(map) : trackLayer.remove());
+drawCells();
+if (markers.length) map.setView(markers[0].getLatLng(), 14);
+else if (cellLayer && cells.length) map.fitBounds(cellLayer.getBounds());
+else map.setView([39.5, -98.35], 4);
+</script>
+</body>
+</html>
