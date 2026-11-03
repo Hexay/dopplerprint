@@ -1,0 +1,17 @@
+# Frozen test split (2026-11-03). Never tune on these; run them (`[eval] split = "test"`) only to promote
+# a variant to default. Chosen once: medium-high-confidence Livermore cases with FNV-1a(id) % 3 == 0.
+# Values are FNV-1a 64 of each case's truth.json; eval refuses a test case whose truth changed.
+# Oyster Bay stays dev: its parity settings were tuned on it.
+[test]
+livermore_N172EL_R35 = "fnv64:282a43182ee8d987"
+livermore_N248LF_R14 = "fnv64:1ddb5df7fde75842"
+livermore_N373DF_R06 = "fnv64:9493eacdda8fe15f"
+livermore_N4004R_R19 = "fnv64:9cefde9fb8bb8b1d"
+livermore_N621KS_R18 = "fnv64:0755255c286ab73e"
+livermore_N662EZ_R48 = "fnv64:939a3079d5c7f273"
+livermore_N67WL_R59 = "fnv64:d092292e18db5528"
+livermore_N757AH_R41 = "fnv64:10cc18a4b114abda"
+livermore_N788BM_R03 = "fnv64:bd2613f2a5b934b5"
+livermore_N86LP_R01 = "fnv64:304b8cd104b71e4c"
+livermore_N916KT_R22 = "fnv64:159ec860e51eac74"
+livermore_N958JX_R50 = "fnv64:5ed3dc1e136882c4"

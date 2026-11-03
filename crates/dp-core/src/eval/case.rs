@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use serde_json::Value;
 
+use super::split;
 use crate::adsb::{self, TrackQuery};
 use crate::audio::{self, Audio};
 use crate::config::EvalParams;
@@ -46,7 +47,20 @@ impl CaseSource {
     }
 }
 
-pub fn list(p: &EvalParams, sim_dir: &Path) -> Vec<CaseSource> {
+/// Cases selected by `p.cases` and `p.split`; frozen test cases are fingerprint-checked.
+pub fn list(p: &EvalParams, sim_dir: &Path) -> Result<Vec<CaseSource>> {
+    let test = split::load(&p.split_file)?;
+    let mut out = list_all(p, sim_dir);
+    out.retain(|c| split::wanted(p.split, &test, &c.id(), matches!(c, CaseSource::Sim(_))));
+    for c in &out {
+        if let (CaseSource::Corpus(dir), Some(fp)) = (c, test.get(&c.id())) {
+            split::verify(dir, fp)?;
+        }
+    }
+    Ok(out)
+}
+
+fn list_all(p: &EvalParams, sim_dir: &Path) -> Vec<CaseSource> {
     let mut out: Vec<CaseSource> = Vec::new();
     for (dir, sim) in [(p.data_dir.join("cases"), false), (sim_dir.to_path_buf(), true)] {
         let Ok(rd) = std::fs::read_dir(&dir) else { continue };

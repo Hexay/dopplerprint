@@ -28,6 +28,8 @@ enum Command {
     Sim(cmd::sim::Args),
     /// Run the corpus + sim evaluation and write runs/<stamp>/summary.md.
     Eval(cmd::eval::Args),
+    /// Paired per-case comparison of two eval runs (B − A) with bootstrap CIs.
+    Compare(cmd::compare::Args),
 }
 
 /// Parse `args` (including the program name) and run; returns the process exit code:
@@ -51,6 +53,7 @@ where
         Command::Discover(a) => cmd::discover::run(a).map(|_| 0),
         Command::Sim(a) => cmd::sim::run(a).map(|_| 0),
         Command::Eval(a) => cmd::eval::run(a).map(|_| 0),
+        Command::Compare(a) => cmd::compare::run(a).map(|_| 0),
     };
     done.unwrap_or_else(|e| {
         eprintln!("error: {e:#}");

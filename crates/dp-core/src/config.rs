@@ -33,6 +33,12 @@ pub struct EvalParams {
     pub store_dir: std::path::PathBuf,
     /// Only cases whose id contains one of these substrings (empty = all).
     pub cases: Vec<String>,
+    /// Which corpus cases run: dev (default), the frozen test split, or all. See `eval::split`.
+    pub split: crate::eval::split::Split,
+    pub split_file: std::path::PathBuf,
+    /// Posterior temperature β and uniform floor ε for log score / 90% region (see `eval::metrics`).
+    pub posterior_beta: f64,
+    pub posterior_floor: f64,
 }
 
 impl Default for EvalParams {
@@ -48,6 +54,10 @@ impl Default for EvalParams {
             data_dir: "data".into(),
             store_dir: "data/adsb/store".into(),
             cases: Vec::new(),
+            split: Default::default(),
+            split_file: "experiments/split.toml".into(),
+            posterior_beta: 1.0,
+            posterior_floor: 0.01,
         }
     }
 }

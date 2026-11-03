@@ -103,7 +103,7 @@ pub fn search(inp: &SearchInput<'_>, p: &SearchParams) -> SearchResult {
     }
 }
 
-fn coarse_cells(r: &Region, step: u32) -> Vec<Cell> {
+pub fn coarse_cells(r: &Region, step: u32) -> Vec<Cell> {
     let c = albers::forward(r.lat_deg, r.lon_deg);
     let n = (r.radius_m / step as f64).ceil() as i32;
     let center = Cell::of(c, step);
@@ -126,7 +126,7 @@ pub fn cell_observer(cell: Cell, dem: Option<&Dem>, p: &SearchParams) -> (f64, f
     (lat, lon, geodetic_to_ecef(Geodetic { lat_deg: lat, lon_deg: lon, h_ell_m: ground + p.mic_height_m }))
 }
 
-fn score_cell(inp: &SearchInput<'_>, p: &SearchParams, cell: Cell) -> (Option<Candidate>, usize) {
+pub fn score_cell(inp: &SearchInput<'_>, p: &SearchParams, cell: Cell) -> (Option<Candidate>, usize) {
     let (lat, lon, obs) = cell_observer(cell, inp.dem, p);
     let (t0, t1) = p.assoc.t_start_prior;
     let nearby = inp.catalog.near(obs, p.track_radius_m, t0, t1 + inp.duration_s);

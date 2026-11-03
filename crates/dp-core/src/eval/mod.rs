@@ -1,9 +1,14 @@
 //! Corpus + sim evaluation: pose each case, search, and measure against truth.
 //! Output: runs/<stamp>/summary.{md,json} and one <case>.json per case.
 
+pub mod aggregate;
 pub mod case;
+pub mod compare;
 pub mod livermore;
+pub mod metrics;
 pub mod report;
+pub mod split;
+pub mod stats;
 
 use std::path::Path;
 use std::time::Instant;
@@ -14,9 +19,12 @@ use crate::config::Config;
 use crate::dem::geoid_undulation;
 use crate::geo::{Geodetic, geodetic_to_ecef};
 use crate::search::pipeline::Candidate;
-use crate::search::{Region, locate};
+use crate::audio::spectrogram::log_spectrogram;
+use crate::search::score::ScoringPlane;
+use crate::search::{MemCatalog, Region, SearchInput, search};
+use metrics::{Metrics, PosteriorParams, Truth, same_flight};
 
-#[derive(Clone, Debug, Default, serde::Serialize)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct CaseResult {
     pub id: String,
     pub status: String,
@@ -32,6 +40,8 @@ pub struct CaseResult {
     pub cells: usize,
     pub hypotheses: usize,
     pub runtime_s: f64,
+    #[serde(default)]
+    pub metrics: Metrics,
     pub best: Option<Candidate>,
     pub tuples: Vec<Candidate>,
 }
@@ -39,7 +49,7 @@ pub struct CaseResult {
 pub fn run(cfg: &Config, sim_dir: &Path, out_dir: &Path) -> Result<Vec<CaseResult>> {
     std::fs::create_dir_all(out_dir)?;
     let mut results = Vec::new();
-    for src in case::list(&cfg.eval, sim_dir) {
+    for src in case::list(&cfg.eval, sim_dir)? {
         let t = Instant::now();
         let mut r = match case::pose(&src, &cfg.eval) {
             Ok(posed) => run_case(cfg, &posed),
@@ -59,12 +69,24 @@ fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
     let e = &cfg.eval;
     p.assoc.t_start_prior = (c.t_start_true - e.time_prior_s, c.t_start_true + e.time_prior_s);
     p.flat_h_ell_m = c.truth_h_ell.unwrap_or_else(|| geoid_undulation(c.truth_lat, c.truth_lon));
-    let region = displaced_region(c, e.region_offset_m, e.region_radius_m);
-    let res = locate(&c.audio, &c.events, c.tracks.clone(), region, c.dem.as_ref(), &cfg.spec, &p);
+    // Not search::locate: the truth metrics need the plane and catalogue the search used.
+    let plane = ScoringPlane::new(&log_spectrogram(&c.audio, &cfg.spec), &p.score);
+    let catalog = MemCatalog::new(c.tracks.clone());
+    let inp = SearchInput {
+        plane: &plane,
+        events: &c.events,
+        catalog: &catalog,
+        region: displaced_region(c, e.region_offset_m, e.region_radius_m),
+        duration_s: c.audio.duration_s(),
+        dem: c.dem.as_ref(),
+    };
+    let res = search(&inp, &p);
     let tuples = best_per_tuple(&res.ranked);
     let best = tuples.first().cloned();
     let truth_ids: Option<Vec<String>> = c.truth_flights.iter().cloned().collect();
     let is_truth = |cand: &Candidate| truth_ids.as_ref().is_some_and(|t| same_flights(&cand.track_ids, t));
+    let truth = Truth { lat: c.truth_lat, lon: c.truth_lon, flights: truth_ids.as_deref() };
+    let pp = PosteriorParams { beta: e.posterior_beta, floor: e.posterior_floor };
     CaseResult {
         id: c.id.clone(),
         status: "ok".into(),
@@ -81,6 +103,7 @@ fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
         cells: res.cells_scored,
         hypotheses: res.hypotheses_scored,
         runtime_s: 0.0,
+        metrics: metrics::measure(&inp, &p, &res, &truth, pp),
         best,
         tuples: tuples.into_iter().take(10).collect(),
     }
@@ -105,11 +128,7 @@ fn best_per_tuple(ranked: &[Candidate]) -> Vec<Candidate> {
 
 /// Store ids look like "2026-09-08/a1dfeb-3"; sim ids are compared verbatim.
 fn same_flights(ids: &[String], truth: &[String]) -> bool {
-    ids.len() == truth.len()
-        && ids.iter().zip(truth).all(|(id, t)| {
-            let icao = id.rsplit('/').next().unwrap_or(id).split('-').next().unwrap_or(id);
-            id == t || icao.eq_ignore_ascii_case(t)
-        })
+    ids.len() == truth.len() && ids.iter().zip(truth).all(|(id, t)| same_flight(id, t))
 }
 
 pub fn distance_m(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
