@@ -6,6 +6,7 @@ use super::score::{EventScore, EventTarget, JointScore, ScoreParams};
 use crate::audio::LogSpectrogram;
 use crate::geo::Vec3;
 use crate::physics::{self, Atmosphere};
+use crate::track::Track;
 
 pub struct Job {
     pub clock_nominal: f64,
@@ -17,8 +18,10 @@ pub struct Job {
 pub struct Prepared {
     pub frames: std::ops::Range<usize>,
     /// bpo·log2(F) for frame (frames.start + i) at sweep index k is `offsets[i + k]`, as `fixed::pos`
-    /// (`fixed::NONE` where the track does not cover the frame).
+    /// (`fixed::NONE` where the track does not cover the frame). Empty while `emit` is set.
     pub offsets: Vec<i64>,
+    /// Offsets still to be computed, on the GPU (`gpu::emit`) or by `materialise`.
+    pub emit: Option<Emitter>,
     /// First f0 step in bins (f64, for reporting f0) and as `fixed::pos` (for scoring).
     pub b0_start: f64,
     pub b0_start_fx: i64,
@@ -27,11 +30,12 @@ pub struct Prepared {
     pub norm: f64,
 }
 
-/// Best f0 step for one (event, clock index): z = Σ / norm.
+/// Best f0 step for one (event, clock index): z = Σ / norm; `covered` frames had an offset.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct StepBest {
     pub z: f64,
     pub step: usize,
+    pub covered: u32,
 }
 
 impl Job {
@@ -40,10 +44,42 @@ impl Job {
     }
 }
 
+/// Inputs of one offsets array: observation times `spec.t0 + (first + j)·dt + clock` for j in 0..n, seen
+/// from `obs` through a uniform medium (c, wind), for catalogue track `track`.
+#[derive(Clone, Copy, Debug)]
+pub struct Emitter {
+    pub track: u32,
+    pub obs: Vec3,
+    pub first: i64,
+    pub clock: f64,
+    pub n: usize,
+    pub c: f64,
+    pub wind: Vec3,
+}
+
 impl Prepared {
     pub fn b0(&self, step: usize, p: &ScoreParams) -> f64 {
         self.b0_start + step as f64 * p.f0_step_bins
     }
+
+    pub fn n_offsets(&self) -> usize {
+        self.emit.map_or(self.offsets.len(), |e| e.n)
+    }
+}
+
+/// Compute any deferred offsets on the CPU (`tracks` = the catalogue the emitters index).
+pub fn materialise(spec: &LogSpectrogram, jobs: &mut [Job], tracks: &[Track]) {
+    for pr in jobs.iter_mut().flat_map(|j| &mut j.events) {
+        if let Some(e) = pr.emit.take() {
+            pr.offsets = host_offsets(spec, &tracks[e.track as usize], e.obs, &Atmosphere::uniform(e.c, e.wind), e.first, e.clock, e.n);
+        }
+    }
+}
+
+fn host_offsets(spec: &LogSpectrogram, track: &Track, obs: Vec3, atm: &Atmosphere, first: i64, clock: f64, n: usize) -> Vec<i64> {
+    let times: Vec<f64> = (0..n as i64).map(|j| spec.t0 + (first + j) as f64 * spec.dt + clock).collect();
+    let bpo = spec.bins_per_octave as f64;
+    physics::doppler_factors(track, obs, &times, atm).into_iter().map(|f| fixed::pos(bpo * f.log2())).collect()
 }
 
 pub fn k_max(spec: &LogSpectrogram, p: &ScoreParams) -> usize {
@@ -56,6 +92,7 @@ pub fn harmonic_shifts(spec: &LogSpectrogram, p: &ScoreParams) -> Vec<(i64, f32)
     p.harmonics.iter().map(|&(h, w)| (fixed::pos(bpo * (h as f64).log2()), w)).collect()
 }
 
+/// Offsets computed here on the CPU.
 pub fn prepare_job(
     spec: &LogSpectrogram,
     targets: &[EventTarget<'_>],
@@ -64,14 +101,34 @@ pub fn prepare_job(
     clock_nominal: f64,
     p: &ScoreParams,
 ) -> Job {
+    prepare_job_with(spec, targets, None, obs, atm, clock_nominal, p)
+}
+
+/// With `track_index` (catalogue index per target) and a uniform `atm`, offsets are left to an `Emitter`.
+pub fn prepare_job_with(
+    spec: &LogSpectrogram,
+    targets: &[EventTarget<'_>],
+    track_index: Option<&[u32]>,
+    obs: Vec3,
+    atm: &Atmosphere,
+    clock_nominal: f64,
+    p: &ScoreParams,
+) -> Job {
     let k_max = k_max(spec, p);
-    let events = targets.iter().map(|t| prepare(spec, t, obs, atm, clock_nominal, k_max, p)).collect();
+    let deferred = track_index.filter(|_| atm.column.is_none());
+    let events = targets
+        .iter()
+        .enumerate()
+        .map(|(i, t)| prepare(spec, t, deferred.map(|ix| ix[i]), obs, atm, clock_nominal, k_max, p))
+        .collect();
     Job { clock_nominal, k_max, events }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn prepare(
     spec: &LogSpectrogram,
     t: &EventTarget<'_>,
+    defer_track: Option<u32>,
     obs: Vec3,
     atm: &Atmosphere,
     clock: f64,
@@ -82,11 +139,11 @@ fn prepare(
     let f_a = spec.frame_of(t.window.0).ceil().max(0.0) as usize;
     let f_b = (spec.frame_of(t.window.1).floor().max(0.0) as usize + 1).min(spec.n_t);
     let first = f_a as i64 - k_max;
-    let n = (f_b.saturating_sub(f_a)) as i64 + 2 * k_max;
-    let times: Vec<f64> = (0..n.max(0)).map(|j| spec.t0 + (first + j) as f64 * spec.dt + clock).collect();
-    let bpo = spec.bins_per_octave as f64;
-    let offsets =
-        physics::doppler_factors(t.track, obs, &times, atm).into_iter().map(|f| fixed::pos(bpo * f.log2())).collect();
+    let n = ((f_b.saturating_sub(f_a)) as i64 + 2 * k_max).max(0) as usize;
+    let (offsets, emit) = match defer_track {
+        Some(track) => (Vec::new(), Some(Emitter { track, obs, first, clock, n, c: atm.c, wind: atm.wind })),
+        None => (host_offsets(spec, t.track, obs, atm, first, clock, n), None),
+    };
     let (b0_lo, b0_hi) = (spec.bin_of(t.f0_range.0), spec.bin_of(t.f0_range.1));
     let frames = f_a..f_b.max(f_a);
     let w2 = p.harmonics.iter().map(|(_, w)| (*w as f64).powi(2)).sum::<f64>();
@@ -94,6 +151,7 @@ fn prepare(
         norm: ((frames.len().max(1)) as f64 * w2).sqrt(),
         frames,
         offsets,
+        emit,
         b0_start: b0_lo,
         b0_start_fx: fixed::pos(b0_lo),
         n_steps: ((b0_hi - b0_lo) / p.f0_step_bins).ceil().max(0.0) as usize + 1,
@@ -125,10 +183,10 @@ pub fn assemble(
         .events
         .iter()
         .zip(&win)
-        .map(|(pr, sb)| {
-            let n = pr.frames.len();
-            let covered = pr.offsets[k..k + n].iter().filter(|&&o| o != fixed::NONE).count();
-            EventScore { z: sb.z, f0: spec.freq_of(pr.b0(sb.step, p)), coverage: covered as f64 / n.max(1) as f64 }
+        .map(|(pr, sb)| EventScore {
+            z: sb.z,
+            f0: spec.freq_of(pr.b0(sb.step, p)),
+            coverage: sb.covered as f64 / pr.frames.len().max(1) as f64,
         })
         .collect();
     let clock_offset = job.clock_nominal + (k as i64 - job.k_max as i64) as f64 * spec.dt;

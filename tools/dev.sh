@@ -14,7 +14,9 @@ case "${1:-}" in
   # Rebuild the committed PTX on the GPU box (needs nvcc; see crates/dp-core/src/search/gpu/mod.rs).
   ptx)   K=crates/dp-core/src/search/gpu
          "$ROOT/tools/gpu.sh" sync
-         "$ROOT/tools/gpu.sh" run "nvcc -ptx -O3 --fmad=false -arch=compute_75 $K/sweep.cu -o $K/sweep.ptx"
-         "$ROOT/tools/gpu.sh" fetch "$K/sweep.ptx" ;;
+         for k in sweep emission; do
+           "$ROOT/tools/gpu.sh" run "nvcc -ptx -O3 --fmad=false -arch=compute_75 $K/$k.cu -o $K/$k.ptx"
+           "$ROOT/tools/gpu.sh" fetch "$K/$k.ptx"
+         done ;;
   *) echo "usage: tools/dev.sh check|test [filter]|py|eval [experiment.toml]|lit search|fetch ...|ptx" >&2; exit 2 ;;
 esac

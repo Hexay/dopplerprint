@@ -33,7 +33,7 @@ extern "C" __global__ void best_f0(
     const double* __restrict__ ev_norm,
     const long long* __restrict__ hs, const float* __restrict__ hw, unsigned n_h,
     long long step, unsigned n_k, unsigned long long n_pairs,
-    double* __restrict__ out_z, unsigned* __restrict__ out_step)
+    double* __restrict__ out_z, unsigned* __restrict__ out_step, unsigned* __restrict__ out_cov)
 {
     const unsigned long long pair = (unsigned long long)blockIdx.x * WARPS + threadIdx.x / 32;
     if (pair >= n_pairs) return;  // whole warps only: pairs are warp-uniform
@@ -75,8 +75,12 @@ extern "C" __global__ void best_f0(
         const unsigned os = __shfl_down_sync(0xffffffffu, best_step, w);
         if (oz > best || (oz == best && os < best_step)) { best = oz; best_step = os; }
     }
+    unsigned cov = 0;
+    for (unsigned i = lane; i < nframes; i += 32) cov += offs[i] != NONE;
+    for (unsigned o = 16; o > 0; o >>= 1) cov += __shfl_xor_sync(0xffffffffu, cov, o);
     if (lane == 0) {
         out_z[pair] = best;
         out_step[pair] = best_step;
+        out_cov[pair] = cov;
     }
 }
