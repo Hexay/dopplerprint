@@ -1,5 +1,10 @@
 # dopplerprint
 
+![A Piper PA-28's engine tone bends down as it passes the microphone; searching the ground for points that would hear that curve from its ADS-B track lights up the true location and its mirror image across the flight path.](docs/img/hero.png)
+
+<sub>One real flyover, recording start known to ±10 s. One pass can't tell the two sides of the track apart;
+more aircraft can. Best cell here: 307 m from the true microphone.</sub>
+
 Work out where an audio recording was made from the aircraft in it. Each propeller or helicopter flyover
 leaves a Doppler-shifted tone in the spectrogram; dopplerprint matches those curves against historical
 ADS-B trajectories and searches the ground for the point that would have heard every one of them, at the
@@ -67,6 +72,8 @@ From PyPI: `pip install dopplerprint`.
 - Aircraft types and registry: [tar1090-db](https://github.com/wiedehopf/tar1090-db).
 - Geoid: NGA EGM2008 (public domain), via [PROJ-data](https://cdn.proj.org/) `us_nga_egm08_25.tif`;
   the CONUS crop in `assets/geoid/` is derived from it.
+- Header figure (`tools/readme_figure.py`, case `livermore_N9658K_R24`): audio from Praveen Pathak, Zenodo
+  record 23424278 (CC BY 4.0); aircraft track © adsb.lol contributors (ODbL 1.0); terrain from USGS 3DEP.
 - DEM, fetched by `python/dopplerprint/prep/dem.py`: USGS 3DEP 1″ (public domain), with Copernicus GLO-30 as
   fallback (© DLR e.V. 2010–2014 and © Airbus Defence and Space GmbH 2014–2018, provided under COPERNICUS by
   the European Union and ESA; all rights reserved).

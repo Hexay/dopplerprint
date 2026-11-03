@@ -9,13 +9,11 @@ use std::time::Instant;
 
 use anyhow::Result;
 
-use crate::audio::spectrogram::log_spectrogram;
 use crate::config::Config;
 use crate::dem::geoid_undulation;
 use crate::geo::{Geodetic, geodetic_to_ecef};
 use crate::search::pipeline::Candidate;
-use crate::search::score::ScoringPlane;
-use crate::search::{MemCatalog, Region, SearchInput, search};
+use crate::search::{Region, locate};
 
 #[derive(Clone, Debug, Default, serde::Serialize)]
 pub struct CaseResult {
@@ -56,22 +54,12 @@ pub fn run(cfg: &Config, sim_dir: &Path, out_dir: &Path) -> Result<Vec<CaseResul
 }
 
 fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
-    let spec = log_spectrogram(&c.audio, &cfg.spec);
-    let plane = ScoringPlane::new(&spec, &cfg.search.score);
     let mut p = cfg.search.clone();
     let e = &cfg.eval;
     p.assoc.t_start_prior = (c.t_start_true - e.time_prior_s, c.t_start_true + e.time_prior_s);
     p.flat_h_ell_m = c.truth_h_ell.unwrap_or_else(|| geoid_undulation(c.truth_lat, c.truth_lon));
-    let catalog = MemCatalog::new(c.tracks.clone());
-    let inp = SearchInput {
-        plane: &plane,
-        events: &c.events,
-        catalog: &catalog,
-        region: displaced_region(c, e.region_offset_m, e.region_radius_m),
-        duration_s: c.audio.duration_s(),
-        dem: c.dem.as_ref(),
-    };
-    let res = search(&inp, &p);
+    let region = displaced_region(c, e.region_offset_m, e.region_radius_m);
+    let res = locate(&c.audio, &c.events, c.tracks.clone(), region, c.dem.as_ref(), &cfg.spec, &p);
     let tuples = best_per_tuple(&res.ranked);
     let best = tuples.first().cloned();
     let truth_ids: Option<Vec<String>> = c.truth_flights.iter().cloned().collect();

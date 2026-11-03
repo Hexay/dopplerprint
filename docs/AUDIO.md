@@ -199,4 +199,6 @@ img, t, f = log_spectrogram(x, sr, win_s=1.0, hop_s=0.25, f_min=20, f_max=1000, 
                             mains_hz=None, whiten=True)     # img is [t, f]
 events = discover(x, sr, **params)          # params: any DiscoverConfig field; returns a list of Event dicts
 fit = fit_cv(t, f, c=343.0)                 # CvFit dict
+res = search(x, sr, events, store, t0, t1, region, t_start_prior,   # one-call locate (search::locate):
+             bbox=None, max_alt_m=9000, dem=None, config=None)      # result dict incl. every scored cell
 ```

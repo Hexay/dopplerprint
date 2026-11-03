@@ -3,9 +3,11 @@
 
 pub mod catalog;
 pub mod hypothesis;
+pub mod locate;
 pub mod pipeline;
 pub mod score;
 
 pub use catalog::{Catalog, MemCatalog};
 pub use hypothesis::{AssocParams, EventSpec};
+pub use locate::locate;
 pub use pipeline::{Region, SearchInput, SearchParams, SearchResult, search};

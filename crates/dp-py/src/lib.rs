@@ -4,6 +4,7 @@
 mod audio;
 mod geo;
 mod physics;
+mod search;
 mod tracks;
 
 use pyo3::prelude::*;
@@ -14,6 +15,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     audio::register(m)?;
     geo::register(m)?;
     physics::register(m)?;
+    search::register(m)?;
     tracks::register(m)?;
     Ok(())
 }

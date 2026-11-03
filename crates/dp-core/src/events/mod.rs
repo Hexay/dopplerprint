@@ -149,6 +149,10 @@ pub fn events_to_json(events: &[Event]) -> anyhow::Result<String> {
     Ok(serde_json::to_string_pretty(events)?)
 }
 
+pub fn events_from_json(s: &str) -> anyhow::Result<Vec<Event>> {
+    Ok(serde_json::from_str(s)?)
+}
+
 pub fn fit_to_json(fit: &CvFit) -> anyhow::Result<String> {
     Ok(serde_json::to_string(fit)?)
 }
