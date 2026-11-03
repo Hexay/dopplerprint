@@ -6,6 +6,7 @@
 """
 
 import argparse
+from pathlib import Path
 
 import numpy as np
 import pyproj
@@ -21,7 +22,7 @@ def egm08(lat, lon):
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--egm08-dir", default="/srv/agents/work/doppler_print/data/dem/egm2008")
+    ap.add_argument("--egm08-dir", default=str(Path(__file__).resolve().parents[1] / "data/dem/egm2008"))
     ap.add_argument("--n", type=int, default=1000)
     ap.add_argument("--refs", action="store_true")
     a = ap.parse_args()

@@ -3,7 +3,7 @@
 # Needs: reference/.venv-dopplergeist (see data/MANIFEST.md) and `fetch_corpus.py dopplergeist` done.
 # Sequential on purpose: each run peaks < 1 GB RSS, 15-210 s.
 set -euo pipefail
-P=/srv/agents/work/doppler_print
+P="$(cd "$(dirname "$0")/.." && pwd)"
 DG=$P/reference/.venv-dopplergeist/bin/dopplergeist
 SRC=$P/data/_downloads/dopplergeist-extracted/data
 STAMP=${STAMP:-$(date -u +%Y%m%d)}

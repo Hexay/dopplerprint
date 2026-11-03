@@ -399,4 +399,4 @@ of ADS-B. Never materialise dense CONUS fields at 100 m or finer.
 - QGIS layer_styles in GPKG: https://docs.qgis.org/latest/en/docs/user_manual/managing_data_source/supported_data.html#geopackage
 - QGIS Processing algorithm authoring: https://docs.qgis.org/latest/en/docs/user_manual/processing/scripts.html
 - Leaflet: https://leafletjs.com/reference.html
-- Reference implementation: /srv/agents/work/doppler_print/reference/thunderprint/Cargo.toml and /srv/agents/work/doppler_print/reference/thunderprint/src/output/gpkg.rs
+- Reference implementation: [thunderprint](https://github.com/Hexay/thunderprint) `Cargo.toml` and `src/output/gpkg.rs`

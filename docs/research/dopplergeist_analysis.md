@@ -1,6 +1,6 @@
 # DOPPLERGEIST — algorithmic map (for Rust/PyO3 reimplementation)
 
-Source: `/srv/agents/work/doppler_print/reference/DOPPLERGEIST` @ `f6ba18a` (merge PR #141). Paths below are
+Source: [DOPPLERGEIST](https://github.com/1337isnot1337/DOPPLERGEIST) @ `f6ba18a` (merge PR #141). Paths below are
 relative to `src/dopplergeist/` unless prefixed. Python ≥3.11; deps numpy, scipy, pandas, pyproj, rasterio,
 soundfile, pyarrow, requests, matplotlib; ffmpeg/ffprobe external (`pyproj.toml`).
 

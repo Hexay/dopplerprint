@@ -11,7 +11,6 @@ import io
 import json
 import math
 import tarfile
-from pathlib import Path
 
 from . import sources as S
 from .common import DOWNLOADS, SHARED_ADSB, gh_release_download, log, write_json

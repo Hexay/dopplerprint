@@ -137,7 +137,7 @@ Location confidence is in each `truth.json`.
 ## Re-fetch
 
 ```bash
-P=/srv/agents/work/doppler_print
+P="$(git rev-parse --show-toplevel)"
 # needs gh auth with access to the private 1337isnot1337/DOPPLERGEIST repo
 uv run --no-project --with numpy --with scipy --with pyarrow --with h5py -- \
   python -I $P/tools/fetch_corpus.py all          # or individual stages, see --help

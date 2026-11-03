@@ -1,6 +1,6 @@
 # thunderprint as a template for doppler_print
 
-Source: `/srv/agents/work/doppler_print/reference/thunderprint` (abbrev. `TP/`). Read 2026-11-03. Single squashed
+Source: [thunderprint](https://github.com/Hexay/thunderprint) (abbrev. `TP/`). Read 2026-11-03. Single squashed
 commit (`8f6886b`), so dev history isn't recoverable from git. The process has to be inferred from `research/`,
 `tools/`, `experiments/` and `eval/`.
 

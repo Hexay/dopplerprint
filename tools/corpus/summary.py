@@ -22,7 +22,6 @@ def row(case):
     loc = "lat" in t or "reference_origin" in t
     time = any(k in t for k in ("recording_start_utc", "recording_start_window_utc", "recording_clock"))
     adsb = _has(case, "adsb") or bool(t.get("background_adsb"))
-    bg = t.get("background_adsb") or ("n/a" if t.get("kind") == "real-uav" else "")
     dem = _has(case, "dem") or "constant" in str(t.get("terrain", ""))
     full = all([_has(case, "audio"), loc, time, adsb, dem])
     missing = [m for m, ok in [("audio", _has(case, "audio")), ("location", loc), ("time", time),

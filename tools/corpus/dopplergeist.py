@@ -1,6 +1,5 @@
 """DOPPLERGEIST release assets -> oysterbay, synthetic and multi-event cases (truth + DG baselines)."""
 import json
-from pathlib import Path
 
 from . import sources as S
 from .common import (CASES, DOWNLOADS, SHARED_ADSB, SHARED_DEM, extract_tar_safely, gh_release_download,

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Time DOPPLERGEIST on the Oyster Bay configs (N repeats each) → runs/bench-dopplergeist/<stamp>.tsv
 set -euo pipefail
-P=/srv/agents/work/doppler_print
+P="$(cd "$(dirname "$0")/.." && pwd)"
 DG=$P/reference/.venv-dopplergeist/bin/dopplergeist
 SRC=$P/data/_downloads/dopplergeist-extracted/data/source
 N=${N:-3}
