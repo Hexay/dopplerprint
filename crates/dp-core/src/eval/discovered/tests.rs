@@ -14,6 +14,7 @@ fn found(t_cpa: f64, fund_hz: f64, harmonics: &[u32], d_m: f64) -> Found {
         d_range: (0.5 * d_m, 2.0 * d_m),
         v_range: (55.0, 90.0),
         snr: 10.0,
+        ..Default::default()
     }
 }
 

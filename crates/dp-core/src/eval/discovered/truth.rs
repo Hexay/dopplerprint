@@ -22,6 +22,8 @@ pub struct Found {
     pub d_range: (f64, f64),
     pub v_range: (f64, f64),
     pub snr: f64,
+    #[serde(default)]
+    pub t_cpa_range: (f64, f64),
 }
 
 impl Found {
@@ -40,6 +42,7 @@ impl Found {
             d_range: e.fit.d_range,
             v_range: e.fit.v_range,
             snr: e.snr,
+            t_cpa_range: e.fit.t_cpa_range,
         }
     }
 
