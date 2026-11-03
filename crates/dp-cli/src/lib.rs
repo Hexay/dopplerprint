@@ -6,6 +6,8 @@ use std::ffi::OsString;
 
 use clap::{Parser, Subcommand};
 
+pub use cmd::serve_backend::AppBackend;
+
 /// Locate an audio recording from the aircraft heard in it, matched to historical ADS-B.
 #[derive(Parser)]
 #[command(name = "dopplerprint", version, after_help = "Start here: dopplerprint locate --help")]
@@ -18,6 +20,8 @@ struct Cli {
 enum Command {
     /// Find where a recording was made (downloads and caches the ADS-B it needs).
     Locate(cmd::locate::Args),
+    /// Open a drag-and-drop page in your browser that runs locate (local web app).
+    Serve(cmd::serve::Args),
     /// Convert an adsb.lol day archive into the Parquet track store.
     Ingest(cmd::ingest::Args),
     /// Query the track store for a time window and region; optionally write GeoJSON.
@@ -48,6 +52,7 @@ where
     };
     let done = match cli.command {
         Command::Locate(a) => cmd::locate::run(a),
+        Command::Serve(a) => cmd::serve::run(a),
         Command::Ingest(a) => cmd::ingest::run(a).map(|_| 0),
         Command::Tracks(a) => cmd::tracks::run(a).map(|_| 0),
         Command::Discover(a) => cmd::discover::run(a).map(|_| 0),
