@@ -21,7 +21,8 @@ parquet = { version = "60", default-features = false, features = ["arrow", "zstd
 tar = "0.4"
 flate2 = "1"
 rstar = "0.14"
+realfft = "3.5"
+symphonia = { version = "0.5", default-features = false, features = ["mp3", "aac", "isomp4", "flac", "wav", "pcm", "ogg", "vorbis", "adpcm"] }
 
 [dev-dependencies]
-realfft = "3"
 tempfile = "3"

@@ -1,8 +1,22 @@
-//! Audio decode and the whitened log-frequency spectrogram every scorer reads.
+//! Audio decode and the whitened log-frequency spectrogram every scorer reads. See docs/AUDIO.md.
 
+mod decode;
+mod frontend;
+pub mod resample;
 pub mod spectrogram;
+mod stft;
+pub mod whiten;
 
-pub use spectrogram::{LogSpectrogram, SpecParams};
+#[cfg(test)]
+mod tests;
+
+pub use decode::{AudioInfo, decode_band, probe};
+pub use frontend::FrontEnd;
+pub use spectrogram::{
+    LogSpectrogram, SpecParams, combine_max, log_power_spectrogram, log_spectrogram, log_spectrogram_multi,
+    log_spectrogram_with,
+};
+pub use whiten::WhitenParams;
 
 #[derive(Clone, Debug)]
 pub struct Audio {
@@ -18,6 +32,7 @@ impl Audio {
 }
 
 /// Decode any container symphonia supports (wav/mp3/aac/m4a/flac/ogg) and downmix to mono.
-pub fn decode(_path: &std::path::Path) -> anyhow::Result<Audio> {
-    todo!("audio agent: symphonia")
+/// `sample_rate` is the container's declared rate, unmodified.
+pub fn decode(path: &std::path::Path) -> anyhow::Result<Audio> {
+    decode::decode_all(path, None)
 }
