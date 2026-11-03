@@ -125,9 +125,8 @@ fn pose_real(dir: &Path, p: &EvalParams) -> Result<Posed> {
         bail!("adapter: no events with window_s + cpa_receive_s + f0_hz (needs automatic discovery)");
     }
     let wav = first_file(&dir.join("audio"))?;
-    let audio = audio::decode(&wav)?;
     let (lat, lon) = (f(&truth, "lat").context("lat")?, f(&truth, "lon").context("lon")?);
-    let tracks = load_tracks(p, &date, lat, lon, t0, audio.duration_s())?;
+    let (audio, tracks) = decode_with_tracks(&wav, |dur| load_tracks(p, &date, lat, lon, t0, dur))?;
     let prefix = id.split('_').next().unwrap_or_default();
     let dem_path = p.data_dir.join("dem/5070").join(format!("{prefix}_30m.u16"));
     let dem = dem_path.exists().then(|| Dem::open(&dem_path)).transpose()?;
@@ -144,6 +143,19 @@ fn pose_real(dir: &Path, p: &EvalParams) -> Result<Posed> {
         dem,
         sim_atmosphere: None,
     })
+}
+
+/// Decode `wav` while `tracks(duration_s)` runs on the header's duration; reloads if the decoded length differs.
+fn decode_with_tracks(wav: &Path, tracks: impl Fn(f64) -> Result<Vec<Track>> + Sync) -> Result<(Audio, Vec<Track>)> {
+    let info = audio::probe(wav)?;
+    let declared = info.n_frames.map(|n| n as f64 / info.sample_rate as f64);
+    let (audio, early) = rayon::join(|| audio::decode(wav), || declared.map(&tracks));
+    let audio = audio?;
+    let tracks = match early {
+        Some(Ok(t)) if declared == Some(audio.duration_s()) => t,
+        _ => tracks(audio.duration_s())?,
+    };
+    Ok((audio, tracks))
 }
 
 pub(super) fn first_file(dir: &Path) -> Result<PathBuf> {
