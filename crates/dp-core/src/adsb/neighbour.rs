@@ -2,12 +2,12 @@
 //! Geometric-reporting aircraft give samples per (hour, 1° cell, 2000 ft baro band); each aircraft counts
 //! once per bin (its own mean), and a bin needs `MIN_AIRCRAFT` of them. Applied to `Baro` rows at finalize.
 
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use arrow_array::types::{Int32Type, Int64Type, UInt8Type};
 use arrow_array::{ArrayRef, Int32Array, RecordBatch, UInt8Array};
+use rustc_hash::FxHashMap as HashMap;
 
 use super::altitude::FT_TO_M;
 use super::model::AltSource;
@@ -37,7 +37,7 @@ pub fn off_key(t: f64, lat: f64, lon: f64, baro_m: f64, day0: f64) -> OffKey {
 
 /// This aircraft's mean offset (m) per bin, from points carrying both baro and geometric altitude.
 pub fn trace_offsets(raw: &RawTrace, day0: f64) -> Vec<(OffKey, f32)> {
-    let mut m: HashMap<OffKey, (f64, u32)> = HashMap::new();
+    let mut m: HashMap<OffKey, (f64, u32)> = HashMap::default();
     for p in &raw.trace {
         if let (Alt::Feet(b), Some(g)) = (p.alt, p.alt_geom_ft)
             && p.flags & FLAG_ALT_GEOM == 0

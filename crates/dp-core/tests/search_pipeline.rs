@@ -79,6 +79,10 @@ fn two_event_search_recovers_observer() {
         dem: None,
     };
     let r = search(&inp, &p);
+    // Full ranking for output-equivalence checks across optimisations.
+    if let Some(path) = std::env::var_os("DP_SEARCH_DUMP") {
+        std::fs::write(path, serde_json::to_vec(&r).unwrap()).unwrap();
+    }
     let best = &r.ranked[0];
     let tracks = catalog.all();
     let targets: Vec<_> = events
