@@ -7,6 +7,7 @@ mod discover;
 mod fit;
 mod linalg;
 mod merge;
+mod passlike;
 mod refine;
 mod split;
 mod stats;
@@ -14,6 +15,8 @@ mod stitch;
 mod track;
 mod window;
 
+#[cfg(test)]
+mod passlike_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
@@ -25,6 +28,7 @@ use crate::audio::{Audio, FrontEnd, IfRefiner, LogSpectrogram};
 use crate::physics::cv::CvParams;
 
 pub use fit::{FitParams, fit_cv_with};
+pub use passlike::{MIN_PASS_P, PassFeatures, features as pass_features, pass_likeness, select};
 
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct Ridge {
@@ -60,6 +64,9 @@ pub struct Event {
     /// Detection z: Stouffer combination of per-harmonic on-ridge vs off-ridge whitened power.
     #[serde(default)]
     pub snr: f64,
+    /// Pass-likeness in (0, 1) (`passlike`); selection searches events with `pass_p ≥ MIN_PASS_P`.
+    #[serde(default)]
+    pub pass_p: f64,
 }
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]

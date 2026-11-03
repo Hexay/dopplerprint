@@ -10,7 +10,7 @@ fn within(x: f64, r: (f64, f64)) -> bool {
 }
 
 /// `truth` = (f0, v, d, t_cpa_arrive); the ridge spans [t0, t1] at 0.25 s.
-fn ridge_from_model(truth: (f64, f64, f64, f64), t0: f64, t1: f64, noise_hz: f64, seed: u64) -> Ridge {
+pub(super) fn ridge_from_model(truth: (f64, f64, f64, f64), t0: f64, t1: f64, noise_hz: f64, seed: u64) -> Ridge {
     let (f0, v, d, ta) = truth;
     let mut rng = Rng(seed);
     let t: Vec<f64> = (0..).map(|k| t0 + 0.25 * k as f64).take_while(|&t| t <= t1).collect();
