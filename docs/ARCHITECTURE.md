@@ -8,6 +8,7 @@ This tool works out where an audio recording was made. It matches the aircraft D
 |---|---|
 | `crates/dp-core` | All computation. Has no Python dependency. |
 | `crates/dp-cli` | `doppler-print` binary. Each subcommand is one file in `src/cmd/` and is a thin call into dp-core. |
+| `crates/dp-serve` | `serve` web app: tiny_http, one worker thread, on-disk jobs, embedded page. Calls a `LocateBackend` trait and does no computation itself. |
 | `crates/dp-py` | `dopplerprint._core`, an abi3 wheel. Each file registers the bindings for one dp-core area. Arrays are passed as numpy, and long calls release the GIL with `py.detach`. |
 | `python/dopplerprint` | Python package with offline prep scripts (DEM, geoid, weather), notebooks and the QGIS plugin. Display and orchestration only. |
 | `tools/` | Scripts for the corpus and the eval loop. |

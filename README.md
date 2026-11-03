@@ -37,6 +37,7 @@ Details: `docs/ARCHITECTURE.md`, `docs/PHYSICS.md`, `docs/AUDIO.md`, `docs/DATA.
 |---|---|
 | `crates/dp-core` | All computation (Rust). |
 | `crates/dp-cli` | `doppler-print` binary: `ingest`, `tracks`, `discover`, `sim`, `eval`. |
+| `crates/dp-serve` | `serve`: local drag-and-drop web app over a `LocateBackend` (orchestration and UI only). |
 | `crates/dp-py` | `dopplerprint._core` Python bindings (PyO3, abi3, numpy). |
 | `python/dopplerprint` | Offline prep (DEM, geoid) and the QGIS Processing plugin. |
 | `tools/` | Dev runner, corpus fetch, benchmarks. |
@@ -52,6 +53,7 @@ tools/dev.sh check                 # clippy, whole workspace
 tools/dev.sh test [filter]         # dp-core tests (cargo-nextest)
 uv venv && tools/dev.sh py         # build dopplerprint into .venv
 cargo run --release -p dp-cli -- discover recording.wav --out events.json
+cargo run --release -p dp-cli -- serve --open   # drag-and-drop page in your browser (docs/USAGE.md)
 ```
 
 Real-world evaluation needs the validation corpus (recordings, ADS-B days, DEM), which is not in the repo:

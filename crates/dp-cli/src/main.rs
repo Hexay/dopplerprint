@@ -22,6 +22,8 @@ enum Command {
     Sim(cmd::sim::Args),
     /// Run the corpus + sim evaluation and write runs/<stamp>/summary.md.
     Eval(cmd::eval::Args),
+    /// Open the drag-and-drop locate page in your browser (local web app).
+    Serve(cmd::serve::Args),
 }
 
 fn main() -> anyhow::Result<()> {
@@ -31,5 +33,6 @@ fn main() -> anyhow::Result<()> {
         Command::Discover(a) => cmd::discover::run(a),
         Command::Sim(a) => cmd::sim::run(a),
         Command::Eval(a) => cmd::eval::run(a),
+        Command::Serve(a) => cmd::serve::run(a),
     }
 }
