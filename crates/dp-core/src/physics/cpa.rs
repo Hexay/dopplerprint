@@ -2,7 +2,7 @@
 
 use super::{Atmosphere, Cpa, Medium};
 use crate::geo::{Vec3, ecef_to_geodetic, up_vector};
-use crate::track::bounds::{Chunk, TrackBounds};
+use crate::track::bounds::Chunk;
 use crate::track::{Track, TrackPoint, hermite};
 
 const ROOT_TOL_S: f64 = 1e-9;
@@ -17,28 +17,42 @@ pub fn closest_approach(track: &Track, obs: Vec3, atm: &Atmosphere) -> Option<Cp
     finish(track, best, obs, atm)
 }
 
-/// `closest_approach` with chunks skipped when their lower bound cannot beat the running best. Knots:
-/// best chunk first, then (lb2, index) order is preserved by a lowest-index tie-break. Segments: original
-/// order with a strict skip, so every accepted update is the one the reference makes.
-pub fn closest_approach_bounded(track: &Track, bounds: &TrackBounds, obs: Vec3, atm: &Atmosphere) -> Option<Cpa> {
+/// `closest_approach` when its range is ≤ `reach2` (squared m), else `None`. `chunks` (in track order) may
+/// omit any chunk whose `curve_lb2` exceeds `reach2`. Chunks are skipped when their lower bound cannot beat
+/// the running best or `reach2`. Knots: best chunk first, then (lb2, index) order is preserved by a
+/// lowest-index tie-break. Segments: original order with a strict skip, so every accepted update is the one
+/// the reference makes; a skipped or omitted chunk's values all exceed the final minimum.
+pub fn closest_approach_bounded<'b>(
+    track: &Track,
+    chunks: impl Iterator<Item = &'b Chunk> + Clone,
+    obs: Vec3,
+    atm: &Atmosphere,
+    reach2: f64,
+) -> Option<Cpa> {
+    if chunks.clone().all(|c| c.curve_lb2(obs) > reach2) {
+        return None;
+    }
     let pts = &track.points;
-    let seed = bounds.chunks.iter().enumerate().min_by(|a, b| a.1.point_lb2(obs).total_cmp(&b.1.point_lb2(obs)))?.0;
+    let seed = chunks.clone().min_by(|a, b| a.point_lb2(obs).total_cmp(&b.point_lb2(obs)))?;
     let mut knot: Option<(f64, usize)> = None;
-    nearest_knot(pts, &bounds.chunks[seed], obs, &mut knot);
-    for (ci, c) in bounds.chunks.iter().enumerate() {
-        if ci != seed && knot.is_none_or(|(b, _)| c.point_lb2(obs) <= b) {
+    nearest_knot(pts, seed, obs, &mut knot);
+    for c in chunks.clone() {
+        if !std::ptr::eq(c, seed) && knot.is_none_or(|(b, _)| c.point_lb2(obs) <= b) {
             nearest_knot(pts, c, obs, &mut knot);
         }
     }
     let (r2, i) = knot?;
     let mut best = (pts[i].t, r2);
-    for c in &bounds.chunks {
-        if c.curve_lb2(obs) > best.1 {
+    for c in chunks {
+        if c.curve_lb2(obs) > best.1.min(reach2) {
             continue;
         }
         for s in c.first..c.last {
             refine(&mut best, &pts[s], &pts[s + 1], obs);
         }
+    }
+    if best.1 > reach2 {
+        return None;
     }
     finish(track, best, obs, atm)
 }

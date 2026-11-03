@@ -3,7 +3,9 @@
 # runs CMD in the remote repo, `tools/gpu.sh fetch PATH...` copies repo-relative files back. Host comes from $GPU_HOST or the gitignored .gpu-host ("user@ip [port]").
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-read -r HOST PORT <<< "${GPU_HOST:-$(cat "$ROOT/.gpu-host")}"
+# Gitignored .gpu-host and data/ live only in the main checkout, not in worktrees.
+MAIN="$(cd "$(git -C "$ROOT" rev-parse --git-common-dir)/.." && pwd)"
+read -r HOST PORT <<< "${GPU_HOST:-$(cat "$MAIN/.gpu-host")}"
 PORT="${PORT:-22}"
 SSH=(ssh -o BatchMode=yes -p "$PORT" "$HOST")
 REMOTE=/root/doppler_print
@@ -13,8 +15,7 @@ case "${1:-}" in
     RS=(rsync -az --delete -e "ssh -o BatchMode=yes -p $PORT")
     "${RS[@]}" --exclude /data/ --exclude target/ --exclude .git/ --exclude .venv/ --exclude runs/ --exclude .gpu-host \
       "$ROOT/" "$HOST:$REMOTE/"
-    # Gitignored data/ lives only in the main checkout, not in worktrees.
-    DATA="$(cd "$(git -C "$ROOT" rev-parse --git-common-dir)/.." && pwd)/data"
+    DATA="$MAIN/data"
     # ADS-B store: only the days of cases that read it (oysterbay parity); other cases carry their own adsb/.
     "${RS[@]}" --include /adsb/ --include /adsb/store/ --include '/adsb/store/date=2026-09-08/***' \
       --exclude '/adsb/**' --exclude /_downloads/ "$DATA/" "$HOST:$REMOTE/data/"

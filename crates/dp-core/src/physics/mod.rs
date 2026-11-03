@@ -86,7 +86,14 @@ pub fn cpa(track: &Track, obs: Vec3, atm: &Atmosphere) -> Option<Cpa> {
     cpa::closest_approach(track, obs, atm)
 }
 
-/// `cpa` using precomputed chunk bounds (identical result, sublinear in track length).
-pub fn cpa_bounded(track: &Track, bounds: &crate::track::TrackBounds, obs: Vec3, atm: &Atmosphere) -> Option<Cpa> {
-    cpa::closest_approach_bounded(track, bounds, obs, atm)
+/// `cpa` using precomputed chunk bounds (identical result, sublinear in track length); `None` beyond
+/// `reach_m` slant range. See `cpa::closest_approach_bounded` for which chunks may be left out.
+pub fn cpa_bounded<'b>(
+    track: &Track,
+    chunks: impl Iterator<Item = &'b crate::track::bounds::Chunk> + Clone,
+    obs: Vec3,
+    atm: &Atmosphere,
+    reach_m: f64,
+) -> Option<Cpa> {
+    cpa::closest_approach_bounded(track, chunks, obs, atm, reach_m * reach_m)
 }

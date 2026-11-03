@@ -56,12 +56,20 @@ fn bounded_cpa_equals_reference() {
         let track = wander(seed, n);
         let bounds = TrackBounds::new(&track);
         for obs in observers(&mut rng, 300) {
-            assert_eq!(cpa_bounded(&track, &bounds, obs, &atm), cpa(&track, obs, &atm), "seed {seed} n {n}");
+            let want = cpa(&track, obs, &atm);
+            assert_eq!(cpa_bounded(&track, bounds.chunks.iter(),obs, &atm, f64::INFINITY), want, "seed {seed} n {n}");
+            // Reaches straddling the true range: just below → None, at or above → identical.
+            if let Some(w) = want {
+                for (reach, hit) in [(w.slant_m * 0.999, false), (w.slant_m * 1.001, true), (w.slant_m * 3.0, true)] {
+                    let got = cpa_bounded(&track, bounds.chunks.iter(),obs, &atm, reach);
+                    assert_eq!(got, hit.then_some(w), "seed {seed} n {n} reach {reach}");
+                }
+            }
         }
         // On-track observers: the knot minimum and segment refinement are both exercised at ~0 range.
         for p in track.points.iter().step_by(7) {
             let obs = p.pos + Vec3::new(3.0, -2.0, 1.0);
-            assert_eq!(cpa_bounded(&track, &bounds, obs, &atm), cpa(&track, obs, &atm), "on-track seed {seed}");
+            assert_eq!(cpa_bounded(&track, bounds.chunks.iter(),obs, &atm, f64::INFINITY), cpa(&track, obs, &atm), "on-track seed {seed}");
         }
     }
 }
@@ -70,12 +78,18 @@ fn bounded_cpa_equals_reference() {
 fn indexed_near_equals_brute_force() {
     let tracks: Vec<Track> = (10..40).map(|s| wander(s, 50 + 37 * (s as usize % 9))).collect();
     let cat = MemCatalog::new(tracks.clone());
+    let atm = Atmosphere::default();
     let mut rng = Rng(42);
     for obs in observers(&mut rng, 400) {
         for (radius, t0, t1) in [(10_000.0, T0, T0 + 5_000.0), (3_000.0, T0 + 800.0, T0 + 900.0), (25_000.0, f64::NEG_INFINITY, f64::INFINITY)] {
-            let got: Vec<&str> = cat.near(obs, radius, t0, t1).iter().map(|n| n.track.id.as_str()).collect();
+            let near = cat.near(obs, radius, t0, t1);
+            let got: Vec<&str> = near.iter().map(|n| n.track.id.as_str()).collect();
             let want: Vec<&str> = tracks.iter().filter(|t| brute_near(t, obs, radius, t0, t1)).map(|t| t.id.as_str()).collect();
             assert_eq!(got, want);
+            // CPA over the queried chunk subset equals the full reference CPA (capped reach covers it).
+            for n in &near {
+                assert_eq!(n.cpa(obs, &atm, f64::INFINITY), cpa(n.track, obs, &atm), "track {}", n.track.id);
+            }
         }
     }
 }

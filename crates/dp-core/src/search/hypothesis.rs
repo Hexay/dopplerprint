@@ -74,6 +74,12 @@ pub fn associate(events: &[EventSpec], cpas: &[Option<Cpa>], duration_s: f64, p:
     out
 }
 
+/// Slant range beyond which a CPA cannot affect `associate` (event d_range or silence range).
+/// The 1e-9 relative margin keeps `sqrt` rounding at the boundary on the safe side.
+pub fn cpa_reach_m(events: &[EventSpec], p: &AssocParams) -> f64 {
+    events.iter().map(|e| e.d_range.1).fold(p.silence_range_m, f64::max) * (1.0 + 1e-9)
+}
+
 fn in_range(x: f64, r: (f64, f64)) -> bool {
     x >= r.0 && x <= r.1
 }

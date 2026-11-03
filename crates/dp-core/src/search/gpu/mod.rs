@@ -111,12 +111,14 @@ struct Batch {
 
 impl Batch {
     fn flatten(jobs: &[Job], n_k: usize) -> Self {
+        use rayon::prelude::*;
         let mut b = Batch::default();
+        let mut total = 0usize;
         for job in jobs {
             assert_eq!(job.n_k(), n_k, "one launch needs a uniform clock sweep");
             for pr in &job.events {
-                b.off_start.push(b.offsets.len() as u64);
-                b.offsets.extend_from_slice(&pr.offsets);
+                b.off_start.push(total as u64);
+                total += pr.offsets.len();
                 b.frame0.push(pr.frames.start as u32);
                 b.nframes.push(pr.frames.len() as u32);
                 b.b0.push(pr.b0_start_fx);
@@ -124,6 +126,15 @@ impl Batch {
                 b.norm.push(pr.norm);
             }
         }
+        b.offsets = vec![0; total];
+        let mut rest = b.offsets.as_mut_slice();
+        let mut parts = Vec::with_capacity(b.off_start.len());
+        for pr in jobs.iter().flat_map(|j| &j.events) {
+            let (head, tail) = rest.split_at_mut(pr.offsets.len());
+            parts.push((head, &pr.offsets));
+            rest = tail;
+        }
+        parts.into_par_iter().for_each(|(dst, src)| dst.copy_from_slice(src));
         b
     }
 }

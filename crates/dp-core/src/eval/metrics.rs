@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 use crate::geo::albers::{self, Cell};
 use crate::geo::{Geodetic, Vec3, geodetic_to_ecef};
-use crate::search::hypothesis::associate;
+use crate::search::hypothesis::{associate, cpa_reach_m};
 use crate::search::pipeline::{Candidate, SearchInput, SearchParams, SearchResult, coarse_cells, score_cell};
 use crate::track::Track;
 
@@ -105,7 +105,7 @@ fn flight_stages(inp: &SearchInput<'_>, ps: &[SearchParams], t: &Truth<'_>) -> V
     let near: Vec<&Track> = nearby.iter().map(|n| n.track).collect();
     let (mut assoc_ok, mut n_hyps) = (false, 0);
     for q in ps {
-        let cpas: Vec<_> = nearby.iter().map(|n| n.cpa(obs, &q.atmosphere)).collect();
+        let cpas: Vec<_> = nearby.iter().map(|n| n.cpa(obs, &q.atmosphere, cpa_reach_m(inp.events, &q.assoc))).collect();
         let hyps = associate(inp.events, &cpas, inp.duration_s, &q.assoc);
         assoc_ok |= hyps.iter().any(|h| h.tracks.iter().zip(truth).all(|(&i, f)| same_flight(&near[i].id, f)));
         n_hyps = n_hyps.max(hyps.len());

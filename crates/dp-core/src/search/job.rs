@@ -101,41 +101,36 @@ fn prepare(
 }
 
 /// Best clock step: `best(e, k)` is called once per (event, k), k outer, events inner; first maximum wins.
+/// Totals sum z in event order, so only the winning k needs its `EventScore`s built.
 pub fn assemble(
     spec: &LogSpectrogram,
     job: &Job,
     p: &ScoreParams,
     mut best: impl FnMut(usize, usize) -> StepBest,
 ) -> Option<JointScore> {
-    let covered: Vec<Vec<u32>> = job.events.iter().map(covered_prefix).collect();
-    let mut out: Option<JointScore> = None;
+    let n_e = job.events.len();
+    let (mut cur, mut win) = (Vec::with_capacity(n_e), Vec::with_capacity(n_e));
+    let mut top: Option<(f64, usize)> = None;
     for k in 0..job.n_k() {
-        let events: Vec<EventScore> = job
-            .events
-            .iter()
-            .enumerate()
-            .map(|(e, pr)| {
-                let sb = best(e, k);
-                let n = pr.frames.len();
-                let coverage = (covered[e][k + n] - covered[e][k]) as f64 / n.max(1) as f64;
-                EventScore { z: sb.z, f0: spec.freq_of(pr.b0(sb.step, p)), coverage }
-            })
-            .collect();
-        let total = events.iter().map(|e| e.z).sum::<f64>();
-        if out.as_ref().is_none_or(|b| total > b.total) {
-            let clock_offset = job.clock_nominal + (k as i64 - job.k_max as i64) as f64 * spec.dt;
-            out = Some(JointScore { total, clock_offset, events });
+        cur.clear();
+        cur.extend((0..n_e).map(|e| best(e, k)));
+        let total = cur.iter().map(|sb| sb.z).sum::<f64>();
+        if top.is_none_or(|(t, _)| total > t) {
+            top = Some((total, k));
+            std::mem::swap(&mut cur, &mut win);
         }
     }
-    out
-}
-
-/// `c[i]` = covered frames among `offsets[..i]`, so coverage at clock index k is c[k + n] − c[k].
-fn covered_prefix(pr: &Prepared) -> Vec<u32> {
-    std::iter::once(0)
-        .chain(pr.offsets.iter().scan(0u32, |c, &o| {
-            *c += (o != fixed::NONE) as u32;
-            Some(*c)
-        }))
-        .collect()
+    let (total, k) = top?;
+    let events = job
+        .events
+        .iter()
+        .zip(&win)
+        .map(|(pr, sb)| {
+            let n = pr.frames.len();
+            let covered = pr.offsets[k..k + n].iter().filter(|&&o| o != fixed::NONE).count();
+            EventScore { z: sb.z, f0: spec.freq_of(pr.b0(sb.step, p)), coverage: covered as f64 / n.max(1) as f64 }
+        })
+        .collect();
+    let clock_offset = job.clock_nominal + (k as i64 - job.k_max as i64) as f64 * spec.dt;
+    Some(JointScore { total, clock_offset, events })
 }
