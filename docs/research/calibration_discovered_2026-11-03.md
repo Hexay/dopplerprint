@@ -165,3 +165,31 @@ dopplerprint calibrate --events discovered --calib runs/m2_liv_dev --calib runs/
 
 Run the evals with the previous calibration in place (they record its coverage); the fit reads only the cached
 surfaces. `--before <toml>` compares against another calibration.
+
+## Per-mode calibration (oracle baselines)
+
+With the table above, oracle 80/90% regions are the whole 50 km² search area, which is useless as a baseline
+for region-size work. Evals now score coverage with `search/calibration_oracle.toml` when every searched event
+is a truth label (`EventSpec::is_exact`), and with `calibration.toml` otherwise; the app always uses
+`calibration.toml`. Override in experiment TOML with `[search] calibration = "discovered" | "oracle" | "<path>"`
+(`search::calibration::Choice`). Only coverage changes: the keep rule still reads the shipped T, so peaks,
+flights, rank and discovered results are unchanged.
+
+Oracle fit (main a0bbde9, clean sim bank `experiments/sim_calib`): **T = 1.54, ε = 0.043**, q̂ 1 pass
+0.270 / 0.775 / 0.958, 2 passes 0.177 / 0.375 / 0.562, ≥ 3 passes 0.186 / 0.301 / 0.514 (the pre-cec413d
+oracle fit was T 1.58, ε 0.01 fixed, q̂ within 0.03).
+
+| oracle events | 50% shipped → oracle table | 80% | 90% | median area 50/80/90 km² |
+|---|---|---|---|---|
+| Livermore 40 | 29/40 → 21/40 | 38/40 → 35/40 | 38/40 → 38/40 | 0.32/50.2/50.2 → 0.08/0.49/2.23 |
+| Livermore test (held out) | 9/12 → 6/12 | 11/12 → 11/12 | 11/12 → 11/12 | 0.29/28.3/50.2 → 0.08/0.53/2.60 |
+| sim test bank (held out) | 32/36 → 20/36 | 36/36 → 32/36 | 36/36 → 36/36 | 0.01/0.03/50.3 → 0.01/0.01/0.02 |
+
+```
+dopplerprint eval --experiment experiments/calib_sim_discovered.toml --sim-dir experiments/sim_calib --case sim_cal_ --out runs/a_cal
+# (+ livermore_dev/test, oysterbay as above, and --case sim_test_ → runs/a_simtest)
+dopplerprint calibrate --events oracle --calib runs/a_dev --calib runs/a_oyster --calib runs/a_cal \
+  --t-case livermore --t-case oyster --fit-floor \
+  --test runs/a_test --test runs/a_dev --test runs/a_simtest --test runs/a_oyster \
+  --write crates/dp-core/src/search/calibration_oracle.toml --out runs/calibration_oracle.md
+```

@@ -36,6 +36,9 @@ pub struct SearchParams {
     pub assoc: AssocParams,
     pub score: ScoreParams,
     pub backend: Backend,
+    /// Eval coverage table (`calibration::Choice`); the app always uses the shipped one.
+    #[serde(skip_serializing_if = "super::calibration::Choice::is_auto")]
+    pub calibration: super::calibration::Choice,
 }
 
 impl Default for SearchParams {
@@ -52,6 +55,7 @@ impl Default for SearchParams {
             assoc: AssocParams::default(),
             score: ScoreParams::default(),
             backend: Backend::default(),
+            calibration: Default::default(),
         }
     }
 }

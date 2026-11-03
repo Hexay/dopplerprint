@@ -7,7 +7,7 @@ use rayon::prelude::*;
 
 use super::calibrate::{Case, STRATA, stratum_of};
 use super::conformal::clopper_pearson;
-use super::coverage::{Coverage, NOMINAL, Shape};
+use super::coverage::{Coverage, NOMINAL, Shape, masses};
 use super::stats::{bootstrap, mean, median};
 use crate::search::calibration::Calibration;
 
@@ -15,15 +15,6 @@ struct Scored<'a> {
     case: &'a Case,
     before: Coverage,
     after: Coverage,
-}
-
-fn shape(c: &Calibration) -> Shape {
-    Shape { temperature: c.temperature, floor: c.floor, persistence_nats: c.persistence_nats }
-}
-
-/// HPD masses `c` reports for each NOMINAL level at `n` passes (the nominal mass where uncalibrated).
-fn masses(c: &Calibration, n: usize) -> Vec<f64> {
-    NOMINAL.iter().map(|&l| c.q_hat(n, l).unwrap_or(l)).collect()
 }
 
 fn frac(k: usize, n: usize) -> String {
@@ -44,8 +35,8 @@ pub fn section(name: &str, cases: &[&Case], unanswered: usize, c: &Calibration, 
         .par_iter()
         .map(|&case| Scored {
             case,
-            before: case.measure(shape(before), &masses(before, case.n_events)),
-            after: case.measure(shape(c), &masses(c, case.n_events)),
+            before: case.measure(Shape::of(before), &masses(before, case.n_events)),
+            after: case.measure(Shape::of(c), &masses(c, case.n_events)),
         })
         .collect();
     let _ = writeln!(

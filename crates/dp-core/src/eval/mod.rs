@@ -33,7 +33,7 @@ use crate::search::pipeline::Candidate;
 use crate::search::score::ScoringPlane;
 use crate::search::surface::Surface;
 use coverage::Coverage;
-use crate::search::{MemCatalog, Region, Scorer, SearchInput, search};
+use crate::search::{EventSpec, MemCatalog, Region, Scorer, SearchInput, search};
 use metrics::{Metrics, PosteriorParams, Truth, same_flight};
 
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
@@ -64,7 +64,7 @@ pub struct CaseResult {
     pub atmosphere: Option<Atmosphere>,
     #[serde(default)]
     pub truth_lat_lon: Option<(f64, f64)>,
-    /// At the shipped calibration (`search::calibration`).
+    /// At the eval's calibration table (`search::calibration::Choice`).
     #[serde(default)]
     pub coverage: Option<Coverage>,
     /// Cached refined surface, so `calibrate` re-tempers without re-searching.
@@ -145,6 +145,10 @@ pub fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
         duration_s: c.audio.duration_s(),
         dem: c.dem.as_ref(),
     };
+    let cal = match p.calibration.resolve(c.events.iter().all(EventSpec::is_exact)) {
+        Ok(cal) => cal,
+        Err(e) => return CaseResult { id: c.id.clone(), status: format!("skipped: calibration: {e:#}"), ..Default::default() },
+    };
     let plane_s = t_plane.elapsed().as_secs_f64();
     let (res, chosen) = nuisance::merge(variants.iter().map(|q| search(&inp, q)).collect());
     let surface = Surface::new(&res.ranked, &inp.region, p.coarse_step_m);
@@ -184,7 +188,7 @@ pub fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
         metrics,
         atmosphere: Some(variants[chosen].atmosphere),
         truth_lat_lon: Some((c.truth_lat, c.truth_lon)),
-        coverage: Some(coverage::measure(&surface, c.truth_lat, c.truth_lon, coverage::Shape::shipped(), &coverage::shipped_masses(c.events.len()))),
+        coverage: Some(coverage::measure(&surface, c.truth_lat, c.truth_lon, coverage::Shape::of(&cal), &coverage::masses(&cal, c.events.len()))),
         surface: Some(surface),
         weather,
         best,

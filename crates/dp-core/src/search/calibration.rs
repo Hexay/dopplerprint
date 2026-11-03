@@ -1,6 +1,7 @@
 //! Fitted posterior calibration: temperature T and per-stratum split-conformal HPD levels q̂.
 //! Values live in calibration.toml (written by `dopplerprint calibrate`, provenance inside).
 
+use std::borrow::Cow;
 use std::sync::LazyLock;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -31,9 +32,67 @@ pub struct Stratum {
 
 static CAL: LazyLock<Calibration> =
     LazyLock::new(|| toml::from_str(include_str!("calibration.toml")).expect("search/calibration.toml parses"));
+static ORACLE: LazyLock<Calibration> =
+    LazyLock::new(|| toml::from_str(include_str!("calibration_oracle.toml")).expect("search/calibration_oracle.toml parses"));
 
+/// The shipped table, fitted on discovered events: what the app uses.
 pub fn get() -> &'static Calibration {
     &CAL
+}
+
+/// Fitted on oracle (truth-label) events; eval baselines only.
+pub fn oracle() -> &'static Calibration {
+    &ORACLE
+}
+
+/// Which table an eval scores coverage with (`[search] calibration`): "auto" (default), "discovered",
+/// "oracle", or a TOML path. The app ignores it and always uses `get()`.
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(from = "String", into = "String")]
+pub enum Choice {
+    /// `oracle()` when every searched event is a truth label, else `get()`.
+    #[default]
+    Auto,
+    Discovered,
+    Oracle,
+    File(std::path::PathBuf),
+}
+
+impl From<String> for Choice {
+    fn from(s: String) -> Self {
+        match s.as_str() {
+            "auto" => Choice::Auto,
+            "discovered" => Choice::Discovered,
+            "oracle" => Choice::Oracle,
+            _ => Choice::File(s.into()),
+        }
+    }
+}
+
+impl From<Choice> for String {
+    fn from(c: Choice) -> Self {
+        match c {
+            Choice::Auto => "auto".into(),
+            Choice::Discovered => "discovered".into(),
+            Choice::Oracle => "oracle".into(),
+            Choice::File(p) => p.display().to_string(),
+        }
+    }
+}
+
+impl Choice {
+    pub fn is_auto(&self) -> bool {
+        *self == Choice::Auto
+    }
+
+    pub fn resolve(&self, oracle_events: bool) -> anyhow::Result<Cow<'static, Calibration>> {
+        Ok(match self {
+            Choice::Auto if oracle_events => Cow::Borrowed(oracle()),
+            Choice::Auto | Choice::Discovered => Cow::Borrowed(get()),
+            Choice::Oracle => Cow::Borrowed(oracle()),
+            Choice::File(p) => Cow::Owned(Calibration::from_file(p)?),
+        })
+    }
 }
 
 impl Calibration {
@@ -54,12 +113,29 @@ impl Calibration {
 
 #[cfg(test)]
 mod tests {
+    use super::{Choice, get, oracle};
+
     #[test]
-    fn shipped_calibration_parses() {
-        let c = super::get();
-        assert!(c.temperature > 0.0 && c.floor > 0.0 && c.floor < 1.0);
-        for s in &c.stratum {
-            assert_eq!(s.nominal.len(), s.q_hat.len());
+    fn shipped_calibrations_parse() {
+        for c in [get(), oracle()] {
+            assert!(c.temperature > 0.0 && c.floor > 0.0 && c.floor < 1.0);
+            for s in &c.stratum {
+                assert_eq!(s.nominal.len(), s.q_hat.len());
+            }
         }
+    }
+
+    #[test]
+    fn choice_picks_table_per_event_mode() {
+        let is = |c: &Choice, oracle_events: bool, want: &super::Calibration| {
+            std::ptr::eq(c.resolve(oracle_events).unwrap().as_ref(), want)
+        };
+        assert!(is(&Choice::Auto, true, oracle()) && is(&Choice::Auto, false, get()));
+        assert!(is(&Choice::Discovered, true, get()) && is(&Choice::Oracle, false, oracle()));
+        let parse = |s: &str| toml::from_str::<std::collections::HashMap<String, Choice>>(&format!("c = \"{s}\"")).unwrap()["c"].clone();
+        assert_eq!(parse("oracle"), Choice::Oracle);
+        assert_eq!(parse("discovered"), Choice::Discovered);
+        assert_eq!(parse("x/cal.toml"), Choice::File("x/cal.toml".into()));
+        assert!(Choice::File("/nonexistent.toml".into()).resolve(true).is_err());
     }
 }

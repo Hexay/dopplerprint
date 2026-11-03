@@ -1,6 +1,7 @@
 //! Truth-referenced scores of the area-weighted posterior over refined cells at one temperature: log score,
 //! HPD-split score, region areas, and which mode (by peak or by mass) holds the truth.
 
+use crate::search::calibration::Calibration;
 use crate::search::modes::{Modes, answer, core_centroid, modes};
 use crate::search::surface::Surface;
 
@@ -21,15 +22,13 @@ pub struct Shape {
 }
 
 impl Shape {
-    pub fn shipped() -> Self {
-        let c = crate::search::calibration::get();
+    pub fn of(c: &Calibration) -> Self {
         Shape { temperature: c.temperature, floor: c.floor, persistence_nats: c.persistence_nats }
     }
 }
 
-/// The shipped q̂ for each NOMINAL level at this many passes (the nominal mass where uncalibrated).
-pub fn shipped_masses(n_events: usize) -> Vec<f64> {
-    let c = crate::search::calibration::get();
+/// `c`'s q̂ for each NOMINAL level at this many passes (the nominal mass where uncalibrated).
+pub fn masses(c: &Calibration, n_events: usize) -> Vec<f64> {
     NOMINAL.iter().map(|&l| c.q_hat(n_events, l).unwrap_or(l)).collect()
 }
 

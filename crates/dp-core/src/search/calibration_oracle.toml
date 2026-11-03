@@ -1,0 +1,32 @@
+# Written by `dopplerprint calibrate`; see docs/research/calibration_discovered_2026-11-03.md.
+temperature = 1.54
+floor = 0.043
+persistence_nats = 2.0
+provenance = "2026-11-03, branch feat/per-mode-calibration at main a0bbde9; oracle (truth-label) events, eval baselines only. Sim cal bank = clean experiments/sim_calib (cal_*). Experiments: livermore_dev_discovered.toml, oysterbay_discovered.toml, calib_sim_discovered.toml (their oracle/ baselines). Fitted by `dopplerprint calibrate` on oracle events of runs [runs/a_dev, runs/a_oyster, runs/a_cal]: 29 real + 60 sim answered cases. T and ε by mean log score on cases matching [livermore, oyster] (29); q̂ split-conformal HPD per stratum (real alone when ≥ 9)."
+
+[[stratum]]
+name = "1 pass"
+min_events = 1
+max_events = 1
+n = 28
+source = "real"
+nominal = [0.5, 0.8, 0.9]
+q_hat = [0.26987702671915487, 0.7749780259879921, 0.957945746664335]
+
+[[stratum]]
+name = "2 passes"
+min_events = 2
+max_events = 2
+n = 21
+source = "real+sim"
+nominal = [0.5, 0.8, 0.9]
+q_hat = [0.177235536368091, 0.3745510140815385, 0.5619593190154365]
+
+[[stratum]]
+name = "≥3 passes"
+min_events = 3
+max_events = 99
+n = 20
+source = "sim"
+nominal = [0.5, 0.8, 0.9]
+q_hat = [0.1864904708190569, 0.30122329663996555, 0.5144613689701647]
