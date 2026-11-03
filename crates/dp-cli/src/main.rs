@@ -20,6 +20,8 @@ enum Command {
     Discover(cmd::discover::Args),
     /// Render a synthetic recording from tracks and an observer position.
     Sim(cmd::sim::Args),
+    /// Run the corpus + sim evaluation and write runs/<stamp>/summary.md.
+    Eval(cmd::eval::Args),
 }
 
 fn main() -> anyhow::Result<()> {
@@ -28,5 +30,6 @@ fn main() -> anyhow::Result<()> {
         Command::Tracks(a) => cmd::tracks::run(a),
         Command::Discover(a) => cmd::discover::run(a),
         Command::Sim(a) => cmd::sim::run(a),
+        Command::Eval(a) => cmd::eval::run(a),
     }
 }

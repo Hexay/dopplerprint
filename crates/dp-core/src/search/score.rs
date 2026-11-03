@@ -11,6 +11,7 @@ use crate::physics::{self, Atmosphere};
 use crate::track::Track;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct ScoreParams {
     /// Harmonic numbers scored incoherently, with weights.
     pub harmonics: Vec<(u32, f32)>,

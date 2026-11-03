@@ -10,6 +10,7 @@ use crate::track::Track;
 
 /// Effective propagation medium for one event. Wind is a uniform ECEF vector (m/s).
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct Atmosphere {
     pub c: f64,
     pub wind: Vec3,

@@ -5,6 +5,7 @@ pub mod adsb;
 pub mod audio;
 pub mod config;
 pub mod dem;
+pub mod eval;
 pub mod events;
 pub mod geo;
 pub mod output;

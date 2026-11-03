@@ -18,6 +18,7 @@ pub struct EventSpec {
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct AssocParams {
     /// Max disagreement (s) between per-event implied clocks for one hypothesis.
     pub clock_tol_s: f64,
