@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 use crate::geo::albers::{self, Cell};
 use crate::geo::{Geodetic, Vec3, geodetic_to_ecef};
-use crate::search::hypothesis::{associate, cpa_reach_m};
+use crate::search::hypothesis::{associate, clock_window, cpa_reach_m};
 use crate::search::pipeline::{Candidate, SearchInput, SearchParams, SearchResult, coarse_cells, score_cell};
 use crate::track::Track;
 
@@ -100,13 +100,13 @@ fn flight_stages(inp: &SearchInput<'_>, ps: &[SearchParams], t: &Truth<'_>) -> V
     let has_all = |tracks: &[&Track]| truth.iter().all(|f| tracks.iter().any(|tr| same_flight(&tr.id, f)));
     let all: Vec<&Track> = inp.catalog.all().iter().collect();
     let obs = truth_observer(inp, p, t);
-    let (t0, t1) = p.assoc.t_start_prior;
+    let (t0, t1) = clock_window(&p.assoc, 0.0);
     let nearby = inp.catalog.near(obs, p.track_radius_m, t0, t1 + inp.duration_s);
     let near: Vec<&Track> = nearby.iter().map(|n| n.track).collect();
     let (mut assoc_ok, mut n_hyps) = (false, 0);
     for q in ps {
-        let cpas: Vec<_> = nearby.iter().map(|n| n.cpa(obs, &q.atmosphere, cpa_reach_m(inp.events, &q.assoc))).collect();
-        let hyps = associate(inp.events, &cpas, inp.duration_s, &q.assoc);
+        let cpas: Vec<_> = nearby.iter().map(|n| n.cpa(obs, &q.atmosphere, cpa_reach_m(inp.events, &q.assoc, 0.0))).collect();
+        let hyps = associate(inp.events, &cpas, inp.duration_s, &q.assoc, 0.0);
         assoc_ok |= hyps.iter().any(|h| h.tracks.iter().zip(truth).all(|(&i, f)| same_flight(&near[i].id, f)));
         n_hyps = n_hyps.max(hyps.len());
     }

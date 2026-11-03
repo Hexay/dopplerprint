@@ -105,6 +105,7 @@ mod tests {
             tracks: vec![track],
             dem: None,
             sim_atmosphere: None,
+            oracle_events: true,
         };
         let e = EvalParams { wind_along_track_mps: 5.0, wind_cross_track_mps: 2.0, ..Default::default() };
         let w = case_atmosphere(Atmosphere::default(), &c, &e).wind;

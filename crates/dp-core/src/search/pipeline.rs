@@ -8,7 +8,7 @@ use rayon::prelude::*;
 
 use super::backend::{Backend, Scorer};
 use super::catalog::{Catalog, Nearby};
-use super::hypothesis::{AssocParams, EventSpec, Hypothesis, associate, cpa_reach_m};
+use super::hypothesis::{AssocParams, EventSpec, Hypothesis, associate, clock_window, cpa_reach_m};
 use super::job::{Job, prepare_job};
 use super::score::{EventScore, EventTarget, JointScore, ScoreParams};
 use crate::dem::Dem;
@@ -228,12 +228,14 @@ struct CellPlan<'c> {
 
 fn plan_cell<'c>(inp: &SearchInput<'c>, p: &SearchParams, cell: Cell) -> CellPlan<'c> {
     let (lat, lon, obs) = cell_observer(cell, inp.dem, p);
-    let (t0, t1) = p.assoc.t_start_prior;
-    let reach = cpa_reach_m(inp.events, &p.assoc);
+    // Albers scale error is < 1 % over CONUS; the 2 % keeps the slack an upper bound on ground distance.
+    let half_diag = cell.step_m as f64 * std::f64::consts::FRAC_1_SQRT_2 * 1.02;
+    let (t0, t1) = clock_window(&p.assoc, half_diag);
+    let reach = cpa_reach_m(inp.events, &p.assoc, half_diag);
     // Tracks beyond `reach` get no CPA, so they cannot enter a hypothesis or the silence count.
     let nearby = inp.catalog.near(obs, p.track_radius_m.min(reach), t0, t1 + inp.duration_s);
     let cpas: Vec<_> = nearby.iter().map(|n| n.cpa(obs, &p.atmosphere, reach)).collect();
-    let hyps = associate(inp.events, &cpas, inp.duration_s, &p.assoc);
+    let hyps = associate(inp.events, &cpas, inp.duration_s, &p.assoc, half_diag);
     let spec = &inp.scorer.plane().spec;
     let jobs = hyps
         .iter()
@@ -258,7 +260,7 @@ fn best_candidate(
     let mut best: Option<Candidate> = None;
     for (h, js) in pl.hyps.iter().zip(scores) {
         let Some(js) = js else { continue };
-        let score = js.total - p.assoc.silence_penalty * h.unexplained as f64;
+        let score = js.total - h.penalty(&p.assoc);
         if best.as_ref().is_none_or(|b| score > b.score) {
             best = Some(Candidate {
                 cell: pl.cell,

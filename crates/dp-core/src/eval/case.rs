@@ -30,6 +30,8 @@ pub struct Posed {
     pub dem: Option<Dem>,
     /// The medium a sim case was rendered in.
     pub sim_atmosphere: Option<Atmosphere>,
+    /// `events` come from truth labels, with exact CPA times: association uses hard gates for them.
+    pub oracle_events: bool,
 }
 
 pub enum CaseSource {
@@ -142,6 +144,7 @@ fn pose_real(dir: &Path, p: &EvalParams) -> Result<Posed> {
         tracks,
         dem,
         sim_atmosphere: None,
+        oracle_events: true,
     })
 }
 
@@ -209,5 +212,6 @@ fn pose_sim(path: &Path, id: String, _p: &EvalParams) -> Result<Posed> {
         tracks: t.tracks,
         dem: None,
         sim_atmosphere: Some(Atmosphere::uniform(t.c, t.wind_ecef)),
+        oracle_events: true,
     })
 }
