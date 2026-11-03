@@ -1,0 +1,66 @@
+# Video-like case: two prop flyovers whose CPA sounds arrive ~920 s apart; the louder one has harmonics.
+seed = 1
+sample_rate = 4000
+duration_s = 1200.0
+start_unix = 1725827400.0 # 2024-09-08 20:30:00 UTC
+adsb_dt_s = 1.0
+
+[observer]
+lat_deg = 38.912
+lon_deg = -97.214
+h_ell_m = 360.0
+mic_height_m = 4.0
+
+[atmosphere]
+c = 343.0
+
+[ground]
+reflection = 0.8
+
+[noise]
+snr_db = 32.0
+red_db = 12.0
+red_corner_hz = 60.0
+hum_hz = 60.0
+hum_db = -24.0
+
+[device]
+highpass_hz = 40.0
+
+[[aircraft]]
+id = "a1b2c3-0"
+icao24 = 0xA1B2C3
+type_code = "BE20"
+engine = "Turboprop"
+amplitude = 1.0
+[aircraft.source]
+f0 = 108.0
+harmonics = [1.0, 0.6, 0.4, 0.25, 0.15]
+drift_per_s = 0.0
+jitter_frac = 0.002
+[aircraft.straight]
+heading_deg = 62.0
+speed_mps = 92.0
+alt_agl_m = 1200.0
+cpa_offset_m = 800.0
+cpa_time_s = 145.0
+half_span_s = 400.0
+
+[[aircraft]]
+id = "a4d5e6-0"
+icao24 = 0xA4D5E6
+type_code = "C172"
+engine = "Piston"
+amplitude = 0.4
+[aircraft.source]
+f0 = 82.0
+harmonics = [1.0, 0.35]
+drift_per_s = 0.00002
+jitter_frac = 0.004
+[aircraft.straight]
+heading_deg = 195.0
+speed_mps = 58.0
+alt_agl_m = 900.0
+cpa_offset_m = -1400.0
+cpa_time_s = 1064.35 # arrivals 149.20 s and 1069.20 s: exactly 920 s apart
+half_span_s = 400.0

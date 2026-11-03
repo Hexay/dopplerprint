@@ -1,7 +1,9 @@
 //! Forward acoustic model: emission (retarded) time, Doppler factor, CPA geometry.
 //! Equations and their validation: see docs/PHYSICS.md.
 
+pub mod cpa;
 pub mod cv;
+pub mod emission;
 
 use crate::geo::Vec3;
 use crate::track::Track;
@@ -25,6 +27,7 @@ pub struct Emission {
     pub tau: f64,
     pub pos: Vec3,
     pub vel: Vec3,
+    /// Geometric distance |obs − pos| (with wind the acoustic path is c·(t_obs − tau)).
     pub range_m: f64,
     /// Received/emitted frequency ratio (>1 approaching).
     pub factor: f64,
@@ -41,16 +44,20 @@ pub struct Cpa {
     pub ground_speed: f64,
 }
 
-pub fn emission(_track: &Track, _obs: Vec3, _t_obs: f64, _atm: &Atmosphere) -> Option<Emission> {
-    todo!("physics agent: Newton solve of t_obs = tau + |p(tau)-obs|/c with warm start")
+/// Cold-start emission solve. For sequences use `doppler_factors` or `emission::emission_warm`.
+pub fn emission(track: &Track, obs: Vec3, t_obs: f64, atm: &Atmosphere) -> Option<Emission> {
+    let guess = emission::cold_guess(track, obs, t_obs, atm)?;
+    emission::emission_iters(track, obs, t_obs, atm, guess).map(|(e, _)| e)
 }
 
 /// Doppler factors at each observation time (NaN where the track does not cover it).
 /// Multiplying by f0 gives Hz; in log-frequency this is a pure shift (see search::score).
-pub fn doppler_factors(_track: &Track, _obs: Vec3, _t_obs: &[f64], _atm: &Atmosphere) -> Vec<f64> {
-    todo!("physics agent")
+pub fn doppler_factors(track: &Track, obs: Vec3, t_obs: &[f64], atm: &Atmosphere) -> Vec<f64> {
+    emission::emissions(track, obs, t_obs, atm)
+        .map(|e| e.map_or(f64::NAN, |e| e.factor))
+        .collect()
 }
 
-pub fn cpa(_track: &Track, _obs: Vec3, _atm: &Atmosphere) -> Option<Cpa> {
-    todo!("physics agent")
+pub fn cpa(track: &Track, obs: Vec3, atm: &Atmosphere) -> Option<Cpa> {
+    cpa::closest_approach(track, obs, atm)
 }

@@ -1,0 +1,54 @@
+# Eastbound prop turns left onto north through a 1.5 km-radius arc near the observer, climbing.
+# Constant-velocity fits break on this one; the full-geometry model must not.
+seed = 3
+sample_rate = 4000
+duration_s = 240.0
+start_unix = 1725844200.0 # 2024-09-09 01:10:00 UTC
+adsb_dt_s = 1.0
+
+[observer]
+lat_deg = 41.25
+lon_deg = -95.93
+h_ell_m = 290.0
+mic_height_m = 5.0
+
+[atmosphere]
+c = 340.0
+wind_enu = [4.0, -2.0, 0.0]
+
+[ground]
+reflection = 0.85
+
+[noise]
+snr_db = 30.0
+
+[[aircraft]]
+id = "abc123-0"
+icao24 = 0xABC123
+type_code = "PA28"
+engine = "Piston"
+[aircraft.source]
+f0 = 78.0
+harmonics = [1.0, 0.5, 0.25]
+drift_per_s = -0.0001
+jitter_frac = 0.003
+[aircraft.waypoints]
+points = [
+  [0.00, -9000.0, -600.0, 800.0],
+  [21.43, -7500.0, -600.0, 800.0],
+  [42.86, -6000.0, -600.0, 800.0],
+  [64.29, -4500.0, -600.0, 800.0],
+  [85.71, -3000.0, -600.0, 800.0],
+  [107.14, -1500.0, -600.0, 800.0],
+  [112.75, -1111.8, -548.9, 808.4],
+  [118.36, -750.0, -399.0, 816.8],
+  [123.97, -439.3, -160.7, 825.2],
+  [129.58, -201.0, 150.0, 833.7],
+  [135.19, -51.1, 511.8, 842.1],
+  [140.80, 0.0, 900.0, 850.5],
+  [160.80, 0.0, 2300.0, 880.5],
+  [180.80, 0.0, 3700.0, 910.5],
+  [200.80, 0.0, 5100.0, 940.5],
+  [220.80, 0.0, 6500.0, 970.5],
+  [240.80, 0.0, 7900.0, 1000.5],
+]
