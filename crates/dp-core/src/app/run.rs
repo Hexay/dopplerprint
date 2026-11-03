@@ -20,7 +20,7 @@ use crate::adsb::{self, TrackQuery};
 use crate::audio::{self, Audio};
 use crate::config::Config;
 use crate::dem::{Dem, geoid_undulation};
-use crate::events::{DiscoverConfig, Event, discover_with};
+use crate::events::{DiscoverConfig, Event, discover_refined};
 use crate::search::{self, EventSpec, Region, SearchParams, SearchResult};
 use crate::track::Track;
 
@@ -64,7 +64,7 @@ fn steps(req: &LocateRequest, ui: &dyn Ui, rep: &mut Report, started: Instant) -
 
     ui.step("passes", 0.15, "Listening for aircraft passes...");
     let spec = dcfg.front.spectrogram(&audio);
-    let mut events = discover_with(&spec, &dcfg.params);
+    let mut events = discover_refined(&audio, &spec, &dcfg);
     rep.events_found = events.len();
     if events.is_empty() {
         return stop(rep, "no aircraft pass found in the audio; dopplerprint needs at least one propeller or helicopter tone that drops in pitch as it goes by.");

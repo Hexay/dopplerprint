@@ -7,11 +7,12 @@ use super::candidate::{Cand, analyze};
 use super::comb::{Comb, harmonic_shift};
 use super::fit::{cv_freq, fit_cv_with};
 use super::merge::{merge_related, ridge_of, same_source_keep};
+use super::refine::refined_ridge;
 use super::split::split_inconsistent;
 use super::stitch::stitch;
 use super::track::{Tracker, TrackerParams};
 use super::{DiscoverParams, Event, Ridge};
-use crate::audio::LogSpectrogram;
+use crate::audio::{IfRefiner, LogSpectrogram};
 
 const SUPPRESS_HALF_BINS: i64 = 3;
 const SUPPRESS_MARGIN_FRAMES: usize = 4;
@@ -66,6 +67,10 @@ fn peel_tracks(spec: &LogSpectrogram, p: &DiscoverParams) -> Vec<Cand> {
 }
 
 pub fn discover_with(spec: &LogSpectrogram, p: &DiscoverParams) -> Vec<Event> {
+    discover_impl(spec, None, p)
+}
+
+pub(super) fn discover_impl(spec: &LogSpectrogram, refiner: Option<&IfRefiner>, p: &DiscoverParams) -> Vec<Event> {
     if spec.n_t < 8 || spec.n_f < 8 {
         return Vec::new();
     }
@@ -76,7 +81,7 @@ pub fn discover_with(spec: &LogSpectrogram, p: &DiscoverParams) -> Vec<Event> {
     let cands = merge_related(cands, spec, p);
     let valid: Vec<(Cand, Event)> = cands
         .into_par_iter()
-        .filter_map(|cd| finalize(spec, &cd, p).map(|e| (cd, e)))
+        .filter_map(|cd| finalize(spec, &cd, refiner, p).map(|e| (cd, e)))
         .collect();
     let (kept, events): (Vec<Cand>, Vec<Event>) = valid.into_iter().unzip();
     let keep = same_source_keep(&kept, spec);
@@ -112,7 +117,7 @@ fn suppress(e: &mut [f32], start: usize, base: &[f32], spec: &LogSpectrogram, ha
 }
 
 /// Frames where the strongest harmonic is clearly above the floor, if there are enough of them.
-fn confident(r: &Ridge) -> Ridge {
+pub(super) fn confident(r: &Ridge) -> Ridge {
     let keep: Vec<usize> = (0..r.t.len()).filter(|&i| r.snr[i] >= 1.0).collect();
     if keep.len() < 8 || keep.len() * 5 < r.t.len() * 2 {
         return r.clone();
@@ -124,11 +129,14 @@ fn confident(r: &Ridge) -> Ridge {
     }
 }
 
-fn finalize(spec: &LogSpectrogram, cd: &Cand, p: &DiscoverParams) -> Option<Event> {
+fn finalize(spec: &LogSpectrogram, cd: &Cand, refiner: Option<&IfRefiner>, p: &DiscoverParams) -> Option<Event> {
     if (cd.base.len() as f64) * spec.dt < p.min_duration_s || cd.score < p.min_snr {
         return None;
     }
-    let ridge = ridge_of(spec, cd, cd.strongest as f64);
+    let ridge = match refiner {
+        Some(r) => refined_ridge(spec, cd, r),
+        None => ridge_of(spec, cd, cd.strongest as f64),
+    };
     let fit = fit_cv_with(&confident(&ridge), p.c, &p.fit);
     let b = &fit.best;
     if fit.rmse_hz.is_nan() || fit.rmse_hz > p.max_rmse_rel * b.f0 || b.v > p.max_speed_mps || b.d_cpa < p.min_cpa_m {

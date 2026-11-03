@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use dp_core::audio;
-use dp_core::events::{DiscoverConfig, discover_with, events_to_json};
+use dp_core::events::{DiscoverConfig, discover_refined, events_to_json};
 
 #[derive(clap::Args)]
 pub struct Args {
@@ -37,9 +37,9 @@ pub fn run(a: Args) -> anyhow::Result<()> {
     let (audio, info) = audio::decode_band(&a.audio, cfg.front.f_max)?;
     let t_dec = t0.elapsed().as_secs_f64();
     let spec = cfg.front.spectrogram(&audio);
-    drop(audio);
     let t_spec = t0.elapsed().as_secs_f64();
-    let events = discover_with(&spec, &cfg.params);
+    let events = discover_refined(&audio, &spec, &cfg);
+    drop(audio);
     eprintln!(
         "{}: {} Hz {}ch {} ({:.0} s): {} events; decode {:.1} s, spectrogram {:.1} s, discover {:.1} s",
         a.audio.display(),

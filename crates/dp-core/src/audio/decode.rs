@@ -2,8 +2,7 @@ use std::fs::File;
 use std::path::Path;
 
 use anyhow::{Context, bail};
-use symphonia::core::audio::SampleBuffer;
-use symphonia::core::codecs::{CODEC_TYPE_NULL, CodecParameters, DecoderOptions};
+use symphonia::core::codecs::{CODEC_TYPE_NULL, CODEC_TYPE_OPUS, CodecParameters};
 use symphonia::core::errors::Error;
 use symphonia::core::formats::{FormatOptions, FormatReader};
 use symphonia::core::io::MediaSourceStream;
@@ -11,6 +10,8 @@ use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
 
 use super::Audio;
+use super::packet::{Decoded, PacketDecoder};
+use super::priming::leading_trim;
 use super::resample::{Decimator, decimation_factor};
 
 /// Container facts as declared, before any resampling. A 44.1 kHz file labelled 48 kHz is still reported as 48 kHz.
@@ -22,6 +23,9 @@ pub struct AudioInfo {
     pub codec: String,
     /// Packets the decoder rejected as corrupt and skipped.
     pub skipped_packets: usize,
+    /// Encoder delay removed from the start (AAC priming, Opus pre-skip), in samples at `sample_rate`.
+    #[serde(default)]
+    pub trimmed_samples: u64,
 }
 
 impl AudioInfo {
@@ -56,15 +60,20 @@ fn open(path: &Path) -> anyhow::Result<(Box<dyn FormatReader>, u32, CodecParamet
 
 fn info_of(params: &CodecParameters) -> anyhow::Result<AudioInfo> {
     let sample_rate = params.sample_rate.context("container declares no sample rate")?;
-    let codec = symphonia::default::get_codecs()
-        .get_codec(params.codec)
-        .map_or_else(|| "unknown".to_string(), |d| d.short_name.to_string());
+    let codec = if params.codec == CODEC_TYPE_OPUS {
+        "opus".to_string()
+    } else {
+        symphonia::default::get_codecs()
+            .get_codec(params.codec)
+            .map_or_else(|| "unknown".to_string(), |d| d.short_name.to_string())
+    };
     Ok(AudioInfo {
         sample_rate,
         channels: params.channels.map_or(0, |c| c.count()),
         n_frames: params.n_frames,
         codec,
         skipped_packets: 0,
+        trimmed_samples: 0,
     })
 }
 
@@ -88,13 +97,14 @@ fn decode_inner(path: &Path, f_max: Option<f64>) -> anyhow::Result<(Audio, Audio
     let (mut reader, tid, params) = open(path)?;
     let mut info = info_of(&params)?;
     let sr = info.sample_rate;
-    let mut decoder = symphonia::default::get_codecs().make(&params, &DecoderOptions::default())?;
+    let mut decoder = PacketDecoder::new(&params, sr)?;
+    info.trimmed_samples = leading_trim(path, reader.as_mut(), &params, sr);
+    let mut skip = info.trimmed_samples as usize;
     let q = f_max.map_or(1, |f| decimation_factor(sr, f));
     let mut dec = (q > 1).then(|| Decimator::new(sr, q, f_max.unwrap_or(0.0)));
     let cap = params.n_frames.map_or(0, |n| (n / q as u64).min(1 << 28) as usize);
     let mut out = Vec::with_capacity(cap);
     let mut mono = Vec::new();
-    let mut sbuf: Option<SampleBuffer<f32>> = None;
     loop {
         let packet = match reader.next_packet() {
             Ok(p) => p,
@@ -105,30 +115,16 @@ fn decode_inner(path: &Path, f_max: Option<f64>) -> anyhow::Result<(Audio, Audio
         if packet.track_id() != tid {
             continue;
         }
-        let buf = match decoder.decode(&packet) {
-            Ok(b) => b,
-            Err(Error::DecodeError(_) | Error::IoError(_)) => {
-                info.skipped_packets += 1;
-                continue;
-            }
-            Err(e) => return Err(e.into()),
-        };
-        let spec = *buf.spec();
-        if spec.rate != sr {
-            bail!("sample rate changes mid-stream ({sr} -> {})", spec.rate);
-        }
-        let n_ch = spec.channels.count().max(1);
-        if sbuf.as_ref().is_none_or(|s| s.capacity() < buf.capacity() * n_ch) {
-            sbuf = Some(SampleBuffer::new(buf.capacity() as u64, spec));
-        }
-        let sb = sbuf.as_mut().expect("allocated above");
-        sb.copy_interleaved_ref(buf);
         mono.clear();
-        let scale = 1.0 / n_ch as f32;
-        mono.extend(sb.samples().chunks_exact(n_ch).map(|fr| fr.iter().sum::<f32>() * scale));
+        if let Decoded::Skipped = decoder.decode_mono(&packet, sr, &mut mono)? {
+            info.skipped_packets += 1;
+            continue;
+        }
+        let drop = skip.min(mono.len());
+        skip -= drop;
         match dec.as_mut() {
-            Some(d) => d.push(&mono, &mut out),
-            None => out.extend_from_slice(&mono),
+            Some(d) => d.push(&mono[drop..], &mut out),
+            None => out.extend_from_slice(&mono[drop..]),
         }
     }
     if let Some(d) = dec {

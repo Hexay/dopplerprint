@@ -112,7 +112,7 @@ pub fn run(cfg: &Config, sim_dir: &Path, out_dir: &Path) -> Result<Vec<CaseResul
     Ok(results)
 }
 
-fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
+pub fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
     if cfg.eval.region_mode == crate::config::RegionMode::Global {
         return global::run_case(cfg, c);
     }

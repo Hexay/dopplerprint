@@ -176,3 +176,11 @@ fn pure_noise_yields_no_events() {
         events.iter().map(|e| (e.snr, &e.fit)).collect::<Vec<_>>()
     );
 }
+
+#[test]
+fn clipped_flat_top_reads_as_its_centre() {
+    let row = [0.0, 1.0, 8.0, 8.0, 8.0, 2.0, 0.0, 0.0];
+    assert_eq!(candidate::peak_near(&row, 2.0), Some((3.0, 8.0)));
+    let row = [0.0, 1.0, 8.0, 8.0, 1.0, 0.0];
+    assert_eq!(candidate::peak_near(&row, 3.0), Some((2.5, 8.0)));
+}
