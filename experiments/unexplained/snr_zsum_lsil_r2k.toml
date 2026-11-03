@@ -1,0 +1,11 @@
+# Sensitivity check: snr_zsum_lsil.toml with r50 = 2 km counted to 3 km (the dev_sil_r2k knobs).
+[eval]
+cases = ["snr_g"]
+time_prior_s = 2.0
+
+[search.assoc.silence]
+mode = "likelihood"
+r50_m = 2000.0
+
+[search.score]
+clock_sweep_s = 2.0
