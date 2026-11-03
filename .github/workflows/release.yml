@@ -1,6 +1,6 @@
 name: Release
 
-# Tag vX.Y.Z = workspace version; PyPI trusted-publisher setup: see CONTRIBUTING.md "Releases".
+# Tag vX.Y.Z = workspace version; publishes via PyPI trusted publishing (environment "pypi").
 on:
   push:
     tags: ["v*"]

@@ -39,8 +39,4 @@ Bump `version` in the root `Cargo.toml` (the Python package takes its version fr
 tag `vX.Y.Z`. The release workflow builds abi3 wheels and an sdist, publishes them to PyPI and attaches
 them to a GitHub release.
 
-One-time PyPI setup (maintainer): on pypi.org add a pending trusted publisher for project `dopplerprint`,
-owner `Hexay`, repository `dopplerprint`, workflow `release.yml`, environment `pypi`; and create the `pypi`
-environment under the GitHub repo's Settings → Environments.
-
 By contributing you agree your work is released under the MIT licence (`LICENSE`).

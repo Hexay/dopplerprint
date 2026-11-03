@@ -73,7 +73,8 @@ From PyPI: `pip install dopplerprint`.
 - Geoid: NGA EGM2008 (public domain), via [PROJ-data](https://cdn.proj.org/) `us_nga_egm08_25.tif`;
   the CONUS crop in `assets/geoid/` is derived from it.
 - Header figure (`tools/readme_figure.py`, case `livermore_N9658K_R24`): audio from Praveen Pathak, Zenodo
-  record 23424278 (CC BY 4.0); aircraft track © adsb.lol contributors (ODbL 1.0); terrain from USGS 3DEP.
+  record 23424278 (CC BY 4.0); aircraft track © adsb.lol contributors (ODbL 1.0); imagery: USGS The National
+  Map / NAIP, public domain (USGS 3DEP hillshade if the imagery can't be fetched).
 - DEM, fetched by `python/dopplerprint/prep/dem.py`: USGS 3DEP 1″ (public domain), with Copernicus GLO-30 as
   fallback (© DLR e.V. 2010–2014 and © Airbus Defence and Space GmbH 2014–2018, provided under COPERNICUS by
   the European Union and ESA; all rights reserved).

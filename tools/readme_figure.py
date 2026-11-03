@@ -1,11 +1,14 @@
 """README hero figure: one Livermore flyover's spectrogram + CV fit, and the search heatmap it implies.
 
 Display only: spectrogram, event fit, CV curve, tracks, DEM heights and search scores all come from
-dopplerprint._core. Run: .venv/bin/python -I tools/readme_figure.py [--case <id>] [--out <png>]
+dopplerprint._core. The map photo is USGS The National Map orthoimagery (USDA NAIP, public domain), cached
+under data/_downloads/hero/; the DEM hillshade is the fallback when it can't be fetched.
+Run: .venv/bin/python -I tools/readme_figure.py [--case <id>] [--out <png>]
 """
 
 import argparse
 import json
+import urllib.request
 from datetime import datetime
 from pathlib import Path
 
@@ -15,14 +18,19 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.collections import PolyCollection
-from matplotlib.colors import LightSource, LinearSegmentedColormap
+from matplotlib.colors import LightSource, LinearSegmentedColormap, PowerNorm
 from matplotlib.ticker import FixedLocator, NullLocator, ScalarFormatter
+from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 
 from dopplerprint import _core
 
 ROOT = Path(__file__).resolve().parent.parent
 STORE = ROOT / "data/adsb/store"
 DEM = ROOT / "data/dem/5070/livermore_30m.u16"
+CACHE = ROOT / "data/_downloads/hero"
+IMAGERY = ("https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/export"
+           "?bbox={w},{s},{e},{n}&bboxSR=4326&imageSR=4326&size={px},{px}&format=png&f=image")
+IMAGERY_PX = 1024
 DEFAULT_CASE = "livermore_N9658K_R24"
 REGION_M = 4_000.0
 MAP_PAD_M = 300.0
@@ -34,6 +42,15 @@ SURFACE, INK, INK2, MUTED = "#fcfcfb", "#0b0b0b", "#52514e", "#898781"
 SEQ = LinearSegmentedColormap.from_list("seq_blue", ["#fcfcfb", "#cde2fb", "#86b6ef", "#3987e5", "#1c5cab", "#0d366b"])
 ORANGE = "#eb6834"
 LABEL_BOX = dict(boxstyle="round,pad=0.25", fc=SURFACE, ec="none", alpha=0.9)
+
+
+def heat_cmap() -> LinearSegmentedColormap:
+    """YlOrRd with alpha rising from 0, so weak cells let the photo through and hot spots stay opaque."""
+    base = plt.get_cmap("YlOrRd")
+    u = np.linspace(0, 1, 256)
+    rgba = base(0.15 + 0.85 * u)
+    rgba[:, 3] = np.clip(u * 1.6, 0, 0.9)
+    return LinearSegmentedColormap.from_list("heat_fade", rgba)
 
 
 def unix(iso: str) -> float:
@@ -71,13 +88,10 @@ def draw_spectrogram(ax, x: np.ndarray, sr: int, event: dict) -> None:
     lo, hi = np.percentile(img, [35, 99.7])
     ax.pcolormesh(t, f, img.T, cmap=SEQ, vmin=lo, vmax=hi, shading="nearest", rasterized=True)
     fit = event["fit"]["best"]
-    cv = lambda tt: _core.cv_frequency(fit["f0"], fit["v"], fit["d_cpa"], fit["t_cpa_arrive"], tt, c=fit["c"])
     ridge_t = np.asarray(event["ridge"]["t"])
     tt = np.linspace(ridge_t.min(), ridge_t.max(), 400)
-    ff = cv(tt)
+    ff = _core.cv_frequency(fit["f0"], fit["v"], fit["d_cpa"], fit["t_cpa_arrive"], tt, c=fit["c"])
     ax.plot(tt, ff, color=ORANGE, lw=1.6, solid_capstyle="round")
-    ax.text(tt[-1], ff[-1] * 0.93, "fitted Doppler curve", color=ORANGE, fontsize=10, fontweight="bold",
-            ha="right", va="top", bbox=LABEL_BOX)
     tc = fit["t_cpa_arrive"]
     ax.axvline(tc, color=INK2, lw=1.0, zorder=1)
     f_lo, f_hi = max(f[0], fit["f0"] / 3), min(f[-1], fit["f0"] * 3)
@@ -93,7 +107,31 @@ def draw_spectrogram(ax, x: np.ndarray, sr: int, event: dict) -> None:
     ax.set_ylabel("frequency (Hz)")
 
 
-def draw_hillshade(ax, extent: tuple[float, float, float, float]) -> None:
+def fetch_imagery(extent: tuple[float, float, float, float]) -> np.ndarray | None:
+    """Orthophoto for exactly `extent` (w, e, s, n) in EPSG:4326, cached; None if unavailable."""
+    w, e, s, n = extent
+    path = CACHE / f"usgs_{w:.6f}_{s:.6f}_{e:.6f}_{n:.6f}_{IMAGERY_PX}.png"
+    if not path.exists():
+        try:
+            with urllib.request.urlopen(IMAGERY.format(w=w, s=s, e=e, n=n, px=IMAGERY_PX), timeout=60) as r:
+                body = r.read()
+        except OSError as err:
+            print(f"imagery fetch failed ({err}); using hillshade")
+            return None
+        if not body.startswith(b"\x89PNG\r\n\x1a\n"):
+            print("imagery response is not a PNG; using hillshade")
+            return None
+        CACHE.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(body)
+    img = plt.imread(path)
+    return img if img.ndim == 3 and img.shape[:2] == (IMAGERY_PX, IMAGERY_PX) else None
+
+
+def draw_background(ax, extent: tuple[float, float, float, float]) -> str:
+    photo = fetch_imagery(extent)
+    if photo is not None:
+        ax.imshow(photo, extent=extent, zorder=0, interpolation="lanczos")
+        return "imagery"
     lon = np.linspace(extent[0], extent[1], 500)
     lat = np.linspace(extent[3], extent[2], 500)
     LON, LAT = np.meshgrid(lon, lat)
@@ -101,6 +139,7 @@ def draw_hillshade(ax, extent: tuple[float, float, float, float]) -> None:
     h = np.where(np.isfinite(h), h, np.nanmean(h))
     shade = LightSource(azdeg=315, altdeg=45).hillshade(h, vert_exag=3, dx=30, dy=30)
     ax.imshow(shade, extent=extent, cmap="gray", vmin=-0.6, vmax=1.4, alpha=0.55, zorder=0, interpolation="bilinear")
+    return "hillshade"
 
 
 def cell_poly(c: dict) -> np.ndarray:
@@ -115,66 +154,11 @@ def draw_heatmap(ax, ranked: list[dict]):
     """Coarse cells first, refined children on top, so detail shows where the search zoomed in."""
     cells = sorted(ranked, key=lambda c: -c["cell"]["step_m"])
     scores = np.array([c["score"] for c in cells])
-    pc = PolyCollection([cell_poly(c) for c in cells], array=scores, cmap=SEQ, clim=(scores.min(), scores.max()),
-                        edgecolors="none", alpha=0.85, zorder=1, rasterized=True)
+    norm = PowerNorm(gamma=2.0, vmin=scores.min(), vmax=scores.max())
+    pc = PolyCollection([cell_poly(c) for c in cells], array=scores, cmap=heat_cmap(), norm=norm,
+                        edgecolors="none", zorder=1, rasterized=True)
     ax.add_collection(pc)
     return pc
-
-
-def local_km(lat0: float, lon0: float, lat, lon) -> tuple[np.ndarray, np.ndarray]:
-    k = np.cos(np.radians(lat0))
-    return (np.asarray(lon) - lon0) * k * M_PER_DEG / 1e3, (np.asarray(lat) - lat0) * M_PER_DEG / 1e3
-
-
-def label_mirror(ax, ranked: list[dict], tr: dict, lat: float, lon: float) -> None:
-    """Label placement only: best cell on the far side of the track from the mic is the mirror lobe."""
-    tx, ty = local_km(lat, lon, tr["lat"], tr["lon"])
-    i = int(np.argmin(np.hypot(tx, ty)))
-    j = min(i + 1, len(tx) - 1) if i + 1 < len(tx) else i - 1
-    dx, dy = tx[j] - tx[i], ty[j] - ty[i]
-    side = lambda x, y: np.sign(dx * (y - ty[i]) - dy * (x - tx[i]))
-    mic_side = side(0.0, 0.0)
-    far = [c for c in ranked if side(*local_km(lat, lon, c["lat_deg"], c["lon_deg"])) == -mic_side]
-    if not far:
-        return
-    c = max(far, key=lambda c: c["score"])
-    ax.annotate("mirror image:\nsame curve, other\nside of the track",
-                (c["lon_deg"], c["lat_deg"]), xytext=(-10, 0), textcoords="offset points", fontsize=10,
-                color=INK, ha="right", va="center", arrowprops=dict(arrowstyle="-", color=INK2, lw=1.0),
-                bbox=LABEL_BOX, zorder=7)
-
-
-def draw_map(ax, truth: dict, res: dict, tracks: list[dict]) -> None:
-    lat, lon = truth["lat"], truth["lon"]
-    extent = map_extent(res["ranked"], lat)
-    draw_hillshade(ax, extent)
-    pc = draw_heatmap(ax, res["ranked"])
-
-    best = res["ranked"][0]
-    tr = next(t for t in tracks if t["id"] == best["track_ids"][0])
-    ax.plot(tr["lon"], tr["lat"], color=SURFACE, lw=4.0, zorder=3)
-    ax.plot(tr["lon"], tr["lat"], color=ORANGE, lw=2.0, zorder=4)
-    ax.scatter([lon], [lat], marker="*", s=260, color=INK, edgecolors=SURFACE, linewidths=1.5, zorder=6)
-    ax.annotate("true mic", (lon, lat), xytext=(12, -16), textcoords="offset points", fontsize=10, color=INK,
-                bbox=LABEL_BOX, zorder=7)
-    label_track(ax, tr, extent, f"ADS-B track ({tr['type_code'] or tr['icao24']})")
-    label_mirror(ax, res["ranked"], tr, lat, lon)
-    scale_bar(ax, extent, lat)
-    ax.set_xlim(extent[0], extent[1])
-    ax.set_ylim(extent[2], extent[3])
-    ax.set_aspect(1.0 / np.cos(np.radians(lat)))
-    ax.set_xticks([])
-    ax.set_yticks([])
-    cax = ax.inset_axes([0.62, 0.86, 0.33, 0.035])
-    cb = ax.figure.colorbar(pc, cax=cax, orientation="horizontal")
-    lo, hi = pc.get_clim()
-    cb.set_ticks([lo, hi], labels=[f"{lo:.0f}", f"{hi:.0f}"])
-    cb.outline.set_visible(False)
-    cax.tick_params(colors=INK2, length=0, labelsize=9)
-    cax.set_title("search score (z)", fontsize=9, color=INK2, loc="left", fontweight="normal", pad=3)
-    err = np.hypot(*local_km(lat, lon, best["lat_deg"], best["lon_deg"])) * 1e3
-    print(f"cells {len(res['ranked'])}, best cell {err:.0f} m from truth, score {best['score']:.1f}, "
-          f"flight {best['track_ids'][0]} ({tr['icao24']} {tr['type_code']})")
 
 
 def map_extent(ranked: list[dict], lat: float) -> tuple[float, float, float, float]:
@@ -186,22 +170,46 @@ def map_extent(ranked: list[dict], lat: float) -> tuple[float, float, float, flo
     return clon - half / k, clon + half / k, clat - half, clat + half
 
 
-def label_track(ax, tr: dict, extent, text: str) -> None:
-    order = np.argsort(tr["lon"])
-    x = extent[0] + 0.03 * (extent[1] - extent[0])
-    y = np.interp(x, tr["lon"][order], tr["lat"][order], left=np.nan, right=np.nan)
-    if np.isfinite(y):
-        ax.annotate(text, (x, y), xytext=(0, -10), textcoords="offset points", fontsize=10, ha="left", va="top",
-                    color=ORANGE, fontweight="bold", bbox=LABEL_BOX, zorder=7)
+def draw_map(ax, truth: dict, res: dict, tracks: list[dict]):
+    lat, lon = truth["lat"], truth["lon"]
+    extent = map_extent(res["ranked"], lat)
+    bg = draw_background(ax, extent)
+    pc = draw_heatmap(ax, res["ranked"])
 
-
-def scale_bar(ax, extent, lat: float) -> None:
+    best = res["ranked"][0]
+    tr = next(t for t in tracks if t["id"] == best["track_ids"][0])
+    ax.plot(tr["lon"], tr["lat"], color=INK, lw=4.0, alpha=0.6, zorder=3, solid_capstyle="round")
+    ax.plot(tr["lon"], tr["lat"], color="white", lw=2.0, zorder=4, solid_capstyle="round")
+    ax.scatter([lon], [lat], marker="*", s=300, color="white", edgecolors=INK, linewidths=1.2, zorder=6)
+    ax.annotate("true mic", (lon, lat), xytext=(12, -16), textcoords="offset points", fontsize=10, color=INK,
+                bbox=LABEL_BOX, zorder=7)
     km = 1e3 / (M_PER_DEG * np.cos(np.radians(lat)))
-    x0 = extent[0] + 0.06 * (extent[1] - extent[0])
-    y0 = extent[2] + 0.07 * (extent[3] - extent[2])
-    ax.plot([x0, x0 + km], [y0, y0], color=INK, lw=2.0, solid_capstyle="butt", zorder=6)
-    ax.text(x0 + km / 2, y0 + 0.015 * (extent[3] - extent[2]), "1 km", ha="center", va="bottom", fontsize=9,
-            color=INK, zorder=6)
+    bar = AnchoredSizeBar(ax.transData, km, "1 km", "lower left", pad=0.25, borderpad=0.6, sep=3, color=INK,
+                          size_vertical=(extent[3] - extent[2]) * 0.005, label_top=True, frameon=True,
+                          fontproperties={"size": 9})
+    bar.patch.set(facecolor=SURFACE, alpha=0.85, edgecolor="none", boxstyle="round,pad=0.1")
+    ax.add_artist(bar)
+    ax.set_xlim(extent[0], extent[1])
+    ax.set_ylim(extent[2], extent[3])
+    ax.set_aspect(1.0 / np.cos(np.radians(lat)))
+    ax.set_xticks([])
+    ax.set_yticks([])
+    err = np.hypot((best["lat_deg"] - lat) * M_PER_DEG, (best["lon_deg"] - lon) * M_PER_DEG * np.cos(np.radians(lat)))
+    print(f"background {bg}, cells {len(res['ranked'])}, best cell {err:.0f} m from truth, "
+          f"score {best['score']:.1f}, flight {best['track_ids'][0]} ({tr['icao24']} {tr['type_code']})")
+    return pc
+
+
+def colorbar_below(fig, ax, pc) -> None:
+    ax.apply_aspect()
+    box = ax.get_position()
+    cax = fig.add_axes((box.x0 + box.width * 0.45, box.y0 - 0.075, box.width * 0.55, 0.022))
+    cb = fig.colorbar(pc, cax=cax, orientation="horizontal")
+    lo, hi = pc.get_clim()
+    cb.set_ticks([lo, hi], labels=[f"{lo:.0f}", f"{hi:.0f}"])
+    cb.outline.set_visible(False)
+    cax.tick_params(colors=INK2, length=0, labelsize=9, pad=2)
+    cax.text(-0.03, 0.5, "search score (z)", transform=cax.transAxes, ha="right", va="center", fontsize=9, color=INK2)
 
 
 def style(ax) -> None:
@@ -224,18 +232,19 @@ def main() -> None:
     if not res["ranked"]:
         raise SystemExit("search scored no cells; no heatmap to draw")
 
-    plt.rcParams.update({"font.family": "sans-serif", "font.size": 10, "axes.titlesize": 14,
-                         "axes.titleweight": "bold", "axes.titlelocation": "left", "axes.titlecolor": INK,
-                         "axes.titlepad": 8})
+    plt.rcParams.update({"font.family": ["Lato", "DejaVu Sans"], "font.size": 10.5, "axes.titlesize": 17,
+                         "axes.titleweight": "semibold", "axes.titlelocation": "center", "axes.titlecolor": INK,
+                         "axes.titlepad": 10})
     fig = plt.figure(figsize=(8, 4), dpi=200, facecolor=SURFACE)
-    left = fig.add_axes((0.075, 0.12, 0.47, 0.78))
-    right = fig.add_axes((0.585, 0.12, 0.40, 0.78))
+    left = fig.add_axes((0.075, 0.13, 0.47, 0.76))
+    right = fig.add_axes((0.585, 0.13, 0.40, 0.76))
     for ax in (left, right):
         style(ax)
     draw_spectrogram(left, x, sr, event)
     left.set_title("What the microphone heard")
-    draw_map(right, truth, res, tracks)
-    right.set_title("Where that puts you")
+    pc = draw_map(right, truth, res, tracks)
+    right.set_title("Where it was recorded")
+    colorbar_below(fig, right, pc)
     a.out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(a.out, facecolor=SURFACE)
     print(f"wrote {a.out}")
