@@ -1,6 +1,7 @@
 //! Ground truth for discovered events. Each event is matched to a labelled truth pass (CPA time and a
-//! harmonic within tolerance, the `corpus_discovery` rule), else attributed to an ADS-B track whose CPA
-//! arrival at the truth observer coincides and whose slant range the fit admits; the rest are spurious.
+//! harmonic within tolerance, the `corpus_discovery` rule, or CPA time and the labelled flight's ADS-B
+//! pass), else attributed to an ADS-B track whose CPA arrival at the truth observer coincides and whose
+//! slant range the fit admits; the rest are spurious.
 
 use super::DiscoveryParams;
 use crate::eval::metrics::same_flight;
@@ -137,8 +138,27 @@ pub fn match_labelled(found: &[Found], truth: &[Labelled], p: &DiscoveryParams) 
     out
 }
 
+/// Labelled matches by tone first; then by flight: an event at the labelled flight's ADS-B CPA recalls
+/// it whatever its f0 (the labelled tone may be a harmonic discovery does not report).
+fn match_all(found: &[Found], truth: &[Labelled], passes: &[Pass], p: &DiscoveryParams) -> Vec<Option<(usize, f64, Option<f64>)>> {
+    let mut m: Vec<_> = match_labelled(found, truth, p).into_iter().map(|x| x.map(|(j, dt, df)| (j, dt, Some(df)))).collect();
+    let mut taken: Vec<bool> = (0..truth.len()).map(|j| m.iter().flatten().any(|x| x.0 == j)).collect();
+    for (i, e) in found.iter().enumerate() {
+        let near = |t: f64| (e.t_cpa - t).abs() <= p.match_dt_s;
+        let flies = |f: &str| passes.iter().any(|q| same_flight(&q.flight, f) && near(q.t_cpa));
+        if m[i].is_some() {
+            continue;
+        }
+        if let Some(j) = (0..truth.len()).find(|&j| !taken[j] && near(truth[j].t_cpa) && truth[j].flight.as_deref().is_some_and(flies)) {
+            m[i] = Some((j, e.t_cpa - truth[j].t_cpa, e.harmonic_err(truth[j].f0)));
+            taken[j] = true;
+        }
+    }
+    m
+}
+
 pub fn label(found: &[Found], truth: &[Labelled], passes: &[Pass], p: &DiscoveryParams) -> Vec<Truthed> {
-    let matched = match_labelled(found, truth, p);
+    let matched = match_all(found, truth, passes, p);
     found
         .iter()
         .zip(matched)
@@ -150,7 +170,7 @@ pub fn label(found: &[Found], truth: &[Labelled], passes: &[Pass], p: &Discovery
                     source: Some(Source::Labelled),
                     truth_index: Some(j),
                     dt_cpa_s: Some(dt),
-                    f0_err: Some(df),
+                    f0_err: df,
                     ..kinematics(e, pass, flight)
                 }
             }

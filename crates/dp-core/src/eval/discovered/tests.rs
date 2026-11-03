@@ -65,6 +65,17 @@ fn unlabelled_events_are_attributed_to_coinciding_adsb_passes_else_spurious() {
 }
 
 #[test]
+fn an_off_tone_event_at_the_labelled_flights_cpa_recalls_it_by_flight() {
+    let p = DiscoveryParams::default();
+    let f = [found(52.0, 70.0, &[1], 3_000.0)];
+    let l = label(&f, &[truth(50.0, 100.0, "abc123")], &[pass("2026-09-08/abc123-1", 51.0, 2_000.0)], &p);
+    assert_eq!((l[0].source, l[0].truth_index), (Some(Source::Labelled), Some(0)));
+    assert!((l[0].dt_cpa_s.unwrap() - 2.0).abs() < 1e-12 && (l[0].f0_err.unwrap() + 0.3).abs() < 1e-12);
+    let none = label(&f, &[truth(50.0, 100.0, "other")], &[pass("2026-09-08/abc123-1", 51.0, 2_000.0)], &p);
+    assert_eq!(none[0].source, Some(Source::Adsb));
+}
+
+#[test]
 fn front_stages_precede_search_stages_and_set_lost_at() {
     let real = Truthed { source: Some(Source::Adsb), flight: Some("f".into()), ..Default::default() };
     let mut r = CaseResult::default();
