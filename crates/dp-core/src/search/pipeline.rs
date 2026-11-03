@@ -26,6 +26,7 @@ pub struct SearchParams {
     pub min_step_m: u32,
     /// Cells carried into each refinement level.
     pub keep_top: usize,
+    pub keep: super::keep::KeepParams,
     /// Catalogue radius around a cell (m); beyond this a flight is assumed inaudible.
     pub track_radius_m: f64,
     pub mic_height_m: f64,
@@ -43,6 +44,7 @@ impl Default for SearchParams {
             coarse_step_m: 200,
             min_step_m: 25,
             keep_top: 200,
+            keep: Default::default(),
             track_radius_m: 10_000.0,
             mic_height_m: 1.5,
             flat_h_ell_m: 0.0,
@@ -122,7 +124,8 @@ pub fn search(inp: &SearchInput<'_>, p: &SearchParams) -> SearchResult {
         let mut found: Vec<Candidate> = scored.into_iter().filter_map(|s| s.0).collect();
         found.sort_by(|a, b| b.score.total_cmp(&a.score));
         let step = level.first().map_or(0, |c| c.step_m);
-        let next: Vec<Cell> = found.iter().take(p.keep_top).flat_map(|c| c.cell.children()).collect();
+        let next: Vec<Cell> =
+            super::keep::kept(&found, p.keep_top, &p.keep).into_iter().flat_map(|i| found[i].cell.children()).collect();
         all.extend(found);
         if step / 2 < p.min_step_m || next.is_empty() {
             all.sort_by(|a, b| b.score.total_cmp(&a.score));
