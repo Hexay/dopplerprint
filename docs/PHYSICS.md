@@ -132,6 +132,32 @@ emission time:
   100 Hz. Optional mains hum at `hum_hz` plus its 3rd harmonic.
 - Device: optional 2nd-order Butterworth high-pass, then normalisation to `peak_dbfs`, then `gain_db`, then
   hard clipping. RNG: seeded SplitMix64, so output is bit-for-bit deterministic.
+- Source extras (`[aircraft.source]`, all default off): per-harmonic AM (`am_depth` RMS at rates around
+  `am_rate_hz`), a ramped f0 step (`step_frac` at `step_time_s` over `step_ramp_s`, integrated in closed
+  form like the drift) and a half-order line (`half_harmonic`, the Oyster Bay B350 0.5× line).
+
+### Recording chain (`[chain]`, `sim/chain/`)
+
+Optional; without the table the render is bit-identical to the idealised chain above. Each generator draws
+from its own RNG stream (`chain::Stream`), so switching one on never changes another or the base noise.
+Levels `tnr_db` are line power over the background PSD at 100 Hz in 1 Hz (amplitude `10^((tnr − snr_db)/20)`).
+Measurements behind the defaults: `research_notes/Doppler localization verification/corpus_signatures.md`
+and `codec_measurements.md`.
+
+| Table | Model |
+|---|---|
+| `[chain.hum]` | ENF: OU walk (`wander_mhz` RMS, `wander_tau_s`, default 14 mHz / 60 s from Oyster Bay) + white `jitter_mhz` at 1 s steps; harmonic k follows k·ENF coherently. `harmonics` default favours k = 2, 4, 6 (fundamental 26 dB down); slow per-harmonic `level_wander_db`. Truth: `enf_hz` trace, also `enf.csv`. |
+| `[[chain.lines]]` | Persistent local line `hz` (+ `harmonics`), `tnr_db`, slow `wander_hz`. E.g. 58.25 Hz motor slip, 25 Hz. |
+| `[chain.wind]` | 3rd-order low-passed rumble (`corner_hz`) gated by exponential on/off gusts covering `fraction`, mean `gust_s`, lognormal strength; `level_db` is the rumble PSD below the corner over the 100 Hz floor. Truth: gust intervals. |
+| `[chain.source]` | Per-aircraft draws merged into `[aircraft.source]`: drift N(0, `drift_pct_per_min_sd`), a step with `step_prob` of size N(0, `step_pct_sd`) %, within ±60 s of CPA arrival, `am_depth`/`am_rate_hz`, `half_harmonic`. Truth: effective values per aircraft. |
+| `[chain.path]` | Ground-reflection coherence loss: a turbulent excess delay δt(t) on the reflected path (rate `turbulence_hz`), sized so E[cos 2π·250 Hz·δt] = `ground_coherence`; decorrelation grows with frequency. |
+| `[chain.device]` | `highpass_order` (even) for `[device] highpass_hz`; `lowpass_hz` (4th order, upstream band limit); `ns` = {`depth_db`, `time_s`} WebRTC-like suppression (steady bins fall to depth within ~`time_s`, onsets pass); `quantise_bits`; `channels` = mono / dual_mono / stereo (second mic `stereo_baseline_m` along `stereo_axis_deg`, independent `self_noise_db`). |
+
+Device order: high-pass, low-pass, NS, normalise, gain, clip, quantise; both channels share one gain.
+`Rendered.samples` is the channel mean (what the decoder feeds the pipeline). Codecs are not modelled in Rust:
+`tools/sim_codec.sh` round-trips rendered WAVs through ffmpeg (aac128, opus135, aac128→opus135).
+Presets: `experiments/chain/*.toml`; `tools/gen_sim_chain.py <preset>` merges one over `experiments/sim_atm`
+into `experiments/sim_chain_<preset>/`. `tools/sim_recall.py` measures event-discovery recall on them.
 
 ### Scenario TOML
 
@@ -144,8 +170,9 @@ Top level: `seed`, `sample_rate`, `duration_s`, `start_unix`, `adsb_dt_s` (track
 | `[ground]` | `reflection` (omit the table for no reflection) |
 | `[noise]` | `snr_db`, `red_db`, `red_corner_hz`, `hum_hz`, `hum_db` |
 | `[device]` | `peak_dbfs`, `gain_db`, `highpass_hz` |
+| `[chain]` | optional recording chain, see "Recording chain" above |
 | `[[aircraft]]` | `id`, `icao24`, `type_code`, `engine`, `amplitude` (fundamental at 1 km) |
-| `[aircraft.source]` | `f0`, `harmonics = [a1, a2, …]`, `drift_per_s`, `jitter_frac` |
+| `[aircraft.source]` | `f0`, `harmonics = [a1, a2, …]`, `drift_per_s`, `jitter_frac`, `am_depth`, `am_rate_hz`, `step_frac`, `step_time_s`, `step_ramp_s`, `half_harmonic` |
 | `[aircraft.straight]` | `heading_deg`, `speed_mps`, `alt_agl_m`, `cpa_offset_m` (+ puts the observer on the right), `cpa_time_s` (audio time of the geometric CPA), `half_span_s` |
 | `[aircraft.waypoints]` | `points = [[t_audio_s, e, n, u], …]`. A C¹ spline with three-point tangents, resampled every `adsb_dt_s` |
 
@@ -154,7 +181,8 @@ tangent plane, so a straight line stays exactly straight in ECEF. Examples are i
 
 ### Outputs
 
-`dopplerprint sim scenario.toml --out dir` writes `dir/audio.wav` (16-bit mono) and `dir/truth.json`.
+`dopplerprint sim scenario.toml --out dir` writes `dir/audio.wav` (16-bit, mono unless `[chain.device]
+channels` says otherwise), `dir/truth.json` and, with `[chain.hum]`, `dir/enf.csv`.
 `truth.json` contains:
 
 - `observer`: lat, lon, ground `h_ell_m`, `mic_height_m`, `mic_ecef`.
@@ -163,6 +191,9 @@ tangent plane, so a straight line stays exactly straight in ECEF. Examples are i
   `cpa_arrival_audio_s`, `cpa_arrival_unix`, `slant_m`, `speed_mps` and `in_recording`. The CPA is found
   by a direct scan, not by `physics::cpa`.
 - `tracks[]`, as serialised `Track`s in UNIX seconds, the same schema the search consumes.
+- `chain` (only with `[chain]`): `hum` (`mains_hz`, `enf_dt_s`, `enf_hz[]`, per-harmonic `amplitudes`),
+  `lines[]`, `wind` (`fraction`, `gusts[]`), `sources[]` (effective drift, step, AM, half-order per aircraft)
+  and `config` (the chain table as rendered).
 
 ## 7. Validation (crates/dp-core/tests/physics_*.rs, track.rs tests)
 

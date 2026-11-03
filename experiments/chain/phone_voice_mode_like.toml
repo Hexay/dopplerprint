@@ -1,0 +1,41 @@
+# Recording-chain preset: phone in a voice/communication capture mode, as inferred for the Livermore
+# May 12–14 session (corpus_signatures.md §6; NS behaviour from codec_measurements.md §4).
+# Steep 4th-order high-pass at 120 Hz (corpus range 40–160), WebRTC-like NS pulling steady content
+# down 15 dB within ~2 s, very low gain (−40 dBFS peaks, 16-bit), weak 240 Hz hum, 25 Hz line
+# (removed by the HP, as in the corpus), light wind, engine AM and drift.
+
+[device]
+peak_dbfs = -40.0
+gain_db = 0.0
+highpass_hz = 120.0
+
+[chain.hum]
+mains_hz = 60.0
+harmonics = [0.05, 0.6, 0.1, 1.0, 0.05, 0.3]
+tnr_db = 0.0
+
+[[chain.lines]]
+hz = 25.0
+tnr_db = 6.0
+
+[chain.wind]
+fraction = 0.05
+level_db = 35.0
+
+[chain.source]
+am_depth = 0.15
+am_rate_hz = 1.0
+drift_pct_per_min_sd = 0.3
+step_prob = 0.2
+step_pct_sd = 1.0
+
+[chain.path]
+ground_coherence = 0.5
+
+[chain.device]
+highpass_order = 4
+quantise_bits = 16
+
+[chain.device.ns]
+depth_db = -15.0
+time_s = 2.0

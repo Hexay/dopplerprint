@@ -3,6 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use super::chain::Chain;
 use crate::track::EngineClass;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -25,6 +26,9 @@ pub struct Scenario {
     pub noise: Noise,
     #[serde(default)]
     pub device: Device,
+    /// Recording-chain realism; absent = the idealised chain above, bit for bit.
+    #[serde(default)]
+    pub chain: Option<Chain>,
     pub aircraft: Vec<Aircraft>,
 }
 
@@ -127,6 +131,21 @@ pub struct Source {
     /// RMS of slow random rpm wander as a fraction of f0.
     #[serde(default)]
     pub jitter_frac: f64,
+    /// RMS fractional amplitude modulation per harmonic, at rates around `am_rate_hz`.
+    #[serde(default)]
+    pub am_depth: f64,
+    #[serde(default = "one")]
+    pub am_rate_hz: f64,
+    /// Fractional f0 step (rpm/pitch change) centred at audio time `step_time_s`, ramped over `step_ramp_s`.
+    #[serde(default)]
+    pub step_frac: f64,
+    #[serde(default)]
+    pub step_time_s: f64,
+    #[serde(default = "default_step_ramp")]
+    pub step_ramp_s: f64,
+    /// Amplitude of a half-order (0.5·f0) line relative to the fundamental.
+    #[serde(default)]
+    pub half_harmonic: f64,
 }
 
 /// Straight line in the observer's ECEF tangent plane (exactly straight in ECEF).
@@ -163,6 +182,9 @@ fn turboprop() -> EngineClass {
 fn default_half_span() -> f64 {
     300.0
 }
+fn default_step_ramp() -> f64 {
+    3.0
+}
 
 impl Scenario {
     pub fn from_toml_str(s: &str) -> anyhow::Result<Self> {
@@ -175,6 +197,9 @@ impl Scenario {
         anyhow::ensure!(self.sample_rate > 0 && self.duration_s > 0.0, "sample_rate and duration_s must be > 0");
         anyhow::ensure!(self.adsb_dt_s > 0.0, "adsb_dt_s must be > 0");
         anyhow::ensure!(!self.aircraft.is_empty(), "scenario needs at least one [[aircraft]]");
+        if let Some(c) = &self.chain {
+            c.validate()?;
+        }
         for a in &self.aircraft {
             anyhow::ensure!(
                 a.straight.is_some() != a.waypoints.is_some(),
