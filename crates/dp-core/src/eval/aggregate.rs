@@ -13,6 +13,11 @@ pub struct Aggregate {
     pub n_ok: usize,
     pub median_error_m: Ci,
     pub hit: Vec<(f64, Ci)>,
+    /// Error of the reported answer (`modes::answer`); `median_error_m` is the peak cell.
+    #[serde(default)]
+    pub answer_error_m: Option<Ci>,
+    #[serde(default)]
+    pub answer_hit300: Option<Ci>,
     pub flights_correct: Ci,
     pub mean_log_score: Ci,
     pub median_truth_cell_rank: Ci,
@@ -33,10 +38,13 @@ pub fn aggregate(results: &[CaseResult]) -> Aggregate {
     let ok: Vec<&CaseResult> = results.iter().filter(|r| r.status == "ok").collect();
     let col = |f: &dyn Fn(&CaseResult) -> Option<f64>| -> Vec<f64> { ok.iter().filter_map(|r| f(r)).collect() };
     let errs = col(&|r| r.error_m);
+    let answer = col(&|r| r.coverage.as_ref().and_then(|c| c.answer_err_m));
     Aggregate {
         n_ok: ok.len(),
         median_error_m: bootstrap(&errs, median),
         hit: TIERS_M.iter().map(|&t| (t, rate(errs.iter().map(|&e| e <= t)))).collect(),
+        answer_error_m: Some(bootstrap(&answer, median)),
+        answer_hit300: Some(rate(answer.iter().map(|&e| e <= 300.0))),
         flights_correct: rate(ok.iter().filter_map(|r| r.flights_correct)),
         mean_log_score: bootstrap(&col(&|r| r.metrics.log_score), mean),
         median_truth_cell_rank: bootstrap(&col(&|r| r.metrics.truth_cell_rank.map(|x| x as f64)), median),
@@ -84,6 +92,9 @@ pub fn markdown(a: &Aggregate) -> String {
     row("median error m", a.median_error_m.fmt(1));
     for (t, ci) in &a.hit {
         row(&format!("error ≤ {t} m"), ci.fmt(2));
+    }
+    if let (Some(e), Some(h)) = (&a.answer_error_m, &a.answer_hit300) {
+        row("median error m, reported answer (peak's core centroid) / ≤ 300 m",format!("{} / {}", e.fmt(1), h.fmt(2)));
     }
     row("flights correct", a.flights_correct.fmt(2));
     row("mean log score (nats, coarse cell)", a.mean_log_score.fmt(2));
