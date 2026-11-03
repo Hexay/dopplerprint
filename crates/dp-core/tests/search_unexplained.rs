@@ -51,7 +51,8 @@ fn full_explanations_are_kept_and_per_event_outputs_mark_the_unexplained() {
     let p = params(Some(-4.0));
     let h = associate(&events, &cpas, 600.0, &p, 0.0);
     let tuples: Vec<_> = h.iter().map(|h| h.tracks.clone()).collect();
-    assert_eq!(tuples[0], vec![Some(0), Some(1)], "a credit does not rank partial hypotheses first");
+    let off: Vec<_> = associate(&events, &cpas, 600.0, &params(None), 0.0).into_iter().map(|h| h.tracks).collect();
+    assert_eq!(tuples[..off.len()], off[..], "full hypotheses are exactly those without λ_u, and come first");
     assert!(tuples.contains(&vec![None, Some(1)]) && tuples.contains(&vec![Some(0), None]));
     let partial = h.iter().find(|h| h.tracks == [None, Some(1)]).unwrap();
     assert_eq!(partial.clock, T0 + 1.0);

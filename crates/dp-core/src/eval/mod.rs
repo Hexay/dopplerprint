@@ -29,6 +29,7 @@ use crate::config::Config;
 use crate::dem::geoid_undulation;
 use crate::geo::{Geodetic, geodetic_to_ecef};
 use crate::physics::Atmosphere;
+use crate::search::hypothesis::UNEXPLAINED_ID;
 use crate::search::pipeline::Candidate;
 use crate::search::score::ScoringPlane;
 use crate::search::surface::Surface;
@@ -220,9 +221,13 @@ fn best_per_tuple(ranked: &[Candidate]) -> Vec<Candidate> {
     ranked.iter().filter(|c| seen.insert(c.track_ids.clone())).cloned().collect()
 }
 
-/// Store ids look like "2026-09-08/a1dfeb-3"; sim ids are compared verbatim.
+/// Store ids look like "2026-09-08/a1dfeb-3"; sim ids are compared verbatim. Unexplained events are not
+/// scored (a dropped spurious event is not a wrong flight); at least one event must be explained.
 fn same_flights(ids: &[String], truth: &[String]) -> bool {
-    ids.len() == truth.len() && ids.iter().zip(truth).all(|(id, t)| same_flight(id, t))
+    let unexplained = |id: &String| id == UNEXPLAINED_ID;
+    ids.len() == truth.len()
+        && !ids.iter().all(unexplained)
+        && ids.iter().zip(truth).all(|(id, t)| unexplained(id) || same_flight(id, t))
 }
 
 pub fn distance_m(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {

@@ -1,0 +1,15 @@
+# snr_zsum.toml with the likelihood silence term (search/silence.rs) at the dev-chosen knobs (r50 5 km,
+# counted to 6 km). Run with --sim-dir experiments/sim_snr; pairs with snr_zsum.toml and snr_zsum_nosil.toml.
+[eval]
+cases = ["snr_g"]
+time_prior_s = 2.0
+
+[search.assoc]
+silence_range_m = 6000.0
+
+[search.assoc.silence]
+mode = "likelihood"
+r50_m = 5000.0
+
+[search.score]
+clock_sweep_s = 2.0

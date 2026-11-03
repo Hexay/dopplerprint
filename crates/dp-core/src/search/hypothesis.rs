@@ -5,6 +5,7 @@
 //! it is not scored and adds λ_u to the penalty. A hypothesis needs ≥ 1 explained event and takes its
 //! clock from the explained events only. The all-unexplained null scores −N·λ_u (silence 0: some cell in
 //! the region hears no flight), and the search abstains when no cell beats it (`SearchResult::abstains`).
+//! Partial hypotheses are enumerated and capped separately, after the full ones, which stay as without λ_u.
 
 mod soft;
 
@@ -153,21 +154,15 @@ pub fn associate(
                 .filter_map(|(i, c)| c.as_ref().and_then(|c| p.soft.admit(e, c, p.t_start_prior, slack)).map(|a| (i, a)))
                 .collect();
             o.sort_by(|a, b| a.1.cost_z.total_cmp(&b.1.cost_z));
-            // Unexplained first, so the enumeration budget cannot starve it.
-            p.unexplained_cost.map(|_| None).into_iter().chain(o.into_iter().map(Some)).collect()
+            o.into_iter().map(Some).collect()
         })
         .collect();
-    let mut out = Vec::new();
-    let mut stack = Vec::with_capacity(events.len());
-    let budget = p.max_hypotheses.saturating_mul(ENUM_FACTOR);
-    expand(&options, &mut stack, p, budget, &mut out);
-    // A credit (λ_u < 0) does not rank a partial hypothesis ahead of a full one; ties keep the fuller.
-    let rank = |h: &Hypothesis| match p.unexplained_cost {
-        Some(l) => h.gate_cost + l.max(0.0) * h.n_unexplained_events() as f64,
-        None => h.gate_cost,
-    };
-    out.sort_by(|a, b| rank(a).total_cmp(&rank(b)).then(a.n_unexplained_events().cmp(&b.n_unexplained_events())));
-    out.truncate(p.max_hypotheses);
+    let mut out = cheapest(&options, false, p);
+    // Partial hypotheses get their own budget and cap, so full ones are exactly those of the default.
+    if p.unexplained_cost.is_some() {
+        let with_none: Vec<Vec<Choice>> = options.iter().map(|o| o.iter().copied().chain([None]).collect()).collect();
+        out.extend(cheapest(&with_none, true, p));
+    }
     for h in &mut out {
         silence(cpas, h, duration_s, p);
     }
@@ -191,13 +186,24 @@ pub fn clock_window(events: &[EventSpec], p: &AssocParams, half_diag_m: f64) -> 
 /// One event's pairing; None = unexplained.
 type Choice = Option<(usize, Admit)>;
 
-fn expand(opts: &[Vec<Choice>], stack: &mut Vec<Choice>, p: &AssocParams, budget: usize, out: &mut Vec<Hypothesis>) {
+/// The `max_hypotheses` cheapest (by gate cost) full (`partial` false) or partial hypotheses.
+fn cheapest(opts: &[Vec<Choice>], partial: bool, p: &AssocParams) -> Vec<Hypothesis> {
+    let mut out = Vec::new();
+    let mut stack = Vec::with_capacity(opts.len());
+    let budget = p.max_hypotheses.saturating_mul(ENUM_FACTOR);
+    expand(opts, &mut stack, partial, p, budget, &mut out);
+    out.sort_by(|a, b| a.gate_cost.total_cmp(&b.gate_cost));
+    out.truncate(p.max_hypotheses);
+    out
+}
+
+fn expand(opts: &[Vec<Choice>], stack: &mut Vec<Choice>, partial: bool, p: &AssocParams, budget: usize, out: &mut Vec<Hypothesis>) {
     if out.len() >= budget {
         return;
     }
     if stack.len() == opts.len() {
         let n = stack.iter().flatten().count();
-        if n == 0 {
+        if n == 0 || (n < stack.len()) != partial {
             return;
         }
         // Plain mean on purpose: an inverse-σ_t² mean moved N788BM_R03 41 → 364 m (band width ≠ error).
@@ -207,13 +213,16 @@ fn expand(opts: &[Vec<Choice>], stack: &mut Vec<Choice>, p: &AssocParams, budget
         out.push(Hypothesis { tracks, clock, unexplained: 0, gate_cost, silence_nats: 0.0 });
         return;
     }
+    // A partial pass never walks into a full leaf.
+    let only_none = partial && stack.len() + 1 == opts.len() && stack.iter().all(Option::is_some);
     for &c in &opts[stack.len()] {
         let fits = c.is_none_or(|(i, a)| {
-            stack.iter().flatten().all(|s| s.0 != i && (s.1.clock - a.clock).abs() <= p.clock_tol_s + s.1.tau_s + a.tau_s)
+            !only_none
+                && stack.iter().flatten().all(|s| s.0 != i && (s.1.clock - a.clock).abs() <= p.clock_tol_s + s.1.tau_s + a.tau_s)
         });
         if fits {
             stack.push(c);
-            expand(opts, stack, p, budget, out);
+            expand(opts, stack, partial, p, budget, out);
             stack.pop();
         }
     }

@@ -1,0 +1,14 @@
+# Dev-split copy of livermore_all40_discovered.toml: the tuning base for unexplained events and the
+# likelihood silence term (docs/research/unexplained_silence_2026-11-03.md). Oracle runs alongside.
+[eval]
+cases = ["livermore"]
+split = "dev"
+data_dir = "/srv/agents/work/doppler_print/data"
+store_dir = "/srv/agents/work/doppler_print/data/adsb/store"
+time_prior_s = 2.0
+oracle_d_range = [150.0, 8000.0]
+oracle_v_range = [20.0, 250.0]
+oracle_events = false
+
+[search.score]
+clock_sweep_s = 2.0

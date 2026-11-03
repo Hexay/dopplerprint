@@ -1,0 +1,17 @@
+# dev_base.toml + likelihood silence term, r50 = 2 km (see dev_sil_r3k.toml).
+[eval]
+cases = ["livermore"]
+split = "dev"
+data_dir = "/srv/agents/work/doppler_print/data"
+store_dir = "/srv/agents/work/doppler_print/data/adsb/store"
+time_prior_s = 2.0
+oracle_d_range = [150.0, 8000.0]
+oracle_v_range = [20.0, 250.0]
+oracle_events = false
+
+[search.assoc.silence]
+mode = "likelihood"
+r50_m = 2000.0
+
+[search.score]
+clock_sweep_s = 2.0
