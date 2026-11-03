@@ -87,6 +87,29 @@ Geometry-only ranking (the run before the rerank and the CONUS bbox; keep = 500)
 - ±600 s was not run (scope cut). Expect ~10× the votes of ±60 s (~10 M, still < 1 GB). The number of
   2-event coincidences grows roughly linearly with prior width, so rerank cost and rank both degrade.
 
+### Oyster Bay with truth-centred bounds: what limits real data
+
+`[eval] global_truth_bounds = true` gives real cases `pose_sim`'s bound widths (d ×0.6–1.6, v ×0.75–1.3)
+around each truth flight's CPA from its ADS-B track: a ceiling on what a good event fit would buy.
+Oyster Bay CPAs: a1dfeb 6.2 km at 137 m/s, ace391 3.7 km at 102 m/s. All rows ±5 s,
+`experiments/global/oysterbay_truthbounds*_t5.toml`.
+
+| silence | prop# / n | region# | answer | error | flights | margin z | truth raw / score | winner raw / score |
+|---|---|---|---|---|---|---|---|---|
+| flat 3 z (default) | **1** / 180 | 2 | Purcellville VA | 414 km | wrong | 4.05 | 114.0 / 78.0 (12 silent) | 85.0 / 82.0 (1 silent) |
+| off | 1 / 180 | 1 | Oyster Bay | **61 m** | ✓ | 23.85 | 114.5 | — |
+| likelihood, r50 2 km | 1 / 180 | 1 | Oyster Bay | **79 m** | ✓ | 12.31 | 114.0 / 99.5 | Denver 90.6 / 87.2 |
+
+- Good bounds alone fix the proposal stage (#122 → #1, 2776 → 180 coincidences, 22 min → 3 min).
+- The **flat silence penalty is unfair between regions**: NYC airspace has 12 audible-range flights,
+  rural Virginia 1, so a 29-point worse Doppler fit wins. Locally every cell pays about the same.
+  The likelihood term (`docs/research/unexplained_silence_2026-11-03.md`) charges by expected loudness
+  against the recording's noise floor and keeps truth first.
+- `sim_lsil_t5.toml` (likelihood silence on the sim suite) reproduces the flat-silence sim rows
+  (two_props #1, 1 m, margin 22.3; singles ambiguous).
+- Fixed: the global eval path never called `SilenceParams::measure_recording`, so likelihood silence
+  ran without the high-pass corner.
+
 ## What works, what doesn't
 
 - **Works:** ≥ 2 events with honest d/v bounds. Clock agreement across events 920 s apart is very
@@ -116,6 +139,8 @@ Geometry-only ranking (the run before the rerank and the CONUS bbox; keep = 500)
    (or no consistent pair) was found, and N flights across CONUS fit it. Give `--near` (a city or
    state) or a tighter start time, or record longer to catch a second aircraft." List the top 10
    proposals (flight ids, places, quick scores) as candidates.
-4. Next steps, in order: closed-form loci + EDT clock-free scoring (methods doc) instead of the
-   lattice; refit d per candidate flight with its ADS-B speed; a coarse national DEM (≤ 1 km) for H;
+4. Next steps, in order: likelihood silence as the default (then refit `search/calibration.toml`);
+   an event fit that rejects unphysical bounds and refits d per candidate flight with its ADS-B speed
+   (pass = Oyster Bay solved nationally without `global_truth_bounds`); closed-form loci + EDT
+   clock-free scoring (methods doc) instead of the lattice; a coarse national DEM (≤ 1 km) for H;
    rerank with all supporting flights at the vote-cell resolution, or skip it when n_max ≥ 2.

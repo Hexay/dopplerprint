@@ -1,0 +1,9 @@
+# sim_t5 with the likelihood silence term (r50 2 km): regression guard for oysterbay_truthbounds_lsil_t5.
+[eval]
+cases = ["sim_"]
+region_mode = "global"
+time_prior_s = 5.0
+
+[search.assoc.silence]
+mode = "likelihood"
+r50_m = 2000.0

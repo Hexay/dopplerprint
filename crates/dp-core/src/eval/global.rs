@@ -73,7 +73,9 @@ fn try_run(cfg: &Config, c: &Posed) -> anyhow::Result<CaseResult> {
         dem: c.dem.as_ref(),
         flat_h_ell_m: c.truth_h_ell,
     };
-    let res = locate_global(&inp, &cfg.search, &cfg.global)?;
+    let mut sp = cfg.search.clone();
+    sp.assoc.silence.measure_recording(&c.audio, &cfg.spec);
+    let res = locate_global(&inp, &sp, &cfg.global)?;
     Ok(result(c, t0, shift, events, res))
 }
 

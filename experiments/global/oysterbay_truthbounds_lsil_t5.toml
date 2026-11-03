@@ -1,0 +1,17 @@
+# oysterbay_truthbounds_t5 with the likelihood silence term at the recommended knobs (r50 2 km, counted
+# to 3 km; docs/research/unexplained_silence_2026-11-03.md). Pass = truth wins with silence on.
+[eval]
+cases = ["oysterbay"]
+region_mode = "global"
+global_truth_bounds = true
+time_prior_s = 5.0
+oracle_events = true
+
+[search]
+coarse_step_m = 200
+min_step_m = 25
+keep_top = 200
+
+[search.assoc.silence]
+mode = "likelihood"
+r50_m = 2000.0
