@@ -57,6 +57,13 @@ pub fn east_north(lat_deg: f64, lon_deg: f64) -> (Vec3, Vec3) {
     (east, north)
 }
 
+/// Meridional (M) and prime-vertical (N) radii of curvature in metres: dn = M·dφ, de = N·cosφ·dλ.
+pub fn radii_of_curvature(lat_deg: f64) -> (f64, f64) {
+    let s = lat_deg.to_radians().sin();
+    let w = 1.0 - WGS84_E2 * s * s;
+    (WGS84_A * (1.0 - WGS84_E2) / w.powf(1.5), WGS84_A / w.sqrt())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
