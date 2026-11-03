@@ -24,8 +24,10 @@
 //! Exact events (truth labels, `EventSpec::is_exact`) have exact CPA times and prior-box d/v ranges: every
 //! gate is hard for them, with no cell slack — the legacy gates.
 //!
-//! `z_per_nat` is the posterior temperature T (`calibration.toml`): the posterior is exp((score − top)/T),
-//! so a log-likelihood of −n nats is −n·T in score (z) units, the same units as `silence_penalty`.
+//! `z_per_nat` converts nats to score (z) units, the units of `silence_penalty`. It is fixed at
+//! `GATE_Z_PER_NAT` = 1.58, the posterior temperature T the gates were tuned under (calibration of
+//! 2026-11-03), and deliberately not read from `calibration.toml`: refitting T must change only the posterior,
+//! never which hypotheses are admitted or how they rank.
 //! A CPA whose excess exceeds an outer bound is dropped; outer = 0 makes that dimension a hard gate.
 //! Cell slack r (the cell's half-diagonal) widens only that pruning test: CPA slant changes by at most r
 //! across the cell and CPA time by at most r/v + r/c, so no cell is dropped that some point inside it would
@@ -37,6 +39,8 @@ use crate::physics::Cpa;
 
 /// Lowest sound speed (m/s) assumed when bounding arrival-time change across a cell.
 const C_MIN: f64 = 300.0;
+/// Score units per nat for gate costs (see module doc).
+pub const GATE_Z_PER_NAT: f64 = 1.58;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
@@ -58,7 +62,7 @@ pub struct SoftGates {
     pub outer_log_v: f64,
     /// Clock outer bound in units of the event's σ_t.
     pub outer_clock_sigmas: f64,
-    /// Score units per nat (posterior temperature).
+    /// Score units per nat (`GATE_Z_PER_NAT`).
     pub z_per_nat: f64,
     /// Widen ranges by what can change across the scored cell (see module doc).
     pub cell_slack: bool,
@@ -79,7 +83,7 @@ impl Default for SoftGates {
             outer_log_d: 0.4,
             outer_log_v: 0.15,
             outer_clock_sigmas: 8.0,
-            z_per_nat: crate::search::calibration::get().temperature,
+            z_per_nat: GATE_Z_PER_NAT,
             cell_slack: true,
             slack_min_speed_mps: 20.0,
         }
