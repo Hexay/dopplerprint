@@ -24,6 +24,7 @@ pub(super) fn straight_scenario(v: f64, d: f64, beta: f64, seed: u64) -> Scenari
         observer: Observer { lat_deg: 38.912, lon_deg: -97.214, h_ell_m: 360.0, mic_height_m: 2.0 },
         atmosphere: SimAtmosphere { c: C, wind_enu: [0.0; 3] },
         ground: None,
+        chain: None,
         noise: Noise { snr_db: 40.0, ..Default::default() },
         device: Device::default(),
         aircraft: vec![Aircraft {
@@ -32,7 +33,18 @@ pub(super) fn straight_scenario(v: f64, d: f64, beta: f64, seed: u64) -> Scenari
             type_code: None,
             engine: EngineClass::Turboprop,
             amplitude: 1.0,
-            source: Source { f0: 100.0, harmonics: vec![1.0, 0.5, 0.3], drift_per_s: beta, jitter_frac: 0.0 },
+            source: Source {
+                f0: 100.0,
+                harmonics: vec![1.0, 0.5, 0.3],
+                drift_per_s: beta,
+                jitter_frac: 0.0,
+                am_depth: 0.0,
+                am_rate_hz: 1.0,
+                step_frac: 0.0,
+                step_time_s: 0.0,
+                step_ramp_s: 3.0,
+                half_harmonic: 0.0,
+            },
             straight: Some(Straight {
                 heading_deg: 90.0,
                 speed_mps: v,
