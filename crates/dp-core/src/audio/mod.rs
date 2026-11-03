@@ -2,6 +2,7 @@
 
 mod decode;
 mod frontend;
+pub mod hum;
 pub mod resample;
 pub mod spectrogram;
 mod stft;
@@ -12,6 +13,7 @@ mod tests;
 
 pub use decode::{AudioInfo, decode_band, probe};
 pub use frontend::FrontEnd;
+pub use hum::{HumParams, HumReport, analyse_hum};
 pub use spectrogram::{
     LogSpectrogram, SpecParams, combine_max, log_power_spectrogram, log_spectrogram, log_spectrogram_multi,
     log_spectrogram_with,

@@ -4,6 +4,7 @@
 mod app;
 mod audio;
 mod geo;
+mod hum;
 mod physics;
 mod search;
 mod tracks;
@@ -16,6 +17,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     app::register(m)?;
     audio::register(m)?;
     geo::register(m)?;
+    hum::register(m)?;
     physics::register(m)?;
     search::register(m)?;
     tracks::register(m)?;

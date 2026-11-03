@@ -1,6 +1,7 @@
 pub mod compare;
 pub mod discover;
 pub mod eval;
+pub mod hum;
 pub mod ingest;
 pub mod locate;
 pub mod serve;
