@@ -7,7 +7,7 @@ The code lives in `crates/dp-core/src/audio/` and `crates/dp-core/src/events/`. 
 ```
 decode_band ─► log-f STFT (wins 0.5/1/2 s) ─► whiten ─► combine_max ─► comb image ─► peel Viterbi paths
   ─► analyze (harmonics, fundamental) ─► split_inconsistent ─► merge_related ─► stitch ─► merge_related
-  ─► finalize (CV fit + validation) ─► same_source_keep ─► events sorted by t_cpa
+  ─► finalize (ridge re-measured on the complex STFT, CV fit, validation) ─► same_source_keep ─► events sorted by t_cpa
 ```
 
 ## Decode (`audio/decode.rs`, `audio/resample.rs`)
@@ -90,7 +90,16 @@ For each segment, three hypotheses are tested: the base track is harmonic `m` of
   - The fundamental is the gcd of the present orders. This handles a missing fundamental: if lines 2, 3 and 4 are present, the fundamental is line 1.
   - Each harmonic's z is the mean on-minus-control difference divided by its standard error, using `n / frames_per_indep` independent samples. The candidate score is the Stouffer combination of the present z values.
   - The best hypothesis wins. Ties within ×1.05 go to the smallest `m`.
-- **Refined fundamental.** The fundamental track `fund_hz` is refined by parabolic peak interpolation on the strongest harmonic.
+- **Refined fundamental.** The fundamental track `fund_hz` is refined by parabolic peak interpolation on the whitened image of each detected harmonic, folded with z² weights. A flat top (the clip at 8) reads as its centre; taking its last bin biased strong lines by +0.5 bin. This track is used for detection, splitting and merging only. The fit uses the ridge re-measured below.
+
+## Ridge re-measurement (`audio/refine.rs`, `events/refine.rs`)
+
+The whitened image biases peak positions. Its 60 s low-quantile floor partly subtracts a slow ridge that sits in one bin for long, so far or slow passes read 0.4–0.9 bin off with frame-to-frame correlation of about 0.96. The CV fit turned that into d +2 to +40 % and t_cpa up to +4 s late (research_notes/…/pipeline_bias_measurements.md, M1). So before the fit, `finalize` re-measures each frame on the complex, unwhitened STFT of the samples (`discover_refined`; `discover_with` has no samples and skips this):
+- Candan's three-sample estimator on the Hann DTFT, phase referenced to the window centre, `c` fitted on clean tones per window, 3 iterations. The seed is the folded `fund_hz·h`, after an argmax over ±3 log bins.
+- The window is the longest of `wins_s` with |slope|·T² ≤ 4: unbiased below 0.005 bin for linear chirps, and the longest window has the lowest noise.
+- A harmonic whose estimate leaves ±3 log bins of its seed, or whose window leaves the recording, keeps the seed. Harmonics are folded with the detection z² weights.
+
+Measured on exact CV passes (`events/measure/fitbias.rs`): |d| ≤ 0.5 %, |v| ≤ 0.2 %, |t_cpa| ≤ 0.04 s in every cell, against d +2…+40 % before.
 
 ## Splitting, merging, stitching (`events/split.rs`, `events/merge.rs`)
 

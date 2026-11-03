@@ -14,7 +14,8 @@ use crate::sim::{Scenario, Truth, render, write_outputs};
 
 const SCENARIOS: [&str; 3] = ["faint_single", "manoeuvring_turn", "two_props_920s"];
 /// (label, [(encoder args, output ext)] chained, decode to wav via ffmpeg after)
-const VARIANTS: [(&str, &[(&str, &str)], bool); 6] = [
+type Variant = (&'static str, &'static [(&'static str, &'static str)], bool);
+const VARIANTS: [Variant; 6] = [
     ("wav16 (baseline)", &[], false),
     ("aac 128k", &[("-c:a aac -b:a 128k", "m4a")], false),
     ("aac 128k, ffmpeg-decoded", &[("-c:a aac -b:a 128k", "m4a")], true),

@@ -92,7 +92,6 @@ fn row(snr: f64, alpha: f64, s: &Stage) -> (String, Picket) {
 #[test]
 #[ignore]
 fn picket_fence() {
-    plateau_ablation();
     println!("Errors in log bins (1 bin = 1/96 oct = 0.72 % of f). pull: 0 unbiased, 1 snapped to centre.");
     println!("| SNR dB/1Hz | α Hz/s | stage | mean | RMS | pull | ½ p-p curve | picket share | ρ1 | ρ8 (2 s) |");
     println!("|---|---|---|---|---|---|---|---|---|---|");

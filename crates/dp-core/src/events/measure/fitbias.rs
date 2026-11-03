@@ -3,7 +3,7 @@
 //! Candan comparator at the same frames, and both are fitted with the production fit.
 
 use super::super::discover::confident;
-use super::super::{DiscoverParams, Event, FitParams, Ridge, discover_with, fit_cv_with};
+use super::super::{DiscoverConfig, Event, FitParams, Ridge, discover_refined, fit_cv_with};
 use super::candan::Candan;
 use super::*;
 use super::super::candidate::peak_near;
@@ -83,7 +83,6 @@ impl Acc {
 #[test]
 #[ignore]
 fn cv_fit_bias() {
-    plateau_ablation();
     println!("f0 err in 1e-4 (100 ppm); v, d in %; t_cpa in s; mean±sd over {SEEDS} noise seeds.");
     println!("frame RMS in log bins vs truth; curve RMS = RMS(fitted curve − true curve) Hz over the ridge.");
     println!("| pass | SNR dB/1Hz | harmonics | ridge | n | frame RMS bins | ρ1 | pull | f0 | v % | d % | t_cpa s | curve RMS Hz |");
@@ -104,7 +103,7 @@ fn cv_fit_bias() {
                     let audio = Audio { sample_rate: SR, samples: x };
                     let spec = FrontEnd::default().spectrogram(&audio);
                     let raw = log_power_spectrogram(&audio, &SpecParams::default());
-                    let evs = discover_with(&spec, &DiscoverParams::default());
+                    let evs = discover_refined(&audio, &spec, &DiscoverConfig::default());
                     let Some(e) = best_event(&evs, p.f0) else {
                         missed += 1;
                         continue;
@@ -137,7 +136,7 @@ fn cv_fit_bias() {
                     exact.push(ee, ce, &bins(&ft), &off);
                 }
                 let tag = format!("| {} | {snr:.0} | {} ", p.name, harm.len());
-                println!("{}", real.line(&format!("{tag}| real peak_near (missed {missed})")));
+                println!("{}", real.line(&format!("{tag}| production (missed {missed})")));
                 println!("{}", rawdb.line(&format!("{tag}| peak_near on raw dB 1 s")));
                 println!("{}", cand.line(&format!("{tag}| Candan 1 s")));
                 println!("{}", exact.line(&format!("{tag}| exact IF")));

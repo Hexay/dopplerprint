@@ -6,6 +6,7 @@ mod discover;
 mod fit;
 mod linalg;
 mod merge;
+mod refine;
 mod split;
 mod stats;
 mod stitch;
@@ -18,7 +19,7 @@ mod testsynth;
 #[cfg(test)]
 mod measure;
 
-use crate::audio::{Audio, FrontEnd, LogSpectrogram};
+use crate::audio::{Audio, FrontEnd, IfRefiner, LogSpectrogram};
 use crate::physics::cv::CvParams;
 
 pub use fit::{FitParams, fit_cv_with};
@@ -145,7 +146,14 @@ impl DiscoverConfig {
 }
 
 pub fn discover_audio(audio: &Audio, cfg: &DiscoverConfig) -> Vec<Event> {
-    discover_with(&cfg.front.spectrogram(audio), &cfg.params)
+    discover_refined(audio, &cfg.front.spectrogram(audio), cfg)
+}
+
+/// Discovery on `spec` (the front-end image of `audio`), with event ridges re-measured on the complex STFT
+/// before the fit. `discover_with` skips that step and keeps the whitened-image ridge.
+pub fn discover_refined(audio: &Audio, spec: &LogSpectrogram, cfg: &DiscoverConfig) -> Vec<Event> {
+    let r = IfRefiner::new(audio, cfg.front.f_max, &cfg.front.wins_s);
+    discover::discover_impl(spec, Some(&r), &cfg.params)
 }
 
 pub fn events_to_json(events: &[Event]) -> anyhow::Result<String> {

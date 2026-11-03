@@ -4,6 +4,8 @@
 
 mod candan;
 mod codec;
+mod corpus;
+mod decode_align;
 mod drift;
 mod fitbias;
 mod picket;
@@ -11,14 +13,6 @@ mod picket;
 use super::testsynth::Rng;
 
 pub(super) const C: f64 = 343.0;
-
-/// MEASURE_PLATEAU=1 turns on the `peak_near` flat-top ablation; returns whether it is on.
-pub(super) fn plateau_ablation() -> bool {
-    let on = std::env::var("MEASURE_PLATEAU").is_ok_and(|v| v == "1");
-    super::candidate::PLATEAU_FIX.store(on, std::sync::atomic::Ordering::Relaxed);
-    println!("peak_near plateau ablation: {on}");
-    on
-}
 
 /// Harmonic tone with received fundamental `f(t)`, phase integrated per sample (trapezoid, f64), plus white noise.
 pub(super) fn synth(sr: u32, dur: f64, f: &dyn Fn(f64) -> f64, harm: &[f64], amp: f64, noise: f64, seed: u64) -> Vec<f32> {
