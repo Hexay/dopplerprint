@@ -29,12 +29,12 @@ impl<R> BucketSpill<R> {
         Self {
             dir: dir.to_path_buf(),
             name,
-            schema,
             to_batch,
             flush_rows: 8192,
             buffers: BTreeMap::new(),
             writers: BTreeMap::new(),
-            props: writer_props(1, 65_536, Vec::new()),
+            props: writer_props(&schema, 1, 65_536, Vec::new()),
+            schema,
         }
     }
 
@@ -82,14 +82,15 @@ pub fn read_all(path: &Path) -> anyhow::Result<RecordBatch> {
     Ok(arrow_select::concat::concat_batches(&schema, &batches)?)
 }
 
-/// Load one spill file, reorder it by `order` (a permutation from the batch), write `out`, delete the spill.
+/// Load one spill file, `fix` it, reorder it by `order` (a permutation of its rows), write `out`, delete the spill.
 pub fn sort_spill(
     spill: &Path,
     out: &Path,
     props: WriterProperties,
+    fix: impl Fn(RecordBatch) -> anyhow::Result<RecordBatch>,
     order: impl Fn(&RecordBatch) -> Vec<u32>,
 ) -> anyhow::Result<usize> {
-    let batch = read_all(spill)?;
+    let batch = fix(read_all(spill)?)?;
     let idx = UInt32Array::from(order(&batch));
     let sorted = arrow_select::take::take_record_batch(&batch, &idx)?;
     drop(batch);
@@ -104,8 +105,8 @@ pub fn sort_spill(
 }
 
 /// Stable permutation sorting rows by `key(i)`.
-pub fn permutation<K: PartialOrd>(n: usize, key: impl Fn(usize) -> K) -> Vec<u32> {
+pub fn permutation<K: Ord>(n: usize, key: impl Fn(usize) -> K) -> Vec<u32> {
     let mut idx: Vec<u32> = (0..n as u32).collect();
-    idx.sort_by(|&a, &b| key(a as usize).partial_cmp(&key(b as usize)).unwrap_or(std::cmp::Ordering::Equal));
+    idx.sort_by_key(|&i| key(i as usize));
     idx
 }

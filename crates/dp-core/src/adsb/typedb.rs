@@ -38,6 +38,15 @@ pub struct Classification {
     pub type_code: Option<String>,
     pub engine: EngineClass,
     pub source: EngineSource,
+    /// Towers, ground vehicles and ships that broadcast ADS-B; never an acoustic source.
+    pub non_aircraft: bool,
+}
+
+/// tar1090 marks non-aircraft with zero engines and class T (tower) or V (vehicle); ships share
+/// balloons' "B0-", so they are matched by designator.
+fn is_non_aircraft(type_code: &str, desc: Option<&str>) -> bool {
+    let d = desc.unwrap_or("").as_bytes();
+    type_code == "SHIP" || (d.get(1) == Some(&b'0') && matches!(d.first(), Some(b'T' | b'V')))
 }
 
 const TYPE_FILES: [&str; 3] = ["icao_aircraft_types.json", "icao_aircraft_types.js", "tar1090-icao_aircraft_types.json"];
@@ -88,15 +97,16 @@ impl TypeDb {
             Some(t) => (Some(t.to_string()), EngineSource::TraceType),
             None => (self.registry.get(&icao).cloned(), EngineSource::RegistryType),
         };
-        let by_type = type_code.as_deref().and_then(|t| self.types.get(t)).map(|d| engine_from_description(d));
-        let (engine, source) = match by_type {
+        let desc = type_code.as_deref().and_then(|t| self.types.get(t)).map(String::as_str);
+        let non_aircraft = type_code.as_deref().is_some_and(|t| is_non_aircraft(t, desc));
+        let (engine, source) = match desc.map(engine_from_description) {
             Some(e) if e != EngineClass::Unknown => (e, from),
             _ => match category.and_then(engine_from_category) {
                 Some(e) => (e, EngineSource::Category),
                 None => (EngineClass::Unknown, EngineSource::None),
             },
         };
-        Classification { type_code, engine, source }
+        Classification { type_code, engine, source, non_aircraft }
     }
 }
 
@@ -145,6 +155,11 @@ mod tests {
         assert_eq!((reg.engine, reg.source), (EngineClass::Helicopter, EngineSource::RegistryType));
         assert_eq!(db.classify(2, Some("KODI"), Some("A7")).source, EngineSource::Category);
         let unk = db.classify(3, None, Some("A1"));
-        assert_eq!((unk.engine, unk.type_code), (EngineClass::Unknown, None));
+        assert_eq!((unk.engine, unk.type_code, unk.non_aircraft), (EngineClass::Unknown, None, false));
+        db.types.insert("TWR".into(), "T0-".into());
+        db.types.insert("V22".into(), "T2T".into());
+        assert!(db.classify(4, Some("TWR"), None).non_aircraft);
+        assert!(db.classify(5, Some("SHIP"), None).non_aircraft);
+        assert!(!db.classify(6, Some("V22"), None).non_aircraft);
     }
 }

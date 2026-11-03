@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use anyhow::Context;
 use dp_core::adsb::manifest::parse_utc;
 use dp_core::adsb::model::engine_from_name;
-use dp_core::adsb::{TrackQuery, geojson::tracks_geojson, load_tracks};
+use dp_core::adsb::{LoadOptions, TrackQuery, geojson::tracks_geojson, load_tracks_with};
 
 #[derive(clap::Args)]
 pub struct Args {
@@ -23,6 +23,9 @@ pub struct Args {
     pub exclude: Vec<String>,
     #[arg(long)]
     pub geojson: Option<PathBuf>,
+    /// Keep TIS-B/anonymous `~` tracks that shadow an ADS-B track.
+    #[arg(long)]
+    pub no_dedup: bool,
 }
 
 pub fn run(a: Args) -> anyhow::Result<()> {
@@ -39,7 +42,8 @@ pub fn run(a: Args) -> anyhow::Result<()> {
             .map(|e| engine_from_name(e).with_context(|| format!("unknown engine class {e:?}")))
             .collect::<anyhow::Result<_>>()?,
     };
-    let tracks = load_tracks(&a.store, &q)?;
+    let opts = LoadOptions { dedup: (!a.no_dedup).then(Default::default) };
+    let tracks = load_tracks_with(&a.store, &q, &opts)?;
     let points: usize = tracks.iter().map(|t| t.points.len()).sum();
     println!("{} tracks, {} points", tracks.len(), points);
     for t in tracks.iter().take(25) {

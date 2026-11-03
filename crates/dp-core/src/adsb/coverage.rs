@@ -1,7 +1,8 @@
-//! Coverage table: distinct aircraft and track-seconds per coarse cell × hour × altitude band.
-//! A detection-probability proxy for the silence stage (research/adsb_data.md §3).
+//! Coverage table: distinct aircraft, track-seconds and airborne appear/vanish counts per coarse cell ×
+//! hour × altitude band. A detection-probability proxy for the silence stage (research/adsb_data.md §3):
+//! many airborne vanishes at low bands mark the local reception floor.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use super::model::CleanTrack;
 use super::pieces::hour_of;
@@ -22,7 +23,11 @@ pub struct CovKey {
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct CovVal {
     pub n_aircraft: u32,
-    pub track_s: f64,
+    pub track_s: f32,
+    /// Tracks whose first point is here and that did not start from a ground point.
+    pub n_appear: u32,
+    /// Tracks whose last point is here and that did not end at a ground point.
+    pub n_vanish: u32,
 }
 
 pub fn cov_key(t: f64, lat: f64, lon: f64, alt_m: f64, day0: f64) -> CovKey {
@@ -35,16 +40,21 @@ pub fn cov_key(t: f64, lat: f64, lon: f64, alt_m: f64, day0: f64) -> CovKey {
     }
 }
 
-/// One aircraft's contribution: each key it touches counts it once; each leg's dt goes to its start bin.
-pub fn aircraft_coverage(tracks: &[CleanTrack], day0: f64) -> Vec<(CovKey, f64)> {
-    let mut secs: HashMap<CovKey, f64> = HashMap::new();
+/// One aircraft's contribution (`n_aircraft` = 1 per key it touches); each leg's dt goes to its start bin.
+pub fn aircraft_coverage(tracks: &[CleanTrack], day0: f64) -> Vec<(CovKey, CovVal)> {
+    let mut m: HashMap<CovKey, CovVal> = HashMap::new();
+    let key = |p: &super::model::CleanPoint| cov_key(p.t, p.lat, p.lon, p.alt_m, day0);
     for tr in tracks {
         for (i, p) in tr.points.iter().enumerate() {
             let dt = tr.points.get(i + 1).map_or(0.0, |n| n.t - p.t);
-            *secs.entry(cov_key(p.t, p.lat, p.lon, p.alt_m, day0)).or_default() += dt;
+            m.entry(key(p)).or_default().track_s += dt as f32;
+        }
+        if let (Some(first), Some(last)) = (tr.points.first(), tr.points.last()) {
+            m.entry(key(first)).or_default().n_appear += u32::from(!tr.starts_on_ground);
+            m.entry(key(last)).or_default().n_vanish += u32::from(!tr.ends_on_ground);
         }
     }
-    secs.into_iter().collect()
+    m.into_iter().map(|(k, mut v)| (k, { v.n_aircraft = 1; v })).collect()
 }
 
 #[derive(Default)]
@@ -53,18 +63,20 @@ pub struct CoverageAgg {
 }
 
 impl CoverageAgg {
-    pub fn add_aircraft(&mut self, contrib: &[(CovKey, f64)]) {
-        debug_assert_eq!(contrib.iter().map(|c| c.0).collect::<HashSet<_>>().len(), contrib.len());
-        for (k, s) in contrib {
+    pub fn add_aircraft(&mut self, contrib: &[(CovKey, CovVal)]) {
+        for (k, c) in contrib {
             let v = self.cells.entry(*k).or_default();
-            v.n_aircraft += 1;
-            v.track_s += s;
+            v.n_aircraft += c.n_aircraft;
+            v.track_s += c.track_s;
+            v.n_appear += c.n_appear;
+            v.n_vanish += c.n_vanish;
         }
     }
 
-    pub fn sorted(&self) -> Vec<(CovKey, CovVal)> {
-        let mut v: Vec<_> = self.cells.iter().map(|(k, v)| (*k, *v)).collect();
-        v.sort_by_key(|e| e.0);
+    /// Drain into key order, freeing the map as it goes.
+    pub fn into_sorted(self) -> Vec<(CovKey, CovVal)> {
+        let mut v: Vec<_> = self.cells.into_iter().collect();
+        v.sort_unstable_by_key(|e| e.0);
         v
     }
 }

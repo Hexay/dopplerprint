@@ -4,11 +4,14 @@
 pub mod altitude;
 pub mod clean;
 pub mod coverage;
+pub mod dedup;
+pub mod finalize;
 pub mod geojson;
 pub mod index;
 pub mod ingest;
 pub mod manifest;
 pub mod model;
+pub mod neighbour;
 pub mod pieces;
 pub mod query;
 pub mod schema;
@@ -21,6 +24,7 @@ pub use index::{SegmentHit, SegmentIndex};
 pub use ingest::{IngestOptions, ingest_day};
 pub use manifest::Manifest;
 pub use model::AltSource;
+pub use query::{LoadOptions, load_tracks_with};
 
 use crate::track::{EngineClass, Track};
 
