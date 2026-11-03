@@ -1,5 +1,5 @@
 //! The calibrated part of the locate report: the 90% region (conformal mass q̂ at the fitted temperature)
-//! and its modes with their probability. Calibration and its limits: docs/research/calibration_2026-11-03.md.
+//! and its modes with their probability. Calibration and its limits: docs/research/calibration_discovered_2026-11-03.md.
 
 use std::collections::HashSet;
 

@@ -1,5 +1,8 @@
 # Calibrated output (stage 3), 2026-11-03
 
+> Fitted values superseded the same day by a fit on discovered events: see calibration_discovered_2026-11-03.md.
+> The method below still applies; the numbers are those of the oracle-event fit.
+
 Stage 3 of `matching_mathematical_methods.md`: area-aware HPD, basin modes, T fitted by log score, split-conformal
 q̂ per stratum. Fitted values ship in `crates/dp-core/src/search/calibration.toml`.
 Reproduce: `python3 -I tools/gen_sim_calib.py`, the eval runs below, then
