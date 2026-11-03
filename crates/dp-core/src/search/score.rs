@@ -7,14 +7,27 @@
 
 use super::job::prepare_job;
 use super::sweep;
-use crate::audio::LogSpectrogram;
+use crate::audio::spectrogram::{SpecParams, log_spectrogram};
+use crate::audio::{Audio, LogSpectrogram};
 use crate::geo::Vec3;
 use crate::physics::Atmosphere;
 use crate::track::Track;
 
+/// What a pixel holds and how a curve sums: whitened z (fixed-point sweep, CPU or CUDA) or power LLR
+/// (nats, CPU only, see `power_llr`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ScoreMode {
+    #[default]
+    Zsum,
+    PowerLlr,
+}
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct ScoreParams {
+    pub mode: ScoreMode,
+    pub llr: super::power_llr::LlrParams,
     /// Harmonic numbers scored incoherently, with weights.
     pub harmonics: Vec<(u32, f32)>,
     /// ± bins of frequency tolerance (max-filter half width).
@@ -32,6 +45,8 @@ pub struct ScoreParams {
 impl Default for ScoreParams {
     fn default() -> Self {
         Self {
+            mode: ScoreMode::Zsum,
+            llr: Default::default(),
             harmonics: vec![(1, 1.0), (2, 1.0), (3, 0.8), (4, 0.6), (5, 0.5), (6, 0.4)],
             tol_bins: 1,
             tol_penalty: 1.0,
@@ -67,12 +82,22 @@ pub struct JointScore {
     pub events: Vec<EventScore>,
 }
 
-/// Spectrogram with each row max-filtered over ±tol bins and clipped, built once per recording.
+/// The plane a recording is scored on, built once: see `new` (z-sum) and `build`.
 pub struct ScoringPlane {
     pub spec: LogSpectrogram,
+    pub mode: ScoreMode,
 }
 
 impl ScoringPlane {
+    /// The plane `p.mode` scores on, straight from audio.
+    pub fn build(audio: &Audio, sp: &SpecParams, p: &ScoreParams) -> Self {
+        match p.mode {
+            ScoreMode::Zsum => Self::new(&log_spectrogram(audio, sp), p),
+            ScoreMode::PowerLlr => Self { spec: super::power_llr::plane(audio, sp, p.llr.cap), mode: p.mode },
+        }
+    }
+
+    /// z-sum plane: whitened spectrogram, each row max-filtered over ±tol bins and clipped.
     pub fn new(spec: &LogSpectrogram, p: &ScoreParams) -> Self {
         let mut out = spec.clone();
         let (n_f, tol) = (spec.n_f, p.tol_bins);
@@ -83,7 +108,7 @@ impl ScoringPlane {
                 *d = best.clamp(-p.z_clip, p.z_clip);
             }
         }
-        Self { spec: out }
+        Self { spec: out, mode: ScoreMode::Zsum }
     }
 }
 
@@ -97,5 +122,11 @@ pub fn score_joint(
     p: &ScoreParams,
 ) -> Option<JointScore> {
     let job = prepare_job(&plane.spec, targets, obs, atm, clock_nominal, p);
-    sweep::score_jobs(&plane.spec, std::slice::from_ref(&job), p).pop().flatten()
+    let jobs = std::slice::from_ref(&job);
+    match plane.mode {
+        ScoreMode::Zsum => sweep::score_jobs(&plane.spec, jobs, p),
+        ScoreMode::PowerLlr => super::power_llr::score_jobs(&plane.spec, jobs, p),
+    }
+    .pop()
+    .flatten()
 }

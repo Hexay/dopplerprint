@@ -1,0 +1,11 @@
+# Ablation: snr_llr with the silence penalty off (pairs with snr_zsum_nosil.toml).
+[eval]
+cases = ["snr_g"]
+time_prior_s = 2.0
+
+[search.assoc]
+silence_penalty = 0.0
+
+[search.score]
+clock_sweep_s = 2.0
+mode = "power_llr"

@@ -11,6 +11,7 @@ use super::refine::refined_ridge;
 use super::split::split_inconsistent;
 use super::stitch::stitch;
 use super::track::{Tracker, TrackerParams};
+use super::passlike::{features as pass_features, pass_likeness};
 use super::{DiscoverParams, Event, Ridge};
 use crate::audio::{IfRefiner, LogSpectrogram};
 
@@ -147,12 +148,7 @@ fn finalize(spec: &LogSpectrogram, cd: &Cand, refiner: Option<&IfRefiner>, p: &D
     if drop < p.min_drop {
         return None;
     }
-    Some(Event {
-        id: 0,
-        ridge,
-        harmonics: cd.harmonics.clone(),
-        fit,
-        ridge_harmonic: cd.strongest,
-        snr: cd.score,
-    })
+    let mut e = Event { id: 0, ridge, harmonics: cd.harmonics.clone(), fit, ridge_harmonic: cd.strongest, snr: cd.score, pass_p: 0.0 };
+    e.pass_p = pass_likeness(&pass_features(&e));
+    Some(e)
 }

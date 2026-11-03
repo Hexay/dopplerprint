@@ -1,0 +1,10 @@
+# SNR ladder baseline (stage 2, power LLR). Cases: experiments/sim_snr (tools/gen_sim_snr.py); run with
+# --sim-dir experiments/sim_snr. Pre-registered primary metric: the source level at which the truth flight
+# is rank 1 (truth_tuple_rank = 1) in 80% of the 10 geometries, linearly interpolated between rungs;
+# target: power_llr >= 2 dB lower. Secondary: error <= 300 m rate. Clock prior +-2 s as Livermore.
+[eval]
+cases = ["snr_g"]
+time_prior_s = 2.0
+
+[search.score]
+clock_sweep_s = 2.0

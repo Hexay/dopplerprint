@@ -181,6 +181,9 @@ The parameters are `[f0, v, d, t_arrive]`. `t_cpa_arrive` is when the CPA sound 
   - `t_cpa` gets at least ±3 s.
 
   A real aircraft is not a perfect CV pass, and these bounds only prune a later search; they are never treated as truth.
+- **Model-adequacy spread (`events/window.rs`, `window_k` = 2).** The fit is repeated on the ridge without its first 30% and without its last 30%, starting from the full solution. The bounds on v, d and t_cpa are at least `window_k` times the largest change. A straight pass at constant speed gives the same answer on any sub-window. Accelerating, climbing or turning traffic does not.
+  - On Livermore, a CV fit to the noise-free ADS-B curve over the same frames still misses slant by a median absolute 14%, and by 40–90% on several passes (N7RR_R30: +68%). That error is model error, not estimator error, and this spread is how it shows up in the audio.
+  - `split` and `stitch` use only the point fit (`FitParams::point_only`).
 - **Degenerate fits.** Too few points or a singular system give `rmse_hz = 1e9` and wide bounds. The value is finite on purpose so the JSON stays valid.
 
 `rmse_hz` is computed over the Huber inliers (|r| ≤ 3σ).
@@ -199,6 +202,19 @@ An event is kept only if every check below passes:
 | Fitted fall | ≥ `min_drop·f0`. This rejects flat hums that survived whitening. |
 
 The fit is run on the frames with peak z ≥ 1, when there are enough of them.
+
+## Selection (`events/passlike.rs`)
+
+Each event carries `pass_p`, a logistic pass-likeness score. Its inputs:
+- the fitted fall over the ridge;
+- the fraction of the ridge observed on the shorter side of the CPA;
+- the CV residual relative to f0;
+- the width of the d range;
+- a fixed penalty for physical implausibility: CPA under 150 m (road traffic), or jet-like speed or range. Jets are down-ranked, not dropped.
+
+`select` searches the `max_events` strongest by SNR among the events with `pass_p ≥ 0.5`. If no event qualifies, it searches the single most pass-like event. `app::run` uses it.
+
+Fit, split and held-out results are in `research_notes/Doppler localization verification/fix_event_select_fitbias.md`.
 
 ## DOPPLERGEIST failure modes and what addresses each
 

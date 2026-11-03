@@ -1,0 +1,11 @@
+# Ablation: snr_zsum with the silence penalty off. The penalty is 3 per unexplained flight in score units,
+# which is z for zsum but nats for power_llr (tiny there), so this separates scoring from penalty scale.
+[eval]
+cases = ["snr_g"]
+time_prior_s = 2.0
+
+[search.assoc]
+silence_penalty = 0.0
+
+[search.score]
+clock_sweep_s = 2.0

@@ -86,7 +86,8 @@ pub fn log_power_spectrogram(audio: &Audio, p: &SpecParams) -> LogSpectrogram {
     spec
 }
 
-pub(super) fn power_on_log_axis(audio: &Audio, p: &SpecParams) -> (LogSpectrogram, Vec<f32>) {
+/// Linear power `[frame][bin]` on the log axis, with the grid it lives on (`data` left empty).
+pub(crate) fn power_on_log_axis(audio: &Audio, p: &SpecParams) -> (LogSpectrogram, Vec<f32>) {
     let a = decimate_for(audio, p.f_max);
     let sr = a.sample_rate;
     let bpo = p.bins_per_octave.max(1);

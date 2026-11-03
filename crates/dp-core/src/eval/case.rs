@@ -187,10 +187,12 @@ pub(super) fn load_tracks(p: &EvalParams, date: &str, lat: f64, lon: f64, t0: f6
 fn pose_sim(path: &Path, id: String, _p: &EvalParams) -> Result<Posed> {
     let r = sim::render_toml(&std::fs::read_to_string(path)?)?;
     let t = r.truth;
+    // All-zero harmonics = a silent ADS-B-only distractor: a track, never an event.
+    let audible = |e: &&sim::truth::TruthEvent| e.in_recording && e.harmonics.iter().any(|&h| h > 0.0);
     let events: Vec<EventSpec> = t
         .events
         .iter()
-        .filter(|e| e.in_recording)
+        .filter(audible)
         .map(|e| EventSpec {
             window: (e.cpa_arrival_audio_s - 60.0, e.cpa_arrival_audio_s + 60.0),
             t_cpa_audio: e.cpa_arrival_audio_s,
@@ -199,7 +201,7 @@ fn pose_sim(path: &Path, id: String, _p: &EvalParams) -> Result<Posed> {
             f0_range: (e.f0 * 0.94, e.f0 * 1.06),
         })
         .collect();
-    let flights = t.events.iter().filter(|e| e.in_recording).map(|e| Some(e.track_id.clone())).collect();
+    let flights = t.events.iter().filter(audible).map(|e| Some(e.track_id.clone())).collect();
     Ok(Posed {
         id,
         audio: Audio { sample_rate: r.sample_rate, samples: r.samples },

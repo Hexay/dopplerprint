@@ -14,7 +14,7 @@ const MAX_DEPTH: u32 = 3;
 
 /// Relative inlier rmse of the CV fit to a candidate's folded fundamental.
 pub(super) fn fit_rel_rmse(spec: &LogSpectrogram, c: &Cand, p: &DiscoverParams) -> f64 {
-    let fit = fit_cv_with(&ridge_of(spec, c, 1.0), p.c, &p.fit);
+    let fit = fit_cv_with(&ridge_of(spec, c, 1.0), p.c, &p.fit.point_only());
     fit.rmse_hz / fit.best.f0.max(1e-9)
 }
 

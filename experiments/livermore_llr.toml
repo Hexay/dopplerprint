@@ -1,0 +1,14 @@
+# Power-domain LLR scoring (stage 2) on the Livermore dev split, paired against livermore_baseline.toml with
+# `compare`. Pre-registered: error_m, flights correct, truth tuple rank, runtime; score gap only within-mode
+# (units differ: z vs nats). Everything else as livermore_baseline.
+[eval]
+cases = ["livermore"]
+data_dir = "/srv/agents/work/doppler_print/data"
+store_dir = "/srv/agents/work/doppler_print/data/adsb/store"
+time_prior_s = 2.0
+oracle_d_range = [150.0, 8000.0]
+oracle_v_range = [20.0, 250.0]
+
+[search.score]
+clock_sweep_s = 2.0
+mode = "power_llr"

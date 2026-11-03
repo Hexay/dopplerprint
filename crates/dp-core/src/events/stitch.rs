@@ -23,7 +23,7 @@ struct Frag {
 
 fn frag(spec: &LogSpectrogram, c: &Cand, p: &DiscoverParams) -> Frag {
     let ridge = ridge_of(spec, c, 1.0);
-    let fit = fit_cv_with(&ridge, p.c, &p.fit);
+    let fit = fit_cv_with(&ridge, p.c, &p.fit.point_only());
     Frag { ridge, fit }
 }
 
@@ -66,7 +66,7 @@ fn stitch_fit(a: (&Cand, &Frag), b: (&Cand, &Frag), spec: &LogSpectrogram, p: &D
                 && (pb * r / fa_end - 1.0).abs() < STITCH_PREDICT_REL
         })
         .filter_map(|r| {
-            let j = fit_cv_with(&concat_ridge(ra, rb, r), p.c, &p.fit);
+            let j = fit_cv_with(&concat_ridge(ra, rb, r), p.c, &p.fit.point_only());
             (j.rmse_hz <= tol).then_some((j.rmse_hz, r))
         })
         .min_by(|x, y| x.0.total_cmp(&y.0))

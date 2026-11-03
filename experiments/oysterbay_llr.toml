@@ -1,0 +1,15 @@
+# oysterbay_dg_parity.toml with power-domain LLR scoring and sub-frame clock refinement; paired against it.
+[eval]
+cases = ["oysterbay"]
+region_radius_m = 5600.0
+region_offset_m = 450.0
+time_prior_s = 5.0
+oracle_events = true
+
+[search]
+coarse_step_m = 200
+min_step_m = 25
+keep_top = 200
+
+[search.score]
+mode = "power_llr"
