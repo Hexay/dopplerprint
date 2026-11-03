@@ -1,0 +1,19 @@
+//! Python bindings. Each submodule registers its own functions; arrays cross as numpy without copies
+//! where possible and long-running calls release the GIL.
+
+mod audio;
+mod geo;
+mod physics;
+mod tracks;
+
+use pyo3::prelude::*;
+
+#[pymodule]
+fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add("__version__", env!("CARGO_PKG_VERSION"))?;
+    audio::register(m)?;
+    geo::register(m)?;
+    physics::register(m)?;
+    tracks::register(m)?;
+    Ok(())
+}

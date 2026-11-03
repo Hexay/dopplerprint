@@ -1,0 +1,15 @@
+[package]
+name = "dp-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "doppler-print"
+path = "src/main.rs"
+
+[dependencies]
+dp-core.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+serde_json.workspace = true

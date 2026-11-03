@@ -1,0 +1,15 @@
+/target/
+/target-*/
+/reference/
+/data/*
+!/data/MANIFEST.md
+/research/samples/
+/research/transcript/transcript_raw.txt
+/research_notes/
+/runs/
+.venv/
+__pycache__/
+*.so
+*.gpkg
+*.wav
+*.mp3
