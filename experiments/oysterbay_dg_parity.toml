@@ -1,10 +1,11 @@
 # Like-for-like with DOPPLERGEIST data/source/reproduce-local.json: ~100 km² region
-# (their 0.12°×0.09° box; centre ~450 m from truth), 200 m → 25 m grid, manual event windows.
+# (their 0.12°×0.09° box; centre ~450 m from truth), 200 m → 25 m grid, manual event windows,
+# start time known to ±5 s (their time_sweep_s / offset_tolerance_s).
 [eval]
 cases = ["oysterbay"]
 region_radius_m = 5600.0
 region_offset_m = 450.0
-time_prior_s = 21600.0
+time_prior_s = 5.0
 oracle_events = true
 
 [search]
