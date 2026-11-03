@@ -19,6 +19,7 @@ pub struct Found {
     pub d_m: f64,
     pub v_mps: f64,
     pub d_range: (f64, f64),
+    pub v_range: (f64, f64),
     pub snr: f64,
 }
 
@@ -36,6 +37,7 @@ impl Found {
             d_m: e.fit.best.d_cpa,
             v_mps: e.fit.best.v,
             d_range: e.fit.d_range,
+            v_range: e.fit.v_range,
             snr: e.snr,
         }
     }
@@ -80,11 +82,22 @@ pub struct Truthed {
     pub f0_err: Option<f64>,
     pub d_err: Option<f64>,
     pub v_err: Option<f64>,
+    /// Would the true flight pass `search::hypothesis::associate`'s gates at the truth position?
+    pub d_gate: Option<bool>,
+    pub v_gate: Option<bool>,
+    pub clock_gate: Option<bool>,
 }
 
 impl Truthed {
     pub fn is_real(&self) -> bool {
         self.source.is_some()
+    }
+}
+
+/// At the truth position the implied clock error is −dt, so the true flight passes iff |dt| ≤ the prior.
+pub fn gate_clock(labels: &mut [Truthed], time_prior_s: f64) {
+    for l in labels {
+        l.clock_gate = l.dt_cpa_s.map(|dt| dt.abs() <= time_prior_s);
     }
 }
 
@@ -165,6 +178,8 @@ fn kinematics(e: &Found, pass: Option<&Pass>, flight: Option<String>) -> Truthed
         flight,
         d_err: pass.map(|q| e.d_m / q.slant_m - 1.0),
         v_err: pass.filter(|q| q.speed_mps > 1.0).map(|q| e.v_mps / q.speed_mps - 1.0),
+        d_gate: pass.map(|q| (e.d_range.0..=e.d_range.1).contains(&q.slant_m)),
+        v_gate: pass.map(|q| (e.v_range.0..=e.v_range.1).contains(&q.speed_mps)),
         ..Default::default()
     }
 }

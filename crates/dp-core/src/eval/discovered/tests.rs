@@ -12,6 +12,7 @@ fn found(t_cpa: f64, fund_hz: f64, harmonics: &[u32], d_m: f64) -> Found {
         d_m,
         v_mps: 60.0,
         d_range: (0.5 * d_m, 2.0 * d_m),
+        v_range: (55.0, 90.0),
         snr: 10.0,
     }
 }
@@ -56,6 +57,7 @@ fn unlabelled_events_are_attributed_to_coinciding_adsb_passes_else_spurious() {
     assert_eq!(l[0].source, Some(Source::Labelled));
     assert_eq!(l[0].flight.as_deref(), Some("abc123"));
     assert!((l[0].d_err.unwrap() - (1_000.0 / 1_100.0 - 1.0)).abs() < 1e-12, "kinematics from the labelled flight's pass");
+    assert_eq!((l[0].d_gate, l[0].v_gate), (Some(true), Some(false)), "ground speed 50 is below the fit's v range");
     assert_eq!((l[1].source, l[1].flight.as_deref()), (Some(Source::Adsb), Some("x-other")));
     assert!((l[1].dt_cpa_s.unwrap() + 5.0).abs() < 1e-12);
     assert!(!l[2].is_real(), "slant outside the fit's d range");

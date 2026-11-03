@@ -89,7 +89,9 @@ fn headline(md: &mut String, ok: &[&Paired]) {
 
 fn stages(md: &mut String, ok: &[&Paired]) {
     let line = |v: Vec<CaseResult>| {
-        aggregate(&v).recall.iter().map(|(s, k, n)| format!("{s} {k}/{n}")).collect::<Vec<_>>().join(" → ")
+        let mut recall = aggregate(&v).recall;
+        recall.sort_by_key(|(s, _, _)| pipeline_order(s));
+        recall.iter().map(|(s, k, n)| format!("{s} {k}/{n}")).collect::<Vec<_>>().join(" → ")
     };
     let _ = writeln!(md, "\nStage recall, oracle: {}", line(ok.iter().map(|p| p.oracle.clone()).collect()));
     let _ = writeln!(md, "\nStage recall, discovered: {}\n", line(ok.iter().map(|p| p.discovered.clone()).collect()));
@@ -106,6 +108,18 @@ fn stages(md: &mut String, ok: &[&Paired]) {
     for s in names {
         let k = |f: fn(&Paired) -> &CaseResult| ok.iter().filter(|p| lost(f(p)) == s).count();
         let _ = writeln!(md, "| {s} | {} | {} |", k(|p| &p.oracle), k(|p| &p.discovered));
+    }
+}
+
+/// Front stages, flight stages, then lattice levels coarse to fine.
+fn pipeline_order(stage: &str) -> (usize, i64) {
+    match stage {
+        "discover" => (0, 0),
+        "select" => (1, 0),
+        "catalog" => (2, 0),
+        "near" => (3, 0),
+        "assoc" => (4, 0),
+        s => (5, -s.trim_start_matches('L').parse::<i64>().unwrap_or(0)),
     }
 }
 
@@ -137,6 +151,16 @@ fn front_end(md: &mut String, ok: &[&Paired]) {
         row(&format!("{name}: f0 error %"), pick(|t| t.f0_err, 100.0));
         row(&format!("{name}: CPA slant error %"), pick(|t| t.d_err, 100.0));
         row(&format!("{name}: speed error % (vs ground speed)"), pick(|t| t.v_err, 100.0));
+        let of_src: Vec<&super::truth::Truthed> = rows.iter().map(|r| &r.truth).filter(|t| t.source == Some(src)).collect();
+        let gate = |f: fn(&super::truth::Truthed) -> Option<bool>| {
+            let v: Vec<bool> = of_src.iter().filter_map(|t| f(t)).collect();
+            frac(v.iter().filter(|&&b| b).count(), v.len())
+        };
+        let all = |t: &super::truth::Truthed| Some(t.d_gate? && t.v_gate? && t.clock_gate?);
+        row(
+            &format!("{name}: true flight passes assoc gates d / v / clock / all"),
+            format!("{} / {} / {} / {}", gate(|t| t.d_gate), gate(|t| t.v_gate), gate(|t| t.clock_gate), gate(all)),
+        );
     }
 }
 

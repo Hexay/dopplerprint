@@ -122,7 +122,8 @@ fn run_pair(cfg: &Config, c: &mut Posed, pose_s: f64) -> Paired {
     let obs = geodetic_to_ecef(Geodetic { lat_deg: c.truth_lat, lon_deg: c.truth_lon, h_ell_m: ground + cfg.search.mic_height_m });
     let atm = c.sim_atmosphere.unwrap_or(cfg.search.atmosphere);
     let passes = truth::passes(&c.tracks, obs, &atm, c.t_start_true, c.audio.duration_s(), p);
-    let labels = truth::label(&found, &truth, &passes, p);
+    let mut labels = truth::label(&found, &truth, &passes, p);
+    truth::gate_clock(&mut labels, cfg.eval.time_prior_s);
 
     let (mut discovered, used) = front::locate(cfg, c, &events, &labels, front::strongest(&events, p.max_events));
     front::add_front_stages(&mut discovered, &labels, &used);
