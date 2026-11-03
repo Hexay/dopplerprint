@@ -1,7 +1,7 @@
 //! Silence term: what an audible flight that no event explains costs a hypothesis.
 //!
-//! `flat` (default): `AssocParams::silence_penalty` score units per flight whose CPA sound arrives during
-//! the recording within `silence_range_m`. `likelihood`: per such flight, unless its CPA is a track end
+//! `flat`: `AssocParams::silence_penalty` score units per flight whose CPA sound arrives during
+//! the recording within `silence_range_m`. `likelihood` (default; docs/research/unexplained_silence_2026-11-03.md): per such flight, unless its CPA is a track end
 //! (coverage began or ended, so the pass itself is unseen), the miss probability in nats:
 //!
 //! ```text
@@ -27,8 +27,8 @@ use crate::physics::Cpa;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SilenceMode {
-    #[default]
     Flat,
+    #[default]
     Likelihood,
 }
 
@@ -48,8 +48,8 @@ pub struct SilenceParams {
 impl Default for SilenceParams {
     fn default() -> Self {
         Self {
-            mode: SilenceMode::Flat,
-            r50_m: 3_000.0,
+            mode: SilenceMode::Likelihood,
+            r50_m: 2_000.0,
             sigma_db: 6.0,
             cap: 0.9,
             f_src_hz: 90.0,
@@ -143,6 +143,7 @@ mod tests {
         assert_eq!(score_per_nat(ScoreMode::Zsum, 1.58), 1.58);
         assert_eq!(score_per_nat(ScoreMode::PowerLlr, 1.58), 1.0);
         let c = Cpa { t_emit: 0.0, t_arrive: 1.0, slant_m: 500.0, ground_speed: 50.0, at_track_end: true };
-        assert!(SilenceParams::default().counts(&c) && !likelihood().counts(&c));
+        let flat = SilenceParams { mode: SilenceMode::Flat, ..Default::default() };
+        assert!(flat.counts(&c) && !likelihood().counts(&c));
     }
 }

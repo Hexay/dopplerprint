@@ -1,8 +1,8 @@
 # Written by `dopplerprint calibrate`; see docs/research/calibration_discovered_2026-11-03.md.
-temperature = 2.17
-floor = 0.28
+temperature = 2.19
+floor = 0.25
 persistence_nats = 2.0
-provenance = "2026-11-03, branch fix/soft-assoc-gates at main 19771de; discovered (real app) path. Sim cal bank = experiments/sim_calib through the phone_livermore_like recording chain (experiments/sim_calib_chain_phone_livermore_like, cal_*). Experiments: livermore_dev_discovered.toml, oysterbay_discovered.toml, calib_sim_discovered.toml. Replaces the oracle-event fit (T 1.58, eps 0.01). Fitted by `dopplerprint calibrate` on discovered events of runs [runs/m2_liv_dev, runs/m2_oyster, runs/m2_sim_cal]: 29 real + 57 sim answered cases. T and ε by mean log score on cases matching [livermore, oyster] (29); q̂ split-conformal HPD per stratum (real alone when ≥ 9)."
+provenance = "Fitted by `dopplerprint calibrate` on discovered events of runs [runs/m3_liv_dev, runs/m3_oyster, runs/m3_sim_cal]: 29 real + 57 sim answered cases. T and ε by mean log score on cases matching [livermore, oyster] (29); q̂ split-conformal HPD per stratum (real alone when ≥ 9)."
 
 [[stratum]]
 name = "1 pass"
@@ -11,7 +11,7 @@ max_events = 1
 n = 26
 source = "real"
 nominal = [0.5, 0.8, 0.9]
-q_hat = [0.3787946940237322, 0.7402621727449586, 0.7828906245868138]
+q_hat = [0.2843170802220745, 0.7650511838487838, 0.8060159709305976]
 
 [[stratum]]
 name = "2 passes"
@@ -20,7 +20,7 @@ max_events = 2
 n = 19
 source = "real+sim"
 nominal = [0.5, 0.8, 0.9]
-q_hat = [0.1741630018145875, 0.3798201057854788, 0.9999999999999998]
+q_hat = [0.17975322961564738, 0.393364946222979, 0.9999999999999997]
 
 [[stratum]]
 name = "≥3 passes"
@@ -29,4 +29,4 @@ max_events = 99
 n = 12
 source = "sim"
 nominal = [0.5, 0.8, 0.9]
-q_hat = [0.19154104350217505, 0.4848507715863446, 0.7219981608212905]
+q_hat = [0.19795559951680602, 0.5022579230741028, 0.7516249740827944]

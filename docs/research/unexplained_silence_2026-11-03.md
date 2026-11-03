@@ -177,8 +177,10 @@ all40 with r50 2 km (reporting only), paired against base:
 1. **Silence: switch the default to `likelihood`, r50 = 2 km, `silence_range_m` 3 km.** Sim log score improves
    significantly in both score modes (+0.5–0.6 nats/case), and Livermore is neutral. Point error on sim:
    median improves (894 → 640 m under zsum), but ≤300 falls by 4 under zsum and by 10 under power_llr. Refit
-   `search/calibration.toml` afterwards, because the score surface changes. I did not flip the default in
-   code. Flipping it shifts calibration, so it is left for the calibration owner.
+   `search/calibration.toml` afterwards, because the score surface changes. **Done** (branch
+   feat/likelihood-silence-default): default flipped and calibration refit per
+   calibration_discovered_2026-11-03.md §Reproduce (runs m3_*): T 2.17 → 2.19, ε 0.28 → 0.25, q̂ within 0.1.
+   It also fixes Oyster Bay nationally (global_search_2026-11-03.md).
 2. **Unexplained events: keep off by default for now.** If turned on, the setting is λ_u = −6 on the
    discovered/locate path, where it is +0.55–0.79 nats/case (CI just crosses 0) and fixes km-scale
    multi-event errors. It hurts oracle eval through abstentions. It does not fix the confident wrong single
