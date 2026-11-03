@@ -30,8 +30,6 @@ pub struct Posed {
     pub dem: Option<Dem>,
     /// The medium a sim case was rendered in.
     pub sim_atmosphere: Option<Atmosphere>,
-    /// `events` come from truth labels, with exact CPA times: association uses hard gates for them.
-    pub oracle_events: bool,
 }
 
 pub enum CaseSource {
@@ -101,6 +99,7 @@ pub(super) fn oracle(window: (f64, f64), t_cpa: f64, f0: f64, p: &EvalParams) ->
         d_range: p.oracle_d_range,
         v_range: p.oracle_v_range,
         f0_range: (f0 * (1.0 - p.oracle_f0_frac), f0 * (1.0 + p.oracle_f0_frac)),
+        t_cpa_halfwidth_s: 0.0,
     }
 }
 
@@ -144,7 +143,6 @@ fn pose_real(dir: &Path, p: &EvalParams) -> Result<Posed> {
         tracks,
         dem,
         sim_atmosphere: None,
-        oracle_events: true,
     })
 }
 
@@ -199,6 +197,7 @@ fn pose_sim(path: &Path, id: String, _p: &EvalParams) -> Result<Posed> {
             d_range: (e.slant_m * 0.6, e.slant_m * 1.6),
             v_range: (e.speed_mps * 0.75, e.speed_mps * 1.3),
             f0_range: (e.f0 * 0.94, e.f0 * 1.06),
+            t_cpa_halfwidth_s: 0.0,
         })
         .collect();
     let flights = t.events.iter().filter(audible).map(|e| Some(e.track_id.clone())).collect();
@@ -214,6 +213,5 @@ fn pose_sim(path: &Path, id: String, _p: &EvalParams) -> Result<Posed> {
         tracks: t.tracks,
         dem: None,
         sim_atmosphere: Some(Atmosphere::uniform(t.c, t.wind_ecef)),
-        oracle_events: true,
     })
 }

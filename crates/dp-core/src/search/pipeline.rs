@@ -230,7 +230,7 @@ fn plan_cell<'c>(inp: &SearchInput<'c>, p: &SearchParams, cell: Cell) -> CellPla
     let (lat, lon, obs) = cell_observer(cell, inp.dem, p);
     // Albers scale error is < 1 % over CONUS; the 2 % keeps the slack an upper bound on ground distance.
     let half_diag = cell.step_m as f64 * std::f64::consts::FRAC_1_SQRT_2 * 1.02;
-    let (t0, t1) = clock_window(&p.assoc, half_diag);
+    let (t0, t1) = clock_window(inp.events, &p.assoc, half_diag);
     let reach = cpa_reach_m(inp.events, &p.assoc, half_diag);
     // Tracks beyond `reach` get no CPA, so they cannot enter a hypothesis or the silence count.
     let nearby = inp.catalog.near(obs, p.track_radius_m.min(reach), t0, t1 + inp.duration_s);

@@ -62,7 +62,6 @@ pub fn pose(dir: &Path, truth: &Value, p: &EvalParams) -> Result<Posed> {
         tracks,
         dem,
         sim_atmosphere: None,
-        oracle_events: true,
     })
 }
 

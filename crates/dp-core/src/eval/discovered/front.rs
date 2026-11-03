@@ -32,7 +32,6 @@ pub fn locate(cfg: &Config, c: &mut Posed, events: &[Event], labels: &[Truthed],
     }
     loop {
         c.events = used.iter().map(|&i| EventSpec::from_event(&events[i])).collect();
-        c.oracle_events = false;
         c.truth_flights = used.iter().map(|&i| labels[i].flight.clone()).collect();
         let r = run_case(cfg, c);
         if r.status != "ok" || r.best.is_some() || used.len() <= 1 {

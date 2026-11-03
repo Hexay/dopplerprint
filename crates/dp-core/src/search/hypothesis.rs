@@ -20,6 +20,16 @@ pub struct EventSpec {
     pub d_range: (f64, f64),
     pub v_range: (f64, f64),
     pub f0_range: (f64, f64),
+    /// Half-width (s) of the CPA-time band (`CvFit::t_cpa_range`); 0 = exact truth label (see `soft`).
+    #[serde(default)]
+    pub t_cpa_halfwidth_s: f64,
+}
+
+impl EventSpec {
+    /// A truth label: exact CPA time and a prior-box d/v, so every association gate is hard.
+    pub fn is_exact(&self) -> bool {
+        self.t_cpa_halfwidth_s <= 0.0
+    }
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -110,17 +120,18 @@ pub fn cpa_reach_m(events: &[EventSpec], p: &AssocParams, half_diag_m: f64) -> f
     events.iter().map(|e| p.soft.max_slant_m(e, slack)).fold(p.silence_range_m, f64::max) * (1.0 + 1e-9)
 }
 
-/// Recording-start window wide enough for every clock `associate` can admit at this `half_diag_m`.
-pub fn clock_window(p: &AssocParams, half_diag_m: f64) -> (f64, f64) {
-    let pad = p.soft.max_clock_pad_s(p.soft.slack_m(half_diag_m));
+/// Recording-start window wide enough for every clock `associate` can admit for `events` at this `half_diag_m`.
+pub fn clock_window(events: &[EventSpec], p: &AssocParams, half_diag_m: f64) -> (f64, f64) {
+    let slack = p.soft.slack_m(half_diag_m);
+    let pad = events.iter().map(|e| p.soft.max_clock_pad_s(e, slack)).fold(0.0, f64::max);
     (p.t_start_prior.0 - pad, p.t_start_prior.1 + pad)
 }
-
 fn expand(opts: &[Vec<(usize, Admit)>], stack: &mut Vec<(usize, Admit)>, p: &AssocParams, budget: usize, out: &mut Vec<Hypothesis>) {
     if out.len() >= budget {
         return;
     }
     if stack.len() == opts.len() {
+        // Plain mean on purpose: an inverse-σ_t² mean moved N788BM_R03 41 → 364 m (band width ≠ error).
         let clock = stack.iter().map(|s| s.1.clock).sum::<f64>() / stack.len() as f64;
         let gate_cost = stack.iter().map(|s| s.1.cost_z).sum();
         out.push(Hypothesis { tracks: stack.iter().map(|s| s.0).collect(), clock, unexplained: 0, gate_cost });

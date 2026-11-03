@@ -123,9 +123,6 @@ pub fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
     let mut p = cfg.search.clone();
     let e = &cfg.eval;
     p.assoc.t_start_prior = (c.t_start_true - e.time_prior_s, c.t_start_true + e.time_prior_s);
-    if c.oracle_events {
-        p.assoc.soft = crate::search::hypothesis::SoftGates::hard();
-    }
     p.flat_h_ell_m = c.truth_h_ell.unwrap_or_else(|| geoid_undulation(c.truth_lat, c.truth_lon));
     let region = displaced_region(c, e.region_offset_m, e.region_radius_m);
     let (base, weather) = atmosphere::sourced(p.atmosphere, c, e, &region);

@@ -50,6 +50,7 @@ fn spec_for(tr: &Track, obs: Vec3, f0: f64) -> EventSpec {
         d_range: (c.slant_m * 0.7, c.slant_m * 1.4),
         v_range: (c.ground_speed * 0.8, c.ground_speed * 1.25),
         f0_range: (f0 * 0.95, f0 * 1.05),
+        t_cpa_halfwidth_s: 0.0,
     }
 }
 
