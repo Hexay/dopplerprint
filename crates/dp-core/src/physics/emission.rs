@@ -101,7 +101,8 @@ pub fn emission_warm(track: &Track, obs: Vec3, t_obs: f64, atm: &Atmosphere, tau
 }
 
 /// Warm-started emissions for a sequence of observation times (best when `t_obs` is sorted).
-/// The next guess extrapolates τ with dτ/dt = factor.
+/// The next guess extrapolates τ with dτ/dt = factor, plus a curvature term from the solution before
+/// that, so the first Newton evaluation usually already meets the tolerance.
 pub fn emissions<'a>(
     track: &'a Track,
     obs: Vec3,
@@ -109,13 +110,21 @@ pub fn emissions<'a>(
     atm: &'a Atmosphere,
 ) -> impl Iterator<Item = Option<Emission>> + 'a {
     let mut prev: Option<(f64, Emission)> = None;
+    let mut older: Option<(f64, f64)> = None;
     let mut cur = Cursor::default();
     t_obs.iter().map(move |&t| {
-        let guess = match prev {
-            Some((tp, e)) => Some(e.tau + (t - tp) * e.factor),
-            None => cold_guess(track, obs, t, atm),
+        let guess = match (prev, older) {
+            (Some((t1, e)), Some((t0, tau0))) if t0 != t1 => {
+                let h0 = t0 - t1;
+                let c = (tau0 - e.tau - e.factor * h0) / (h0 * h0);
+                let h = t - t1;
+                Some(e.tau + h * (e.factor + c * h))
+            }
+            (Some((t1, e)), _) => Some(e.tau + (t - t1) * e.factor),
+            (None, _) => cold_guess(track, obs, t, atm),
         };
         let out = guess.and_then(|g| emission_from(track, obs, t, atm, g, &mut cur).map(|(e, _)| e));
+        older = prev.filter(|_| out.is_some()).map(|(tp, e)| (tp, e.tau));
         prev = out.map(|e| (t, e));
         out
     })

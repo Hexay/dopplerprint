@@ -6,6 +6,8 @@ use crate::track::bounds::Chunk;
 use crate::track::{Track, TrackPoint, hermite};
 
 const ROOT_TOL_S: f64 = 1e-9;
+/// Illinois converges superlinearly; the cap only guards degenerate segments.
+const MAX_ROOT_ITERS: usize = 100;
 
 /// Reference implementation; `closest_approach_bounded` returns the same result faster.
 pub fn closest_approach(track: &Track, obs: Vec3, atm: &Atmosphere) -> Option<Cpa> {
@@ -110,16 +112,41 @@ fn segment_min(a: &TrackPoint, b: &TrackPoint, obs: Vec3) -> (f64, f64) {
         let st = hermite(a, b, a.t + s);
         (st.pos - obs).dot(st.vel)
     };
+    // Illinois (bracketed false position): a handful of evaluations where bisection needed ~33. Near the
+    // root the rate's slope is ≈ |v|², so |rate| ≤ |v|²·tol pins s to about tol, like the bracket test.
     let (mut lo, mut hi) = (0.0, b.t - a.t);
-    while hi - lo > ROOT_TOL_S {
-        let mid = 0.5 * (lo + hi);
-        if rate(mid) < 0.0 {
-            lo = mid;
+    let (mut f_lo, mut f_hi) = (rate(lo), rate(hi));
+    let f_tol = a.vel.dot(a.vel).max(b.vel.dot(b.vel)) * ROOT_TOL_S;
+    let mut s = 0.5 * (lo + hi);
+    let mut side = 0i8;
+    for _ in 0..MAX_ROOT_ITERS {
+        if hi - lo <= ROOT_TOL_S {
+            s = 0.5 * (lo + hi);
+            break;
+        }
+        s = (lo * f_hi - hi * f_lo) / (f_hi - f_lo);
+        if !(s > lo && s < hi) {
+            s = 0.5 * (lo + hi);
+        }
+        let f = rate(s);
+        if f.abs() <= f_tol {
+            break;
+        }
+        // Illinois: halve the stale end's value when the same end moves twice, so both ends converge.
+        if f < 0.0 {
+            (lo, f_lo) = (s, f);
+            if side == -1 {
+                f_hi *= 0.5;
+            }
+            side = -1;
         } else {
-            hi = mid;
+            (hi, f_hi) = (s, f);
+            if side == 1 {
+                f_lo *= 0.5;
+            }
+            side = 1;
         }
     }
-    let s = 0.5 * (lo + hi);
     let p = hermite(a, b, a.t + s).pos - obs;
     (a.t + s, p.dot(p))
 }
