@@ -70,7 +70,7 @@ pub fn run(cfg: &Config, sim_dir: &Path, out_dir: &Path) -> Result<Vec<CaseResul
     Ok(results)
 }
 
-fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
+pub fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
     let mut p = cfg.search.clone();
     let e = &cfg.eval;
     p.assoc.t_start_prior = (c.t_start_true - e.time_prior_s, c.t_start_true + e.time_prior_s);

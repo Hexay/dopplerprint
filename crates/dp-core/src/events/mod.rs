@@ -15,6 +15,8 @@ mod track;
 mod tests;
 #[cfg(test)]
 mod testsynth;
+#[cfg(test)]
+mod measure;
 
 use crate::audio::{Audio, FrontEnd, LogSpectrogram};
 use crate::physics::cv::CvParams;

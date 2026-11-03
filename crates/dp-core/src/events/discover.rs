@@ -112,7 +112,7 @@ fn suppress(e: &mut [f32], start: usize, base: &[f32], spec: &LogSpectrogram, ha
 }
 
 /// Frames where the strongest harmonic is clearly above the floor, if there are enough of them.
-fn confident(r: &Ridge) -> Ridge {
+pub(super) fn confident(r: &Ridge) -> Ridge {
     let keep: Vec<usize> = (0..r.t.len()).filter(|&i| r.snr[i] >= 1.0).collect();
     if keep.len() < 8 || keep.len() * 5 < r.t.len() * 2 {
         return r.clone();
