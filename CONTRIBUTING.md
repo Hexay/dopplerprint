@@ -5,7 +5,9 @@ can be agreed before you write it.
 
 ## Setup and the dev loop
 
-Everything goes through `tools/dev.sh`:
+Needs Rust ≥ 1.90 and, for the Python package, Python ≥ 3.11 with [uv](https://docs.astral.sh/uv/).
+`cargo run --release -p dp-cli -- locate ...` runs the same `dopplerprint` command as the wheel
+(`uv venv && tools/dev.sh py` builds that into `.venv`). Everything else goes through `tools/dev.sh`:
 
 | Command | Does |
 |---|---|

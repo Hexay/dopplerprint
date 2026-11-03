@@ -7,8 +7,8 @@ This tool works out where an audio recording was made. It matches the aircraft D
 | Path | Role |
 |---|---|
 | `crates/dp-core` | All computation. Has no Python dependency. |
-| `crates/dp-cli` | `doppler-print` binary. Each subcommand is one file in `src/cmd/` and is a thin call into dp-core. |
-| `crates/dp-py` | `dopplerprint._core`, an abi3 wheel. Each file registers the bindings for one dp-core area. Arrays are passed as numpy, and long calls release the GIL with `py.detach`. |
+| `crates/dp-cli` | `dopplerprint` command (lib + bin). `dp_cli::run(argv)` is the one parser; each subcommand is one file in `src/cmd/` and is a thin call into dp-core. |
+| `crates/dp-py` | `dopplerprint._core`, an abi3 wheel. Each file registers the bindings for one dp-core area; `_core.cli(argv)` runs `dp_cli::run`, so `pip install dopplerprint` gives the same command. Arrays are passed as numpy, and long calls release the GIL with `py.detach`. |
 | `python/dopplerprint` | Python package with offline prep scripts (DEM, geoid, weather), notebooks and the QGIS plugin. Display and orchestration only. |
 | `tools/` | Scripts for the corpus and the eval loop. |
 | `experiments/*.toml` | One file per hypothesis. Each overrides `config` defaults. |
@@ -26,6 +26,7 @@ This tool works out where an audio recording was made. It matches the aircraft D
 9. `sim`: an independent time-domain synthesiser that serves as ground truth for tests and eval.
 10. `output`: GeoPackage (QGIS), GeoJSON and a single-file HTML viewer.
 11. `config`: all tunables, overridable from TOML.
+12. `app`: the end-user `locate` pipeline (inputs → decode → discover → cached/fetched ADS-B → `search::locate` → report and files). See `docs/USAGE.md`.
 
 ## Search
 
@@ -41,6 +42,6 @@ The stages follow the video, plus fixes taken from prior art (see `docs/research
 
 ## Iteration loop
 
-- `doppler-print eval` runs every case in `data/cases/*/` (truth in `truth.json`) and the sim suite.
+- `dopplerprint eval` runs every case in `data/cases/*/` (truth in `truth.json`) and the sim suite.
 - It writes `runs/<timestamp>/summary.{json,md}`. Columns are error in metres, truth rank, whether the truth falls inside the 90% region, runtime, and the stage where the truth was lost.
 - Pass an experiment TOML to A/B any parameter. Defaults in `config.rs` point to the run that justified them.

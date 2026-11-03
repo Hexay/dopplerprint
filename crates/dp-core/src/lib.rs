@@ -2,6 +2,7 @@
 //! Module map and data flow: see docs/ARCHITECTURE.md.
 
 pub mod adsb;
+pub mod app;
 pub mod audio;
 pub mod config;
 pub mod dem;

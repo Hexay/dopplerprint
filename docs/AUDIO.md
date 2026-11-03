@@ -183,7 +183,7 @@ Every field of `FrontEnd` and `DiscoverParams` (`events/mod.rs`, with a doc comm
 ## CLI
 
 ```
-doppler-print discover file.mp3 --out events.json [--params cfg.json] [--wins 0.5,1,2] [--f-max 1000] [--mains 50]
+dopplerprint discover file.mp3 --out events.json [--params cfg.json] [--wins 0.5,1,2] [--f-max 1000] [--mains 50]
 ```
 
 The CLI prints timing and one line per event to stderr, and writes a JSON array of `Event` to `--out` (stdout if `--out` is omitted).

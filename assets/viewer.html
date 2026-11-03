@@ -148,7 +148,7 @@ const markers = cands.map(f => {
 
 document.getElementById("events").innerHTML = events.map(f => { const p = f.properties;
   return `<div class="item"><b>${esc(p.name)}</b> CPA ${fmt(p.t_cpa_s, 1)} s · f₀ ${fmt(p.f0_hz, 1)} Hz<br>` +
-    `band ${fmt(p.band_lo_hz, 0)}–${fmt(p.band_hi_hz, 0)} Hz · SNR ${fmt(p.snr_db, 1)} dB · ${esc(p.flight_id ?? "unmatched")}</div>`;
+    `band ${fmt(p.band_lo_hz, 0)}–${fmt(p.band_hi_hz, 0)} Hz · detection z ${fmt(p.snr_z, 1)} · ${esc(p.flight_id ?? "unmatched")}</div>`;
 }).join("") || `<div class="sub">none</div>`;
 
 const S = DATA.spectrogram, specEl = document.getElementById("spec");

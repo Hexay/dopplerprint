@@ -72,7 +72,7 @@ Approach from thunderprint's writer (MIT): hand-written GPKG 1.4 core tables and
 | `cells` | Polygon (cell square) | 5070 | ix, iy, step_m, level, score, score_norm, in_cr90, score_e1..N |
 | `candidates` | Point | 4326 | rank, score, score_norm, posterior, clock_offset_s, reliable, flight_ids, score_e1..N, flight_e1..N |
 | `tracks` | LineString Z (ellipsoidal m) | 4326 | track_id, icao24, type_code, engine, t_start, t_end, n_points |
-| `events` | none (attributes) | none | idx, name, t_cpa_s, f0_hz, band_lo_hz, band_hi_hz, snr_db, flight_id |
+| `events` | none (attributes) | none | idx, name, t_cpa_s, f0_hz, band_lo_hz, band_hi_hz, snr_z, flight_id |
 | `regions` | Polygon | 4326 | rank, kind (`credible90` / `ellipse`), mass, area_km2 |
 
 - Rows come from `output::features::Results`, which the search stage fills.
@@ -92,5 +92,5 @@ Approach from thunderprint's writer (MIT): hand-written GPKG 1.4 core tables and
 ## QGIS plugin
 
 `python/dopplerprint/qgis/` is a Processing provider skeleton. Install it by copying the directory into the QGIS
-plugins folder under a name other than `qgis` (e.g. `doppler_print_qgis`), and `pip install doppler-print` into
+plugins folder under a name other than `qgis` (e.g. `doppler_print_qgis`), and `pip install dopplerprint` into
 QGIS's Python. "Locate recording" calls `doppler_print.search(...)` (not implemented yet) and loads the GPKG layers.

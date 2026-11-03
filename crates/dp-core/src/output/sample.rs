@@ -43,8 +43,8 @@ pub fn demo_results() -> Results {
         points: (0..=20).map(|k| [lat - 0.1 + dlat * k as f64, lon - 0.15 + dlon * k as f64, 900.0 + 5.0 * k as f64]).collect(),
     };
     let events = vec![
-        EventRow { index: 0, name: "event1_prop".into(), t_cpa_s: 2155.7, f0_hz: 112.4, band_lo_hz: 75.0, band_hi_hz: 190.0, snr_db: 14.0, flight_id: Some("a1dfeb:1".into()) },
-        EventRow { index: 1, name: "event2_prop".into(), t_cpa_s: 3076.4, f0_hz: 96.0, band_lo_hz: 60.0, band_hi_hz: 160.0, snr_db: 9.5, flight_id: Some("ace391:0".into()) },
+        EventRow { index: 0, name: "event1_prop".into(), t_cpa_s: 2155.7, f0_hz: 112.4, band_lo_hz: 75.0, band_hi_hz: 190.0, snr_z: 14.0, flight_id: Some("a1dfeb:1".into()) },
+        EventRow { index: 1, name: "event2_prop".into(), t_cpa_s: 3076.4, f0_hz: 96.0, band_lo_hz: 60.0, band_hi_hz: 160.0, snr_z: 9.5, flight_id: Some("ace391:0".into()) },
     ];
     let regions = vec![
         RegionRow { rank: 1, kind: RegionKind::Ellipse, mass: 0.68, area_km2: 0.38, ring: ellipse_ring(lat, lon, 450.0, 270.0, 35.0, 48) },

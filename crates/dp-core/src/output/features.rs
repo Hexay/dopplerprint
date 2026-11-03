@@ -71,7 +71,8 @@ pub struct EventRow {
     pub f0_hz: f64,
     pub band_lo_hz: f64,
     pub band_hi_hz: f64,
-    pub snr_db: f64,
+    /// Detection z of the event (`events::Event::snr`).
+    pub snr_z: f64,
     pub flight_id: Option<String>,
 }
 

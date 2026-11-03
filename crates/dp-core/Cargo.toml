@@ -8,7 +8,7 @@ homepage.workspace = true
 
 [features]
 default = ["net"]
-# Terrain tile downloads for `dem::ensure_dem`.
+# Downloads (ADS-B days, type DB, terrain tiles) and place-name geocoding.
 net = ["dep:ureq"]
 
 [dependencies]

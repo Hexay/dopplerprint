@@ -96,11 +96,11 @@ pub fn tracks(r: &Results) -> Layer {
 pub fn events(r: &Results) -> Layer {
     let mut l = Layer::new("events", "Detected Doppler events (audio-relative times)", None, None);
     l.column("idx", "INTEGER").column("name", "TEXT").column("t_cpa_s", "DOUBLE").column("f0_hz", "DOUBLE");
-    l.column("band_lo_hz", "DOUBLE").column("band_hi_hz", "DOUBLE").column("snr_db", "DOUBLE").column("flight_id", "TEXT");
+    l.column("band_lo_hz", "DOUBLE").column("band_hi_hz", "DOUBLE").column("snr_z", "DOUBLE").column("flight_id", "TEXT");
     for e in &r.events {
         let flight = e.flight_id.clone().map_or(Value::Null, text);
         let v = vec![int(e.index), text(&e.name), real(e.t_cpa_s), real(e.f0_hz), real(e.band_lo_hz), real(e.band_hi_hz)];
-        l.rows.push((None, [v, vec![real(e.snr_db), flight]].concat()));
+        l.rows.push((None, [v, vec![real(e.snr_z), flight]].concat()));
     }
     l
 }

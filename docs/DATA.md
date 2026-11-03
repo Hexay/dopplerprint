@@ -1,7 +1,8 @@
 # ADS-B track store (`doppler_print.adsb.v2`)
 
-Built by `doppler-print ingest <archive> --out <store>` (`dp_core::adsb::ingest_day`). Read with
-`load_tracks` / `doppler-print tracks` / `dopplerprint._core.load_tracks`. Source rationale:
+Built by `dopplerprint ingest <archive> --out <store>` (`dp_core::adsb::ingest_day`), or automatically by
+`dopplerprint locate` into `<cache>/adsb/store` (docs/USAGE.md). Read with
+`load_tracks` / `dopplerprint tracks` / `dopplerprint._core.load_tracks`. Source rationale:
 `docs/research/adsb_data.md`. v1 stores are not readable by v2 code; re-ingest (`tools/ingest_corpus_days.sh`).
 
 A full CONUS adsb.lol day ingests in ~30–40 s at ~2.4 GB peak RSS and takes ~1.5 GB on disk.

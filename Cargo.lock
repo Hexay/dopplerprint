@@ -420,9 +420,11 @@ name = "dp-py"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "dp-cli",
  "dp-core",
  "numpy",
  "pyo3",
+ "serde_json",
 ]
 
 [[package]]

@@ -3,6 +3,7 @@
 pub mod features;
 pub mod geojson;
 pub mod gpkg;
+pub mod png;
 pub mod sample;
 pub mod viewer;
 

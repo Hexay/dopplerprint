@@ -16,7 +16,8 @@ jobs:
       matrix:
         include:
           - { os: ubuntu-latest, target: x86_64 }
-          - { os: ubuntu-latest, target: aarch64 }
+          # ring's ARM asm needs a newer cross gcc than the manylinux2014 image ships.
+          - { os: ubuntu-latest, target: aarch64, manylinux: "2_28" }
           - { os: macos-latest, target: aarch64 }
           - { os: macos-latest, target: x86_64 }
           - { os: windows-latest, target: x64 }
@@ -26,7 +27,7 @@ jobs:
       - uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          manylinux: auto
+          manylinux: ${{ matrix.manylinux || 'auto' }}
           args: --release --locked --out dist
       - uses: actions/upload-artifact@v4
         with:

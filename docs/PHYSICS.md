@@ -132,7 +132,7 @@ tangent plane, so a straight line stays exactly straight in ECEF. Examples are i
 
 ### Outputs
 
-`doppler-print sim scenario.toml --out dir` writes `dir/audio.wav` (16-bit mono) and `dir/truth.json`.
+`dopplerprint sim scenario.toml --out dir` writes `dir/audio.wav` (16-bit mono) and `dir/truth.json`.
 `truth.json` contains:
 
 - `observer`: lat, lon, ground `h_ell_m`, `mic_height_m`, `mic_ecef`.
