@@ -18,6 +18,7 @@ pub mod when;
 
 use std::path::PathBuf;
 
+pub use inputs::missing_fields;
 pub use report::{Report, Status};
 pub use ui::{ConsoleUi, QuietUi, Ui};
 

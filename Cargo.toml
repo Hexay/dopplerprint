@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/dp-core", "crates/dp-cli", "crates/dp-py"]
+members = ["crates/dp-core", "crates/dp-cli", "crates/dp-py", "crates/dp-serve"]
 
 [workspace.package]
 version = "0.1.0"
@@ -12,6 +12,7 @@ homepage = "https://github.com/Hexay/dopplerprint"
 
 [workspace.dependencies]
 dp-core = { path = "crates/dp-core" }
+dp-serve = { path = "crates/dp-serve" }
 anyhow = "1"
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }

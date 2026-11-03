@@ -47,6 +47,26 @@ Stationary tones are removed on purpose. Doppler ridges move, so they survive.
 
 `FrontEnd` computes several windows (0.5, 1 and 2 s by default), whitens each one, takes the element-wise maximum, and standardises the result again. Short windows follow the steep part around CPA; long windows resolve faint, slowly moving asymptotes.
 
+## Mains hum (`audio/hum/`)
+
+`analyse_hum(audio, &HumParams) -> HumReport` finds the ENF line set and uses it for self-checks that need no grid data. Results on the corpus and the reasoning behind each threshold: `docs/research/hum_detector_2026-11-03.md`.
+
+1. **Grid search** (`grid.rs`). A Welch spectrum (4 s Hann segments, 4× zero-pad) is searched over every hypothesis nominal ∈ {50, 60} × r, where r is any ratio of two common sample rates in [0.7, 1.45] (so 55.1 Hz = 60·44.1/48 is a hypothesis of its own). Each hypothesis also gets a fine offset of ±0.4%. The score is Σ over harmonics k ≤ 12 of the dB by which the line clears 6 dB over the ±4 Hz median floor. Harmonics are scored independently, so a high-passed fundamental costs nothing.
+2. **Trace** (`trace.rs`). 2 s frames with a 1 s hop. Each harmonic's sub-bin peak (parabolic on log power) lies within ±0.12·k Hz of k·f. Harmonics are combined with weights k²·SNR (Ojowu et al.). A harmonic that disagrees with the strongest one by more than 0.05 Hz is dropped for that frame, which handles an aircraft tone crossing a hum line. A frame is valid at ≥ 10 dB. If fewer than 30% of frames are valid, the trace is redone with 8 s frames.
+3. **Presence.** Both of these must hold: ≥ 30% of frames valid, and trace std ≤ 0.1 Hz. A single stationary tone always lands in some (nominal, r) window by chance, so when r ≠ 1 there must also be at least two lines. The one exception is a single *fundamental* that is valid in ≥ 80% of frames with wander ≤ 0.05 Hz. That exception is always reported as `ambiguous`.
+4. **Rate check** (`rate.rs`). This uses the robust mean of the valid frames. The implied rate is labelled·nominal/mean, and its σ combines the trace standard error with `grid_sigma_hz` = 0.02 Hz.
+   - Within max(0.2%, 3σ) of nominal: `ok`.
+   - Matching a common-rate ratio: `mislabelled`, with `likely_sr`.
+   - Otherwise: `clock_offset`.
+   - Drift is the linear-fit change over the file. It is flagged above 0.1 Hz.
+5. **Discontinuities** (`splice.rs`). The strongest harmonic is complex-demodulated along the trace. Each block holds a whole number of mains periods, about 50 ms, which nulls the other harmonics. The tests are:
+   - `dropout`: digital silence, or a short dip in hum level (≤ 5 s, < ½ median, > 6σ).
+   - `phase_jump`: the difference between the coherent block sums 0.5 s either side exceeds max(8σ, 0.05 cycles). There is no unwrapping and no per-window slope, because both slip at low block SNR and fake ½-cycle jumps (first seen on DOPPLERGEIST).
+   - `freq_jump`: a step between non-overlapping frames exceeds max(8σ, 0.02 Hz).
+
+   A removed or inserted chunk that is a whole number of hum cycles long is invisible to the phase test, so a 0.5 s zero-fill at 50 or 60 Hz shows up only as a `dropout`.
+6. **Masking.** `bands` lists k·f ± (k·max(3·wander, 0.05) + 0.25) Hz up to `f_max`. The opt-in `FrontEnd::auto_mains` (flat JSON key `auto_mains`) runs the detector and passes the measured *apparent* fundamental to the existing whitening notch (`mains_hz`, ±0.6 Hz). Because the notch uses the apparent value, it lands on the right lines even when the sample rate is mislabelled. Discovery already rejects flat lines through whitening and `min_drop`, so this is belt-and-braces.
+
 ## Comb image (`events/comb.rs`)
 
 Harmonic `h` sits at a fixed log-axis offset `bpo·log2(h)` from the fundamental, whatever the Doppler factor. For each bin `u`, the comb image is:
@@ -188,6 +208,12 @@ dopplerprint discover file.mp3 --out events.json [--params cfg.json] [--wins 0.5
 
 The CLI prints timing and one line per event to stderr, and writes a JSON array of `Event` to `--out` (stdout if `--out` is omitted).
 
+```
+dopplerprint hum file.wav [--json] [--params hum.json]
+```
+
+`hum` prints a summary: grid, harmonics, rate verdict and discontinuities. With `--json` it prints the whole `HumReport`, including the ENF trace.
+
 ## Python (`dopplerprint._core`)
 
 Every call except `probe` releases the GIL while the Rust work runs.
@@ -199,6 +225,7 @@ img, t, f = log_spectrogram(x, sr, win_s=1.0, hop_s=0.25, f_min=20, f_max=1000, 
                             mains_hz=None, whiten=True)     # img is [t, f]
 events = discover(x, sr, **params)          # params: any DiscoverConfig field; returns a list of Event dicts
 fit = fit_cv(t, f, c=343.0)                 # CvFit dict
+hum = analyse_hum(x, sr, **params)          # HumReport dict; pass labelled_sr=<container rate> if x was decimated
 res = search(x, sr, events, store, t0, t1, region, t_start_prior,   # one-call locate (search::locate):
              bbox=None, max_alt_m=9000, dem=None, config=None)      # result dict incl. every scored cell
 ```

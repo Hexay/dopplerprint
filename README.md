@@ -25,6 +25,7 @@ measured.
 ```bash
 pip install dopplerprint
 dopplerprint locate recording.mp3 --start "2026-05-14 10:02 -07:00" --near "Livermore, CA"
+dopplerprint serve --open   # or drop the recording on a page in your browser
 ```
 
 Give it the local time the recording started, with its UTC offset (add `"±10m"` if unsure), and roughly where:

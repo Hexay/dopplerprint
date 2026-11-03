@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>dopplerprint</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/style.css">
+<script type="module" src="/app.js"></script>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/">doppler<b>print</b></a>
+  <p>Find where a recording was made from the planes you can hear in it.</p>
+</header>
+
+<main>
+<section id="job" class="card" hidden aria-labelledby="job-title">
+  <div class="job-head">
+    <h2 id="job-title"></h2>
+    <span id="job-pill" class="pill"></span>
+  </div>
+  <div id="running">
+    <p id="job-status" role="status" aria-live="polite"></p>
+    <progress id="job-progress" max="1" aria-label="Analysis progress"></progress>
+    <ol id="stages" class="stages"></ol>
+  </div>
+  <div id="outcome" hidden>
+    <p id="outcome-msg" class="callout" role="status"></p>
+    <div id="found" hidden>
+      <div class="best">
+        <div>
+          <p class="label">Best location</p>
+          <p class="coords"><span id="coords"></span> <button type="button" id="copy" class="ghost small">Copy</button></p>
+          <p id="radius-note" class="muted"></p>
+        </div>
+        <div><p class="label">Confidence</p><p id="confidence" class="conf"></p></div>
+      </div>
+      <p id="ambiguity" class="callout warn" hidden></p>
+      <h3>Aircraft heard</h3>
+      <ul id="aircraft" class="aircraft"></ul>
+      <div id="map-wrap" hidden>
+        <iframe id="map" title="Result map" sandbox="allow-scripts allow-popups"></iframe>
+      </div>
+      <p class="links" id="links"></p>
+    </div>
+    <p id="retry" hidden><button type="button" id="retry-btn" class="primary">Run again</button></p>
+  </div>
+</section>
+
+<form id="form" class="card" novalidate>
+  <div id="drop" class="drop">
+    <svg class="curve" viewBox="0 0 240 60" aria-hidden="true"><path d="M4 14 C 90 14, 100 46, 120 46 S 150 46, 236 46"/><path class="h2" d="M4 4 C 90 4, 100 30, 120 30 S 150 30, 236 30"/></svg>
+    <div id="pick">
+      <h1>Drop a recording</h1>
+      <p>or <label for="file" class="link">choose a file</label> &middot; WAV, MP3, FLAC, OGG, M4A</p>
+    </div>
+    <div id="chosen" hidden>
+      <p class="file"><span id="file-name"></span> <span id="file-size" class="muted"></span></p>
+      <p><label for="file" class="link">Use a different file</label></p>
+    </div>
+    <input id="file" type="file" accept="audio/*,.wav,.mp3,.flac,.ogg,.oga,.m4a,.aac" class="sr-only">
+  </div>
+
+  <fieldset id="f-start">
+    <legend>When did the recording start?</legend>
+    <div class="row">
+      <label class="grow">Date and time<input id="start" type="datetime-local" step="1"></label>
+      <label>Time zone<select id="tz"></select></label>
+      <label>Give or take<select id="tol">
+        <option value="10">± 10 seconds</option>
+        <option value="30">± 30 seconds</option>
+        <option value="60" selected>± 1 minute</option>
+        <option value="300">± 5 minutes</option>
+        <option value="900">± 15 minutes</option>
+        <option value="3600">± 1 hour</option>
+        <option value="10800">± 3 hours</option>
+      </select></label>
+    </div>
+    <p class="hint" id="start-hint">Your recorder app usually shows this. A rough time is fine — just widen “give or take”.</p>
+  </fieldset>
+
+  <fieldset id="f-near">
+    <legend>Roughly where? <span class="tag">Recommended</span></legend>
+    <div class="row">
+      <label class="grow"><span class="sr-only">Place or coordinates</span><input id="near" type="text" autocomplete="off" placeholder="A town, an address, or 37.69, -121.81"></label>
+      <button type="button" id="here" class="ghost">Use my location</button>
+    </div>
+    <p class="hint">Narrows the search and makes it much faster. Within a few tens of kilometres is plenty.</p>
+  </fieldset>
+
+  <details class="more">
+    <summary>More options</summary>
+    <label>Search radius<select id="radius">
+      <option value="">Automatic</option>
+      <option value="5">5 km</option>
+      <option value="10">10 km</option>
+      <option value="25">25 km</option>
+      <option value="50">50 km</option>
+    </select></label>
+  </details>
+
+  <div class="go">
+    <button id="submit" type="submit" class="primary">Locate</button>
+    <progress id="upload" max="1" value="0" hidden aria-label="Upload progress"></progress>
+  </div>
+  <p id="form-error" class="error" role="alert"></p>
+</form>
+
+<section id="recent" class="card" hidden aria-labelledby="recent-title">
+  <h2 id="recent-title">Recent recordings</h2>
+  <ul id="recent-list" class="recent"></ul>
+</section>
+</main>
+
+<footer>Your recording is analysed on this computer and never uploaded anywhere else. Please only locate your own recordings or ones shared with you for this purpose.</footer>
+</body>
+</html>
