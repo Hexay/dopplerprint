@@ -8,6 +8,7 @@ mod linalg;
 mod merge;
 mod split;
 mod stats;
+mod stitch;
 mod track;
 
 #[cfg(test)]

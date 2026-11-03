@@ -1,5 +1,5 @@
 //! Split candidates that one CV curve cannot explain: the tracker can hop between crossing lines of two
-//! aircraft. Each half is re-analysed; genuine fragments are re-joined later by `merge::stitch`.
+//! aircraft. Each half is re-analysed; genuine fragments are re-joined later by `stitch::stitch`.
 
 use rayon::prelude::*;
 
