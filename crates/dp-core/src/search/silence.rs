@@ -17,8 +17,8 @@
 //! engine class (prop blade pass, 70–130 Hz); f_hp is the recording's measured high-pass corner
 //! (`audio::highpass::corner_hz`). The absolute floor level is not used: phone gain and noise suppression
 //! move level and floor together (corpus_signatures.md §6: NS costs level, not TNR), so the floor's shape
-//! is the only gain-free input. Score units: z = nats · `SoftGates::z_per_nat` (the posterior temperature)
-//! under zsum, nats under power_llr (`score_per_nat`).
+//! is the only gain-free input. Score units: z = nats · `hypothesis::GATE_Z_PER_NAT` (the gates' constant,
+//! not the posterior temperature) under zsum, nats under power_llr (`score_per_nat`).
 
 use super::score::ScoreMode;
 use crate::audio::{Audio, SpecParams};

@@ -8,7 +8,7 @@ use rayon::prelude::*;
 
 use super::backend::{Backend, Scorer};
 use super::catalog::{Catalog, Nearby};
-use super::hypothesis::{AssocParams, EventSpec, Hypothesis, associate, clock_window, cpa_reach_m};
+use super::hypothesis::{AssocParams, EventSpec, GATE_Z_PER_NAT, Hypothesis, associate, clock_window, cpa_reach_m};
 use super::job::{Job, prepare_job_with};
 use super::score::{EventScore, EventTarget, JointScore, ScoreParams};
 use super::silence::score_per_nat;
@@ -259,7 +259,7 @@ fn plan_cell<'c>(inp: &SearchInput<'c>, p: &SearchParams, cell: Cell) -> CellPla
                 .zip(&h.tracks)
                 .filter_map(|(e, ti)| ti.map(|ti| EventTarget { track: nearby[ti].track, window: e.window, f0_range: e.f0_range }))
                 .collect();
-            let index: Vec<u32> = h.tracks.iter().map(|&ti| nearby[ti].index).collect();
+            let index: Vec<u32> = h.tracks.iter().flatten().map(|&ti| nearby[ti].index).collect();
             prepare_job_with(spec, &targets, defer.then_some(&index[..]), obs, &p.atmosphere, h.clock, &p.score)
         })
         .collect();
@@ -272,7 +272,7 @@ fn best_candidate(
     p: &SearchParams,
 ) -> Option<Candidate> {
     let mut best: Option<Candidate> = None;
-    let per_nat = score_per_nat(p.score.mode, p.assoc.soft.z_per_nat);
+    let per_nat = score_per_nat(p.score.mode, GATE_Z_PER_NAT);
     for (h, js) in pl.hyps.iter().zip(scores) {
         let Some(js) = js else { continue };
         let score = js.total - h.penalty(&p.assoc, per_nat);

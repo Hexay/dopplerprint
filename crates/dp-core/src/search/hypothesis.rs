@@ -9,7 +9,7 @@
 
 mod soft;
 
-pub use soft::{Admit, SoftGates};
+pub use soft::{Admit, GATE_Z_PER_NAT, SoftGates};
 
 use super::score::EventScore;
 use super::silence::{SilenceMode, SilenceParams};
