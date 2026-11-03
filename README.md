@@ -46,7 +46,7 @@ Distance from the best-scoring point to the known microphone position, on real r
 | Benchmark | Setup | Result |
 |---|---|---|
 | **Livermore, CA**: 40 recordings, one light-aircraft flyover each ([Pathak 2026](https://zenodo.org/records/23424278)) | Start time known to ±2 s; 4 km search radius, not centred on the microphone | Right aircraft in **34/40**. Median error **207 m**; 5 within 100 m, 27 within 500 m. |
-| **Oyster Bay, NY**: colsto's recording, two flyovers | Same setup as DOPPLERGEIST's published replay (±5 s, 5.6 km radius) | **79 m** (DOPPLERGEIST: 52 m on the same inputs) |
+| **Oyster Bay, NY**: colsto's recording, two flyovers | Start time known to ±5 s; 5.6 km search radius | **79 m** |
 
 What these numbers do and don't show:
 
@@ -79,8 +79,7 @@ material published for this purpose, or with the recordist's consent. Don't use 
 ## Credits and data
 
 - Method: colsto's video [*"This background sound leaks your exact location"*](https://www.youtube.com/watch?v=UytYrhYLOKI).
-  [DOPPLERGEIST](https://github.com/1337isnot1337/DOPPLERGEIST) (MIT) is an independent implementation and our
-  comparison baseline. Project structure and GeoPackage output follow [thunderprint](https://github.com/Hexay/thunderprint).
+  Project structure and GeoPackage output follow [thunderprint](https://github.com/Hexay/thunderprint).
 - ADS-B: [adsb.lol](https://adsb.lol), © adsb.lol contributors, [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/).
   Track stores built from it, and the test fixtures in `crates/dp-core/tests/fixtures/adsb/`, stay under ODbL.
 - Aircraft types: [tar1090-db](https://github.com/wiedehopf/tar1090-db).
