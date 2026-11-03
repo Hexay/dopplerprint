@@ -54,13 +54,13 @@ fn steps(req: &LocateRequest, ui: &dyn Ui, rep: &mut Report, started: Instant) -
 
     let mut dcfg = DiscoverConfig::default();
     dcfg.front.mains_hz = req.mains_hz.or(dcfg.front.mains_hz);
-    ui.info(&format!("Reading {}...", req.audio.display()));
+    ui.step("audio", 0.05, &format!("Reading {}...", req.audio.display()));
     let (audio, _) = audio::decode_band(&req.audio, dcfg.front.f_max)?;
     rep.duration_s = audio.duration_s();
     let prior = start_prior(&given, req.start_tolerance.as_deref(), rep.duration_s)?;
     rep.start = Some(prior.clone());
 
-    ui.info("Listening for aircraft passes...");
+    ui.step("passes", 0.15, "Listening for aircraft passes...");
     let spec = dcfg.front.spectrogram(&audio);
     let mut events = discover_with(&spec, &dcfg.params);
     rep.events_found = events.len();
@@ -84,7 +84,7 @@ fn steps(req: &LocateRequest, ui: &dyn Ui, rep: &mut Report, started: Instant) -
     let (dem, terrain_note) = terrain(req, &cache, &area)?;
     rep.terrain = terrain_note;
     let p = search_params(&cfg, &prior, &area);
-    ui.info(&format!(
+    ui.step("search", 0.5, &format!(
         "Matching {} pass{} against {} flights within {:.0} km of {}...",
         events.len(),
         if events.len() == 1 { "" } else { "es" },

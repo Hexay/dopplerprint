@@ -10,6 +10,7 @@ use super::cache::Cache;
 use super::filetime::{FileTime, recording_time};
 use super::geocode::geocode;
 use super::place::{Area, Near, area, missing_near, parse_near};
+use super::report::{Report, Status};
 use super::ui::Ui;
 use super::when::{DEFAULT_TOLERANCE_S, ParsedStart, StartPrior, missing_start, parse_start, parse_tolerance};
 use super::{LocateRequest, NeedsInput};
@@ -32,6 +33,19 @@ pub fn given_start(req: &LocateRequest) -> Result<Given, NeedsInput> {
         ))),
         FileTime::Unknown => Err(missing_start()),
     }
+}
+
+/// Which of "start" and "near" a `NeedsInput` report is waiting on (both when both are missing); empty when
+/// it is waiting on something else, such as consent to download.
+pub fn missing_fields(req: &LocateRequest, rep: &Report) -> Vec<&'static str> {
+    if rep.status != Status::NeedsInput {
+        return Vec::new();
+    }
+    let start_bad = given_start(req).is_err();
+    // Steps run start → area → tolerance, so a failure after a good start and before the area is the place.
+    let near_bad = req.near.as_deref().is_none_or(|s| parse_near(s).is_err()) || (!start_bad && rep.area.is_none());
+    let tolerance_bad = rep.area.is_some() && rep.start.is_none();
+    [("start", start_bad || tolerance_bad), ("near", near_bad)].into_iter().filter(|f| f.1).map(|f| f.0).collect()
 }
 
 pub fn start_prior(given: &Given, tolerance: Option<&str>, duration_s: f64) -> Result<StartPrior, NeedsInput> {

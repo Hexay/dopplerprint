@@ -6,6 +6,10 @@ use std::io::{BufRead, IsTerminal, Write};
 
 pub trait Ui {
     fn info(&self, msg: &str);
+    /// A pipeline step starting: short `stage` key, rough overall `fraction` done, and a status line.
+    fn step(&self, _stage: &str, _fraction: f64, msg: &str) {
+        self.info(msg);
+    }
     /// Ask a yes/no question; `false` when nobody can answer.
     fn confirm(&self, question: &str) -> bool;
     fn progress(&self, label: &str, done: u64, total: u64);
