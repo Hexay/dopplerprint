@@ -22,6 +22,8 @@ pub struct ScoreParams {
     pub clock_sweep_s: f64,
     /// Per-frame z clipping before summing (limits loud transients).
     pub z_clip: f32,
+    /// f0 sweep step in log bins; sub-bin with linear interpolation, else quantisation biases position.
+    pub f0_step_bins: f64,
 }
 
 impl Default for ScoreParams {
@@ -32,6 +34,7 @@ impl Default for ScoreParams {
             tol_penalty: 1.0,
             clock_sweep_s: 5.0,
             z_clip: 8.0,
+            f0_step_bins: 0.25,
         }
     }
 }
@@ -108,7 +111,7 @@ struct Prepared {
     frames: std::ops::Range<usize>,
     /// bpo·log2(F) for frame (frames.start + i) at sweep index k is `offsets[i + k]`.
     offsets: Vec<f64>,
-    b0_range: (i64, i64),
+    b0_range: (f64, f64),
 }
 
 fn prepare(spec: &LogSpectrogram, t: &EventTarget<'_>, obs: Vec3, atm: &Atmosphere, clock: f64, k_max: i64) -> Prepared {
@@ -119,7 +122,7 @@ fn prepare(spec: &LogSpectrogram, t: &EventTarget<'_>, obs: Vec3, atm: &Atmosphe
     let times: Vec<f64> = (0..n.max(0)).map(|j| spec.t0 + (first + j) as f64 * spec.dt + clock).collect();
     let bpo = spec.bins_per_octave as f64;
     let offsets = physics::doppler_factors(t.track, obs, &times, atm).into_iter().map(|f| bpo * f.log2()).collect();
-    let b0_range = (spec.bin_of(t.f0_range.0).floor() as i64, spec.bin_of(t.f0_range.1).ceil() as i64);
+    let b0_range = (spec.bin_of(t.f0_range.0), spec.bin_of(t.f0_range.1));
     Prepared { frames: f_a..f_b.max(f_a), offsets, b0_range }
 }
 
@@ -129,7 +132,9 @@ fn best_f0(spec: &LogSpectrogram, pr: &Prepared, k: i64, p: &ScoreParams) -> Eve
     let covered = (0..n_frames).filter(|&i| pr.offsets[i + k as usize].is_finite()).count();
     let norm = ((n_frames.max(1)) as f64 * p.harmonics.iter().map(|(_, w)| (*w as f64).powi(2)).sum::<f64>()).sqrt();
     let mut best = EventScore { z: f64::NEG_INFINITY, f0: f64::NAN, coverage: covered as f64 / n_frames.max(1) as f64 };
-    for b0 in pr.b0_range.0..=pr.b0_range.1 {
+    let n_steps = ((pr.b0_range.1 - pr.b0_range.0) / p.f0_step_bins).ceil().max(0.0) as usize;
+    for step in 0..=n_steps {
+        let b0 = pr.b0_range.0 + step as f64 * p.f0_step_bins;
         let mut s = 0.0f64;
         for (i, frame) in pr.frames.clone().enumerate() {
             let off = pr.offsets[i + k as usize];
@@ -138,17 +143,23 @@ fn best_f0(spec: &LogSpectrogram, pr: &Prepared, k: i64, p: &ScoreParams) -> Eve
             }
             let row = spec.row(frame);
             for &(h, w) in &p.harmonics {
-                let bin = (b0 as f64 + off + bpo * (h as f64).log2()).round();
-                if bin >= 0.0 && (bin as usize) < spec.n_f {
-                    s += (w * row[bin as usize]) as f64;
-                }
+                s += (w * lerp(row, b0 + off + bpo * (h as f64).log2())) as f64;
             }
         }
         let z = s / norm;
         if z > best.z {
             best.z = z;
-            best.f0 = spec.freq_of(b0 as f64);
+            best.f0 = spec.freq_of(b0);
         }
     }
     best
+}
+
+fn lerp(row: &[f32], bin: f64) -> f32 {
+    let i = bin.floor();
+    if i < 0.0 || i as usize + 1 >= row.len() {
+        return 0.0;
+    }
+    let (i, fr) = (i as usize, (bin - i) as f32);
+    row[i] * (1.0 - fr) + row[i + 1] * fr
 }
