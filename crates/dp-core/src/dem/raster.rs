@@ -1,4 +1,4 @@
-//! Memory-mapped EPSG:5070 u16 ground raster written by python/dopplerprint/prep/dem.py.
+//! Memory-mapped EPSG:5070 u16 ground raster written by `ensure_dem` or python/dopplerprint/prep/dem.py.
 
 use std::path::Path;
 
@@ -37,6 +37,12 @@ impl DemHeader {
 pub struct Dem {
     pub header: DemHeader,
     map: Mmap,
+}
+
+impl std::fmt::Debug for Dem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Dem").field("header", &self.header).finish_non_exhaustive()
+    }
 }
 
 impl Dem {
