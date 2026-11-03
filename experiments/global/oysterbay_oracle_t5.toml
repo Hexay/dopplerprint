@@ -1,0 +1,12 @@
+# oysterbay_t5 with the wide oracle d/v bounds (300–8000 m, 25–170 m/s) instead of the CV refit.
+[eval]
+cases = ["oysterbay"]
+region_mode = "global"
+global_fit_events = false
+time_prior_s = 5.0
+oracle_events = true
+
+[search]
+coarse_step_m = 200
+min_step_m = 25
+keep_top = 200

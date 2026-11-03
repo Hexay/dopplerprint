@@ -8,6 +8,7 @@ use crate::search::SearchParams;
 pub struct Config {
     pub spec: SpecParams,
     pub search: SearchParams,
+    pub global: crate::search::global::GlobalParams,
     pub eval: EvalParams,
 }
 
@@ -53,6 +54,19 @@ pub struct EvalParams {
     /// Like `nuisance_c` but offsets from the case's c (e.g. a grid centred on archived weather).
     pub nuisance_dc: Vec<f64>,
     pub nuisance_wind_en: Vec<[f64; 2]>,
+    /// `given`: search the displaced region. `global`: no region; proposals from `search::global`.
+    pub region_mode: RegionMode,
+    /// Global mode, real cases: replace oracle d/v bounds with the CV fit of the discovered event
+    /// nearest each oracle CPA (oracle bounds are too wide to localise nationally).
+    pub global_fit_events: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RegionMode {
+    #[default]
+    Given,
+    Global,
 }
 
 impl Default for EvalParams {
@@ -79,6 +93,8 @@ impl Default for EvalParams {
             nuisance_c: Vec::new(),
             nuisance_dc: Vec::new(),
             nuisance_wind_en: Vec::new(),
+            region_mode: RegionMode::Given,
+            global_fit_events: false,
         }
     }
 }

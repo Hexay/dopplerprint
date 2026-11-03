@@ -9,6 +9,7 @@ pub mod calibrate;
 pub mod compare;
 pub mod conformal;
 pub mod coverage;
+pub mod global;
 pub mod livermore;
 pub mod metrics;
 pub mod nuisance;
@@ -72,6 +73,8 @@ pub struct CaseResult {
     pub weather: Option<String>,
     pub best: Option<Candidate>,
     pub tuples: Vec<Candidate>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub global: Option<global::GlobalCaseStats>,
 }
 
 /// Wall seconds per stage of one case (search stages summed over nuisance variants).
@@ -110,6 +113,9 @@ pub fn run(cfg: &Config, sim_dir: &Path, out_dir: &Path) -> Result<Vec<CaseResul
 }
 
 fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
+    if cfg.eval.region_mode == crate::config::RegionMode::Global {
+        return global::run_case(cfg, c);
+    }
     let mut p = cfg.search.clone();
     let e = &cfg.eval;
     p.assoc.t_start_prior = (c.t_start_true - e.time_prior_s, c.t_start_true + e.time_prior_s);
@@ -178,6 +184,7 @@ fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
         weather,
         best,
         tuples: tuples.into_iter().take(10).collect(),
+        global: None,
     }
 }
 

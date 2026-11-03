@@ -1,0 +1,6 @@
+# Region-free search on the sim suite, sim tracks injected into the last store day (real CONUS traffic).
+# Start time known to ±5 s. See docs/research/global_search_2026-11-03.md.
+[eval]
+cases = ["sim_"]
+region_mode = "global"
+time_prior_s = 5.0

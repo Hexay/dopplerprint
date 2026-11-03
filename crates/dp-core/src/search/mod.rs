@@ -5,6 +5,7 @@ pub mod backend;
 pub mod calibration;
 pub mod catalog;
 mod fixed;
+pub mod global;
 #[cfg(feature = "cuda")]
 mod gpu;
 pub mod hypothesis;

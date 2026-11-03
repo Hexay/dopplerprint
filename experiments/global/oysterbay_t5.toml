@@ -1,0 +1,13 @@
+# Region-free (CONUS) search on Oyster Bay: no region, start time known to ±5 s, d/v bounds from the
+# CV fit of the discovered event at each oracle CPA. See docs/research/global_search_2026-11-03.md.
+[eval]
+cases = ["oysterbay"]
+region_mode = "global"
+global_fit_events = true
+time_prior_s = 5.0
+oracle_events = true
+
+[search]
+coarse_step_m = 200
+min_step_m = 25
+keep_top = 200

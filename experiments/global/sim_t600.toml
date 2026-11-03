@@ -1,0 +1,5 @@
+# sim_t5 with the start time known only to ±600 s.
+[eval]
+cases = ["sim_"]
+region_mode = "global"
+time_prior_s = 600.0

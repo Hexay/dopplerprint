@@ -1,0 +1,12 @@
+# oysterbay_oracle_t5 with the start time known only to ±60 s.
+[eval]
+cases = ["oysterbay"]
+region_mode = "global"
+global_fit_events = false
+time_prior_s = 60.0
+oracle_events = true
+
+[search]
+coarse_step_m = 200
+min_step_m = 25
+keep_top = 200
