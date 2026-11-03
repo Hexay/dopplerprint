@@ -2,7 +2,7 @@
 //! Both give bit-identical scores (see search/gpu/mod.rs), so the choice only affects speed.
 
 use super::job::Job;
-use super::score::{JointScore, ScoreParams, ScoringPlane};
+use super::score::{JointScore, ScoreMode, ScoreParams, ScoringPlane};
 use super::sweep;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -23,6 +23,10 @@ pub struct Scorer<'a> {
 impl<'a> Scorer<'a> {
     /// `Cuda` fails without a usable GPU; `Auto` falls back to the CPU.
     pub fn new(plane: &'a ScoringPlane, backend: Backend) -> anyhow::Result<Self> {
+        if plane.mode == ScoreMode::PowerLlr {
+            anyhow::ensure!(backend != Backend::Cuda, "mode = \"power_llr\" runs on the CPU only");
+            return Ok(Self::cpu(plane));
+        }
         match backend {
             Backend::Cpu => Ok(Self::cpu(plane)),
             Backend::Auto => Ok(Self::with_gpu(plane).unwrap_or_else(|_| Self::cpu(plane))),
@@ -63,6 +67,9 @@ impl<'a> Scorer<'a> {
 
     /// One `JointScore` per job. A failing GPU launch is reported once per batch and rescored on the CPU.
     pub fn score(&self, jobs: &[Job], p: &ScoreParams) -> Vec<Option<JointScore>> {
+        if self.plane.mode == ScoreMode::PowerLlr {
+            return super::power_llr::score_jobs(&self.plane.spec, jobs, p);
+        }
         #[cfg(feature = "cuda")]
         if let Some(g) = &self.gpu {
             match g.sweep(&self.plane.spec, jobs, p) {

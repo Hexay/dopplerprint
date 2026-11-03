@@ -1,0 +1,11 @@
+# Ablation: power LLR with the fixed per-harmonic SNR prior (llr.snr) instead of the per-segment profile.
+[eval]
+cases = ["snr_g"]
+time_prior_s = 2.0
+
+[search.score]
+clock_sweep_s = 2.0
+mode = "power_llr"
+
+[search.score.llr]
+segment_s = 0.0

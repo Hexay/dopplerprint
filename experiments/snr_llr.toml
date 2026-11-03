@@ -1,0 +1,9 @@
+# SNR ladder, power-domain LLR (profiled ŝ per 5 s segment, sub-frame clock refinement). Paired against
+# snr_zsum.toml; primary metric as there.
+[eval]
+cases = ["snr_g"]
+time_prior_s = 2.0
+
+[search.score]
+clock_sweep_s = 2.0
+mode = "power_llr"

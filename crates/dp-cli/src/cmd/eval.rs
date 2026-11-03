@@ -15,6 +15,9 @@ pub struct Args {
     /// Output dir (default runs/<unix-seconds>[-<experiment>]).
     #[arg(long)]
     pub out: Option<PathBuf>,
+    /// Instead of searching, measure per-pixel SNR along each event's truth curve (pixel_snr.json).
+    #[arg(long)]
+    pub pixel_snr: bool,
 }
 
 pub fn run(a: Args) -> anyhow::Result<()> {
@@ -30,6 +33,11 @@ pub fn run(a: Args) -> anyhow::Result<()> {
         let tag = a.experiment.as_ref().and_then(|p| p.file_stem()).map(|s| format!("-{}", s.to_string_lossy()));
         PathBuf::from(format!("runs/{stamp}{}", tag.unwrap_or_default()))
     });
+    if a.pixel_snr {
+        let n = dp_core::eval::pixel_snr::run(&cfg, &a.sim_dir, &out)?.len();
+        println!("{n} events → {}", out.join("pixel_snr.json").display());
+        return Ok(());
+    }
     dp_core::eval::run(&cfg, &a.sim_dir, &out)?;
     println!("{}", std::fs::read_to_string(out.join("summary.md"))?);
     Ok(())

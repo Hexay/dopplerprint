@@ -14,6 +14,7 @@ pub mod global;
 pub mod livermore;
 pub mod metrics;
 pub mod nuisance;
+pub mod pixel_snr;
 pub mod report;
 pub mod split;
 pub mod stats;
@@ -28,7 +29,6 @@ use crate::dem::geoid_undulation;
 use crate::geo::{Geodetic, geodetic_to_ecef};
 use crate::physics::Atmosphere;
 use crate::search::pipeline::Candidate;
-use crate::audio::spectrogram::log_spectrogram;
 use crate::search::score::ScoringPlane;
 use crate::search::surface::Surface;
 use coverage::Coverage;
@@ -130,7 +130,7 @@ pub fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
     let variants = nuisance::variants(&p, c, e);
     // Not search::locate: the truth metrics need the plane and catalogue the search used.
     let t_plane = Instant::now();
-    let plane = ScoringPlane::new(&log_spectrogram(&c.audio, &cfg.spec), &p.score);
+    let plane = ScoringPlane::build(&c.audio, &cfg.spec, &p.score);
     let scorer = match Scorer::new(&plane, p.backend) {
         Ok(s) => s,
         Err(e) => return CaseResult { id: c.id.clone(), status: format!("skipped: {e:#}"), ..Default::default() },

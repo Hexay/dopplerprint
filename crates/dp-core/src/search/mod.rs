@@ -14,6 +14,7 @@ pub mod likelihood;
 pub mod locate;
 pub mod modes;
 pub mod pipeline;
+pub mod power_llr;
 pub mod score;
 pub mod surface;
 mod sweep;

@@ -4,7 +4,6 @@ use super::hypothesis::EventSpec;
 use super::pipeline::{Region, SearchInput, SearchParams, SearchResult, search};
 use super::score::ScoringPlane;
 use super::{MemCatalog, Scorer};
-use crate::audio::spectrogram::log_spectrogram;
 use crate::audio::{Audio, SpecParams};
 use crate::dem::Dem;
 use crate::events::Event;
@@ -46,7 +45,7 @@ pub fn locate(
     spec: &SpecParams,
     p: &SearchParams,
 ) -> anyhow::Result<SearchResult> {
-    let plane = ScoringPlane::new(&log_spectrogram(audio, spec), &p.score);
+    let plane = ScoringPlane::build(audio, spec, &p.score);
     let scorer = Scorer::new(&plane, p.backend)?;
     let catalog = MemCatalog::new(tracks);
     let inp = SearchInput { scorer: &scorer, events, catalog: &catalog, region, duration_s: audio.duration_s(), dem };
