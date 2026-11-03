@@ -1,7 +1,9 @@
 // f0 sweep on the GPU; same integers as search::sweep (arithmetic: search/fixed.rs).
 // Build: tools/dev.sh ptx (--fmad=false keeps the f32 lerp unfused, as on the CPU).
 
-#define WARPS 4
+// Warps per block. Consecutive pairs (same event, adjacent k) read the same rows, so larger blocks keep
+// them in one SM's L1 instead of refetching from L2 (the sweep's bottleneck).
+#define WARPS 16
 #define NONE (-0x7fffffffffffffffLL - 1)
 // Consecutive f0 steps per lane. When (R−1)·step < 1 bin they share a 3-value window of the row.
 #define R 4

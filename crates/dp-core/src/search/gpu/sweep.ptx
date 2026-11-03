@@ -61,7 +61,7 @@
 	cvta.to.global.u64 	%rd3, %rd104;
 	cvta.to.global.u64 	%rd4, %rd103;
 	mov.u32 	%r63, %ctaid.x;
-	mul.wide.u32 	%rd107, %r63, 4;
+	mul.wide.u32 	%rd107, %r63, 16;
 	mov.u32 	%r1, %tid.x;
 	shr.u32 	%r64, %r1, 5;
 	cvt.u64.u32 	%rd108, %r64;
@@ -900,7 +900,7 @@ $L__BB0_76:
 	mov.u32 	%r213, %tid.x;
 	shr.u32 	%r212, %r213, 5;
 	cvt.u64.u32 	%rd225, %r212;
-	mul.wide.u32 	%rd224, %r214, 4;
+	mul.wide.u32 	%rd224, %r214, 16;
 	add.s64 	%rd223, %rd224, %rd225;
 	cvta.to.global.u64 	%rd213, %rd226;
 	shl.b64 	%rd214, %rd223, 3;
@@ -959,7 +959,7 @@ $L__BB0_78:
 	cvta.to.global.u64 	%rd5, %rd19;
 	cvta.to.global.u64 	%rd6, %rd16;
 	mov.u32 	%r46, %ctaid.x;
-	shl.b32 	%r47, %r46, 2;
+	shl.b32 	%r47, %r46, 4;
 	mov.u32 	%r1, %tid.x;
 	shr.u32 	%r48, %r1, 5;
 	add.s32 	%r2, %r47, %r48;

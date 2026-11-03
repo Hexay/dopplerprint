@@ -22,7 +22,7 @@ use emit::DevTracks;
 const SWEEP_PTX: &str = include_str!("sweep.ptx");
 const EMISSION_PTX: &str = include_str!("emission.ptx");
 /// Must match WARPS in sweep.cu: one warp per (event, k) pair.
-const WARPS: u64 = 4;
+const WARPS: u64 = 16;
 
 struct Device {
     stream: Arc<CudaStream>,
