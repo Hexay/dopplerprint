@@ -9,6 +9,7 @@ use arrow_array::types::{Int32Type, Int64Type, UInt8Type, UInt32Type};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::file::metadata::RowGroupMetaData;
 use parquet::file::statistics::Statistics;
+use rayon::prelude::*;
 
 use super::TrackQuery;
 use super::dedup::{DedupParams, drop_shadow_tracks};
@@ -108,34 +109,49 @@ fn collect_points(day: &Path, q: &TrackQuery, wants: &HashMap<Key, Want>, pad: f
         .filter(|p| p.file_name().and_then(|n| n.to_str()).is_some_and(|n| buckets.contains(n)))
         .collect();
     files.sort();
-    for f in files {
-        let batches = read_pruned(&f, |rg| {
-            let ic = stat_range(rg, "icao", 1.0);
-            overlaps(ic, f64::from(lo), f64::from(hi))
-                && overlaps(stat_range(rg, "t_ms", T_SCALE), q.t_start - pad, q.t_end + pad)
-                && ic.is_none_or(|(a, b)| icaos.iter().any(|&i| (a..=b).contains(&f64::from(i))))
-        })?;
-        let (ts, te) = (to_ms(q.t_start - pad), to_ms(q.t_end + pad));
-        for b in &batches {
-            let (icao, trk) = (column::<UInt32Type>(b, "icao"), column::<UInt32Type>(b, "track_no"));
-            let t = column::<Int64Type>(b, "t_ms");
-            let ints = ["lat_e6", "lon_e6", "alt_dm", "ve_cms", "vn_cms", "vu_cms"].map(|n| column::<Int32Type>(b, n));
-            let scales = [DEG_SCALE, DEG_SCALE, ALT_SCALE, VEL_SCALE, VEL_SCALE, VEL_SCALE];
-            for i in 0..b.num_rows() {
-                let key = (icao.value(i), trk.value(i));
-                let ti = t.value(i);
-                if ti < ts || ti > te || !wants.contains_key(&key) {
-                    continue;
-                }
-                let mut p = [ti as f64 / T_SCALE, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
-                for (k, (c, s)) in ints.iter().zip(scales).enumerate() {
-                    p[k + 1] = f64::from(c.value(i)) / s;
-                }
-                out.entry(key).or_default().push(p);
-            }
+    let per_file: Vec<BTreeMap<Key, Vec<Pt>>> = files
+        .par_iter()
+        .map(|f| {
+            let batches = read_pruned(f, |rg| {
+                let ic = stat_range(rg, "icao", 1.0);
+                overlaps(ic, f64::from(lo), f64::from(hi))
+                    && overlaps(stat_range(rg, "t_ms", T_SCALE), q.t_start - pad, q.t_end + pad)
+                    && ic.is_none_or(|(a, b)| icaos.iter().any(|&i| (a..=b).contains(&f64::from(i))))
+            })?;
+            Ok(file_points(&batches, q, wants, pad))
+        })
+        .collect::<anyhow::Result<_>>()?;
+    // Merged in file order, so each track's points keep the serial read order.
+    for m in per_file {
+        for (key, pts) in m {
+            out.entry(key).or_default().extend(pts);
         }
     }
     Ok(out)
+}
+
+fn file_points(batches: &[RecordBatch], q: &TrackQuery, wants: &HashMap<Key, Want>, pad: f64) -> BTreeMap<Key, Vec<Pt>> {
+    let mut out: BTreeMap<Key, Vec<Pt>> = BTreeMap::new();
+    let (ts, te) = (to_ms(q.t_start - pad), to_ms(q.t_end + pad));
+    for b in batches {
+        let (icao, trk) = (column::<UInt32Type>(b, "icao"), column::<UInt32Type>(b, "track_no"));
+        let t = column::<Int64Type>(b, "t_ms");
+        let ints = ["lat_e6", "lon_e6", "alt_dm", "ve_cms", "vn_cms", "vu_cms"].map(|n| column::<Int32Type>(b, n));
+        let scales = [DEG_SCALE, DEG_SCALE, ALT_SCALE, VEL_SCALE, VEL_SCALE, VEL_SCALE];
+        for i in 0..b.num_rows() {
+            let key = (icao.value(i), trk.value(i));
+            let ti = t.value(i);
+            if ti < ts || ti > te || !wants.contains_key(&key) {
+                continue;
+            }
+            let mut p = [ti as f64 / T_SCALE, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+            for (k, (c, s)) in ints.iter().zip(scales).enumerate() {
+                p[k + 1] = f64::from(c.value(i)) / s;
+            }
+            out.entry(key).or_default().push(p);
+        }
+    }
+    out
 }
 
 /// Keep `[last point ≤ t_start, first point ≥ t_end]` so interpolation covers the whole window.
@@ -171,28 +187,40 @@ pub fn load_tracks_with(store: &Path, q: &TrackQuery, opts: &LoadOptions) -> any
     for (day, mf) in list_days(store)? {
         let h_lo = ((q.t_start - MAX_PIECE_S - mf.day0) / 3600.0).floor() as i64;
         let h_hi = ((q.t_end - mf.day0) / 3600.0).floor() as i64;
+        let hours: Vec<_> = (h_lo.max(-1)..=h_hi.min(25))
+            .map(|h| hour_dir(&day, h).join("part-0.parquet"))
+            .filter(|f| f.is_file())
+            .collect();
+        let per_hour: Vec<HashMap<Key, Want>> = hours
+            .par_iter()
+            .map(|f| {
+                let mut w = HashMap::new();
+                select_segments(f, q, &mut w).map(|()| w)
+            })
+            .collect::<anyhow::Result<_>>()?;
+        // First hour wins, as in the serial scan.
         let mut wants = HashMap::new();
-        for h in h_lo.max(-1)..=h_hi.min(25) {
-            let f = hour_dir(&day, h).join("part-0.parquet");
-            if f.is_file() {
-                select_segments(&f, q, &mut wants)?;
+        for m in per_hour {
+            for (k, w) in m {
+                wants.entry(k).or_insert(w);
             }
         }
         let gap = mf.params["clean"]["max_gap_s"].as_f64().unwrap_or(60.0);
-        for (key, mut pts) in collect_points(&day, q, &wants, gap)? {
+        let points: Vec<(Key, Vec<Pt>)> = collect_points(&day, q, &wants, gap)?.into_iter().collect();
+        tracks.par_extend(points.into_par_iter().filter_map(|(key, mut pts)| {
             trim(&mut pts, q.t_start, q.t_end);
             if pts.len() < 2 {
-                continue;
+                return None;
             }
             let w = &wants[&key];
-            tracks.push(Track {
+            Some(Track {
                 id: format!("{}/{}", mf.date, track_id(key.0, key.1)),
                 icao24: key.0,
                 type_code: w.type_code.clone(),
                 engine: w.engine,
                 points: pts.iter().map(|p| enu_to_track_point(p[0], p[1], p[2], p[3], [p[4], p[5], p[6]])).collect(),
-            });
-        }
+            })
+        }));
     }
     tracks.sort_by(|a, b| a.t_start().total_cmp(&b.t_start()).then_with(|| a.id.cmp(&b.id)));
     Ok(match &opts.dedup {
