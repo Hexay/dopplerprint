@@ -1,0 +1,32 @@
+# Written by `dopplerprint calibrate`; see docs/research/calibration_2026-11-03.md.
+temperature = 1.58
+floor = 0.01
+persistence_nats = 2.0
+provenance = "2026-11-03, tools: dopplerprint calibrate. T: max mean log score on Livermore dev (28) + Oyster Bay (1), eval split dev. q̂: split-conformal HPD-split on the same + sim cal bank (experiments/sim_calib cal_*, 60). Runs: livermore_baseline.toml, oysterbay_dg_parity (absolute data paths), calib_sim.toml."
+
+[[stratum]]
+name = "1 pass"
+min_events = 1
+max_events = 1
+n = 28
+source = "real"
+nominal = [0.5, 0.8, 0.9]
+q_hat = [0.2693776859322645, 0.7923063346393278, 0.9884401235003635]
+
+[[stratum]]
+name = "2 passes"
+min_events = 2
+max_events = 2
+n = 21
+source = "real+sim"
+nominal = [0.5, 0.8, 0.9]
+q_hat = [0.17785934656131638, 0.3801797519920186, 0.5723527733852348]
+
+[[stratum]]
+name = "≥3 passes"
+min_events = 3
+max_events = 99
+n = 20
+source = "sim"
+nominal = [0.5, 0.8, 0.9]
+q_hat = [0.1875961099363288, 0.3030434014032749, 0.5220550657140971]

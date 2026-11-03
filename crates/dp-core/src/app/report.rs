@@ -41,12 +41,16 @@ pub struct Report {
     pub duration_s: f64,
     pub location: Option<Location>,
     pub confidence: Option<Confidence>,
+    /// Calibrated 90% region and mode probabilities.
+    pub posterior: Option<super::posterior::Posterior>,
     pub alternatives: Vec<Alternative>,
     pub aircraft: Vec<Matched>,
     pub clock: Option<Clock>,
     pub start: Option<StartPrior>,
     pub area: Option<Area>,
     pub terrain: String,
+    /// Model atmosphere: archived layer winds and c, or why still air was used.
+    pub air: String,
     pub events_found: usize,
     pub events_used: usize,
     pub tracks_considered: usize,
@@ -64,12 +68,14 @@ impl Report {
             duration_s: 0.0,
             location: None,
             confidence: None,
+            posterior: None,
             alternatives: Vec::new(),
             aircraft: Vec::new(),
             clock: None,
             start: None,
             area: None,
             terrain: String::new(),
+            air: String::new(),
             events_found: 0,
             events_used: 0,
             tracks_considered: 0,
@@ -184,9 +190,14 @@ pub fn alternatives(ranked: &[Candidate]) -> (Vec<Alternative>, Confidence) {
 }
 
 fn offset(a: &Candidate, b: &Candidate) -> (f64, &'static str) {
-    let (m, n) = crate::geo::radii_of_curvature(a.lat_deg);
-    let dn = (b.lat_deg - a.lat_deg).to_radians() * m;
-    let de = (b.lon_deg - a.lon_deg).to_radians() * n * a.lat_deg.to_radians().cos();
+    offset_to(a.lat_deg, a.lon_deg, b.lat_deg, b.lon_deg)
+}
+
+/// Distance (m) and 8-point compass direction from (lat1, lon1) to (lat2, lon2).
+pub fn offset_to(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> (f64, &'static str) {
+    let (m, n) = crate::geo::radii_of_curvature(lat1);
+    let dn = (lat2 - lat1).to_radians() * m;
+    let de = (lon2 - lon1).to_radians() * n * lat1.to_radians().cos();
     let bearing = de.atan2(dn).to_degrees().rem_euclid(360.0);
     const DIRS: [&str; 8] = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
     (dn.hypot(de), DIRS[((bearing + 22.5) / 45.0) as usize % 8])

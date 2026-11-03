@@ -1,24 +1,47 @@
 //! Forward acoustic model: emission (retarded) time, Doppler factor, CPA geometry.
 //! Equations and their validation: see docs/PHYSICS.md.
 
+pub mod column;
 pub mod cpa;
 pub mod cv;
 pub mod emission;
 
+pub use column::{Column, Medium};
+
 use crate::geo::Vec3;
 use crate::track::Track;
 
-/// Effective propagation medium for one event. Wind is a uniform ECEF vector (m/s).
+/// Propagation medium for a recording. `c` and `wind` (ECEF, m/s) are uniform; with a `column` each
+/// emission instead sees them plus the column's height-layer departure (see `physics::column`).
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct Atmosphere {
     pub c: f64,
     pub wind: Vec3,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub column: Option<Column>,
 }
 
 impl Default for Atmosphere {
     fn default() -> Self {
-        Self { c: 343.0, wind: Vec3::ZERO }
+        Self::uniform(343.0, Vec3::ZERO)
+    }
+}
+
+impl Atmosphere {
+    pub fn uniform(c: f64, wind: Vec3) -> Self {
+        Self { c, wind, column: None }
+    }
+
+    /// The uniform medium for sound from `src` to `obs`.
+    pub fn medium(&self, obs: Vec3, src: Vec3) -> Medium {
+        match &self.column {
+            None => Medium { c: self.c, wind: self.wind },
+            Some(col) => {
+                let d = col.anomaly(obs, src);
+                Medium { c: self.c + d.c, wind: self.wind + d.wind }
+            }
+        }
     }
 }
 

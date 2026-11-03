@@ -1,0 +1,16 @@
+# Sim, experiments/sim_wind pairs only (see simwind_still.toml). The 3 m/s-wrong supplied atmosphere of
+# simwind_truth_err3 as the centre of a shared nuisance grid (c ±3 m/s × wind ±3 m/s E/N): does profiling
+# around the weather recover the truth result?
+[eval]
+cases = ["sim_wind_pair"]
+time_prior_s = 5.0
+weather = "truth"
+wind_enu_mps = [-1.5, 2.6, 0.0]
+nuisance_dc = [-3.0, 0.0, 3.0]
+nuisance_wind_en = [[0.0, 0.0], [3.0, 0.0], [-3.0, 0.0], [0.0, 3.0], [0.0, -3.0]]
+
+[search]
+keep_top = 100
+
+[search.score]
+clock_sweep_s = 2.0

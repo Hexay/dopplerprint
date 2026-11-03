@@ -77,6 +77,28 @@ was tried and rejected: in ECEF, R² is flat to f64 noise within about 1e-5 s of
 With wind, the zero-Doppler instant is not exactly the geometric CPA. The search uses CPA only for
 prefiltering, so this is acceptable.
 
+## 4a. Height-layered medium (`physics::column`)
+
+An `Atmosphere` may carry a `Column`: c(z) and the horizontal wind vector W(z) as piecewise-linear nodes
+in ellipsoidal height (from `weather`). Each emission then uses §2–4 with the uniform medium of its own
+layer [z_r, z_s] between observer and source:
+
+    c̄ = (z_s − z_r) / ∫ dz/c,    W̄ = ∫ W dz / (z_s − z_r)
+
+- Uniform weight in height is the straight-chord first-order kernel, independent of elevation angle
+  (`docs/research/localization_deeper_factors.md`). An exact moving-medium ray trace on 460 passes found
+  the full **vector** z-mean takes out 93–96% of the still-air CPA-range bias (jets median 113–133 → 5–6 m;
+  GA 15–20 → 1–7 m); along-track-only is not enough, since crosswind moves the zero-Doppler point by up to
+  139 m (summary and results: `docs/research/weather_wind_2026-11-03.md`).
+- Heights come from the local vertical at the column origin with a spherical-earth drop
+  (h ≈ h₀ + d·û + (|d|² − (d·û)²)/2R, < 1 m error within 20 km). Beyond the end nodes values are constant.
+- The column stores departures from its reference layer (ground to 1 km); `Atmosphere.c`/`wind` hold that
+  reference, so overrides and nuisance offsets on them shift every layer equally.
+- The emission Newton derivative ignores dc̄/dτ and dW̄/dτ (altitude changes slowly); F is the §3 formula
+  with the converged layer medium, which is exact for level flight (`tests/physics_column.rs`).
+- Not modelled: curved-ray weighting (2–5× smaller residual under low-level jets), shadow zones and
+  turning rays.
+
 ## 5. Constant-velocity closed form (`physics::cv`)
 
 The path is straight and level at speed v, with CPA slant d and CPA emission time τc = t_c − d/c, where t_c

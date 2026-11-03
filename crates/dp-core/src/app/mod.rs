@@ -8,11 +8,13 @@ pub mod geocode;
 pub mod http;
 mod inputs;
 pub mod place;
+pub mod posterior;
 pub mod report;
 pub mod results;
 mod run;
 pub mod text;
 pub mod ui;
+pub mod weather;
 pub mod when;
 
 use std::path::PathBuf;
@@ -50,6 +52,8 @@ pub struct LocateRequest {
     /// Experiment TOML (`config::Config`) overriding spectrogram and search defaults.
     pub config: Option<PathBuf>,
     pub offline: bool,
+    /// Search in still air (the config's atmosphere) instead of archived winds aloft and temperature.
+    pub no_weather: bool,
     /// Download without asking.
     pub yes: bool,
     pub keep_raw: bool,
@@ -72,6 +76,7 @@ impl Default for LocateRequest {
             mains_hz: None,
             config: None,
             offline: false,
+            no_weather: false,
             yes: false,
             keep_raw: false,
             max_cache_gb: DEFAULT_MAX_CACHE_GB,

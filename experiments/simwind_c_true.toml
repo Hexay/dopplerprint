@@ -1,0 +1,13 @@
+# Sim, experiments/sim_wind (see simwind_still.toml). Temperature right, wind ignored: isolates the wind term.
+[eval]
+cases = ["sim_wind"]
+time_prior_s = 5.0
+
+[search]
+keep_top = 100
+
+[search.score]
+clock_sweep_s = 2.0
+
+[search.atmosphere]
+c = 337.0

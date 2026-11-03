@@ -4,7 +4,11 @@
 pub mod aggregate;
 pub mod atmosphere;
 pub mod case;
+pub mod calib_report;
+pub mod calibrate;
 pub mod compare;
+pub mod conformal;
+pub mod coverage;
 pub mod livermore;
 pub mod metrics;
 pub mod nuisance;
@@ -24,6 +28,8 @@ use crate::physics::Atmosphere;
 use crate::search::pipeline::Candidate;
 use crate::audio::spectrogram::log_spectrogram;
 use crate::search::score::ScoringPlane;
+use crate::search::surface::Surface;
+use coverage::Coverage;
 use crate::search::{MemCatalog, Region, SearchInput, search};
 use metrics::{Metrics, PosteriorParams, Truth, same_flight};
 
@@ -48,6 +54,17 @@ pub struct CaseResult {
     /// Model atmosphere of the best candidate (the chosen grid point when a nuisance grid ran).
     #[serde(default)]
     pub atmosphere: Option<Atmosphere>,
+    #[serde(default)]
+    pub truth_lat_lon: Option<(f64, f64)>,
+    /// At the shipped calibration (`search::calibration`).
+    #[serde(default)]
+    pub coverage: Option<Coverage>,
+    /// Cached refined surface, so `calibrate` re-tempers without re-searching.
+    #[serde(default)]
+    pub surface: Option<Surface>,
+    /// Where the atmosphere came from when `eval.weather` is set (see `eval::atmosphere::sourced`).
+    #[serde(default)]
+    pub weather: Option<String>,
     pub best: Option<Candidate>,
     pub tuples: Vec<Candidate>,
 }
@@ -75,7 +92,9 @@ fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
     let e = &cfg.eval;
     p.assoc.t_start_prior = (c.t_start_true - e.time_prior_s, c.t_start_true + e.time_prior_s);
     p.flat_h_ell_m = c.truth_h_ell.unwrap_or_else(|| geoid_undulation(c.truth_lat, c.truth_lon));
-    p.atmosphere = atmosphere::case_atmosphere(p.atmosphere, c, e);
+    let region = displaced_region(c, e.region_offset_m, e.region_radius_m);
+    let (base, weather) = atmosphere::sourced(p.atmosphere, c, e, &region);
+    p.atmosphere = atmosphere::case_atmosphere(base, c, e);
     let variants = nuisance::variants(&p, c, e);
     // Not search::locate: the truth metrics need the plane and catalogue the search used.
     let plane = ScoringPlane::new(&log_spectrogram(&c.audio, &cfg.spec), &p.score);
@@ -84,11 +103,12 @@ fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
         plane: &plane,
         events: &c.events,
         catalog: &catalog,
-        region: displaced_region(c, e.region_offset_m, e.region_radius_m),
+        region,
         duration_s: c.audio.duration_s(),
         dem: c.dem.as_ref(),
     };
     let (res, chosen) = nuisance::merge(variants.iter().map(|q| search(&inp, q)).collect());
+    let surface = Surface::new(&res.ranked, &inp.region, p.coarse_step_m);
     let tuples = best_per_tuple(&res.ranked);
     let best = tuples.first().cloned();
     let truth_ids: Option<Vec<String>> = c.truth_flights.iter().cloned().collect();
@@ -113,6 +133,10 @@ fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
         runtime_s: 0.0,
         metrics: metrics::measure(&inp, &variants, &res, &truth, pp),
         atmosphere: Some(variants[chosen].atmosphere),
+        truth_lat_lon: Some((c.truth_lat, c.truth_lon)),
+        coverage: Some(coverage::measure(&surface, c.truth_lat, c.truth_lon, coverage::Shape::shipped(), &coverage::shipped_masses(c.events.len()))),
+        surface: Some(surface),
+        weather,
         best,
         tuples: tuples.into_iter().take(10).collect(),
     }

@@ -9,9 +9,11 @@ use super::cache::Cache;
 use super::fetch::{FetchOptions, dates_between, ensure_days};
 use super::inputs::{given_start, registrations, resolve_area, start_prior, terrain};
 use super::place::Area;
+use super::posterior;
 use super::report::{Clock, MIN_EVENT_Z, Report, Status, alternatives, location, matched};
 use super::results::{self, ResultInput};
 use super::ui::Ui;
+use super::weather::{describe_used, model_atmosphere};
 use super::when::{fmt_utc, StartPrior};
 use super::{LocateRequest, NeedsInput};
 use crate::adsb::{self, TrackQuery};
@@ -83,7 +85,10 @@ fn steps(req: &LocateRequest, ui: &dyn Ui, rep: &mut Report, started: Instant) -
 
     let (dem, terrain_note) = terrain(req, &cache, &area)?;
     rep.terrain = terrain_note;
-    let p = search_params(&cfg, &prior, &area);
+    let mut p = search_params(&cfg, &prior, &area);
+    let air = model_atmosphere(req, &cache, &area, dem.as_ref(), prior.nominal + 0.5 * rep.duration_s, p.atmosphere, ui);
+    p.atmosphere = air.atmosphere;
+    rep.air = air.source.clone();
     ui.step("search", 0.5, &format!(
         "Matching {} pass{} against {} flights within {:.0} km of {}...",
         events.len(),
@@ -108,6 +113,9 @@ fn steps(req: &LocateRequest, ui: &dyn Ui, rep: &mut Report, started: Instant) -
     };
 
     rep.location = Some(location(best));
+    let calibrated = posterior::posterior(&res.ranked, &search_region(&area), p.coarse_step_m, used.len());
+    rep.posterior = calibrated.as_ref().map(|c| c.0.clone());
+    rep.air = describe_used(&air, best, &tracks, dem.as_ref());
     let (alts, conf) = alternatives(&res.ranked);
     (rep.alternatives, rep.confidence) = (alts, Some(conf));
     let icaos: Vec<u32> = tracks.iter().filter(|t| best.track_ids.contains(&t.id)).map(|t| t.icao24).collect();
@@ -140,6 +148,7 @@ fn steps(req: &LocateRequest, ui: &dyn Ui, rep: &mut Report, started: Instant) -
         tracks: &tracks,
         window: clock_window,
         spec: Some(&spec),
+        region: calibrated.as_ref().map(|c| (&c.1, c.2.as_slice())),
     };
     results::write(&dir, &inp)
 }
@@ -175,6 +184,10 @@ fn search_params(cfg: &Config, prior: &StartPrior, a: &Area) -> SearchParams {
     p
 }
 
+fn search_region(a: &Area) -> Region {
+    Region { lat_deg: a.lat, lon_deg: a.lon, radius_m: a.radius_km * 1000.0 }
+}
+
 /// A hypothesis must explain every event, so one spurious event blocks the search: drop the weakest and retry.
 fn search_dropping_weakest(
     audio: &Audio,
@@ -185,7 +198,7 @@ fn search_dropping_weakest(
     cfg: &Config,
     p: &SearchParams,
 ) -> (SearchResult, Vec<Event>) {
-    let region = Region { lat_deg: a.lat, lon_deg: a.lon, radius_m: a.radius_km * 1000.0 };
+    let region = search_region(a);
     loop {
         let specs: Vec<EventSpec> = events.iter().map(EventSpec::from_event).collect();
         let res = search::locate(audio, &specs, tracks.to_vec(), region, dem, &cfg.spec, p);

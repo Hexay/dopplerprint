@@ -1,0 +1,13 @@
+# Livermore single passages with archived weather (Open-Meteo best_match = HRRR here) at the search-region
+# centre and true start; pair against livermore_baseline. Hypothesis: per-emission layer-mean c and wind
+# vector beat still air c 343. Expected to be small: light-wind afternoons (HRRR 3–5 m/s).
+# Results: docs/research/weather_wind_2026-11-03.md.
+[eval]
+cases = ["livermore"]
+time_prior_s = 2.0
+oracle_d_range = [150.0, 8000.0]
+oracle_v_range = [20.0, 250.0]
+weather = "archive"
+
+[search.score]
+clock_sweep_s = 2.0

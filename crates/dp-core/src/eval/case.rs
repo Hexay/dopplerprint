@@ -11,6 +11,7 @@ use crate::adsb::{self, TrackQuery};
 use crate::audio::{self, Audio};
 use crate::config::EvalParams;
 use crate::dem::Dem;
+use crate::physics::Atmosphere;
 use crate::search::EventSpec;
 use crate::sim;
 use crate::track::Track;
@@ -27,6 +28,8 @@ pub struct Posed {
     pub truth_flights: Vec<Option<String>>,
     pub tracks: Vec<Track>,
     pub dem: Option<Dem>,
+    /// The medium a sim case was rendered in.
+    pub sim_atmosphere: Option<Atmosphere>,
 }
 
 pub enum CaseSource {
@@ -139,6 +142,7 @@ fn pose_real(dir: &Path, p: &EvalParams) -> Result<Posed> {
         truth_flights: flights,
         tracks,
         dem,
+        sim_atmosphere: None,
     })
 }
 
@@ -192,5 +196,6 @@ fn pose_sim(path: &Path, id: String, _p: &EvalParams) -> Result<Posed> {
         truth_flights: flights,
         tracks: t.tracks,
         dem: None,
+        sim_atmosphere: Some(Atmosphere::uniform(t.c, t.wind_ecef)),
     })
 }

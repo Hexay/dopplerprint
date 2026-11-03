@@ -19,6 +19,12 @@ pub struct Aggregate {
     pub median_score_gap: Ci,
     pub hpd90_coverage: Ci,
     pub median_hpd90_km2: Ci,
+    /// Area-weighted posterior over refined cells at the shipped calibration (`eval::coverage`).
+    #[serde(default)]
+    pub calib_log_score: Option<Ci>,
+    /// Coverage and median area (km²) of the shipped regions for each nominal level.
+    #[serde(default)]
+    pub calib_regions: Vec<(f64, Ci, Ci)>,
     /// (stage, survived, evaluated) in pipeline order.
     pub recall: Vec<(String, usize, usize)>,
 }
@@ -37,8 +43,23 @@ pub fn aggregate(results: &[CaseResult]) -> Aggregate {
         median_score_gap: bootstrap(&col(&|r| r.metrics.score_gap), median),
         hpd90_coverage: rate(ok.iter().filter_map(|r| r.metrics.hpd90_contains)),
         median_hpd90_km2: bootstrap(&col(&|r| r.metrics.hpd90_km2), median),
+        calib_log_score: Some(bootstrap(&col(&|r| r.coverage.as_ref().map(|c| c.log_score)), mean)),
+        calib_regions: calib_regions(&ok),
         recall: recall(&ok),
     }
+}
+
+fn calib_regions(ok: &[&CaseResult]) -> Vec<(f64, Ci, Ci)> {
+    let cov: Vec<&super::coverage::Coverage> = ok.iter().filter_map(|r| r.coverage.as_ref()).collect();
+    super::coverage::NOMINAL
+        .iter()
+        .enumerate()
+        .map(|(j, &nom)| {
+            let hit = rate(cov.iter().filter_map(|c| c.covered().get(j).copied()));
+            let area: Vec<f64> = cov.iter().filter_map(|c| c.area_km2.get(j).copied()).collect();
+            (nom, hit, bootstrap(&area, median))
+        })
+        .collect()
 }
 
 fn recall(ok: &[&CaseResult]) -> Vec<(String, usize, usize)> {
@@ -70,6 +91,12 @@ pub fn markdown(a: &Aggregate) -> String {
     row("median score gap (best − truth)", a.median_score_gap.fmt(2));
     row("90% region contains truth", a.hpd90_coverage.fmt(2));
     row("median 90% region km²", a.median_hpd90_km2.fmt(2));
+    if let Some(ci) = &a.calib_log_score {
+        row("calibrated log score (ln km⁻², refined cells)", ci.fmt(2));
+    }
+    for (nom, hit, area) in &a.calib_regions {
+        row(&format!("calibrated {:.0}% region: contains truth / median km²", nom * 100.0), format!("{} / {}", hit.fmt(2), area.fmt(2)));
+    }
     md.push_str("\n## Stage recall (truth survived / evaluated)\n\n");
     let stages: Vec<String> = a.recall.iter().map(|(s, k, n)| format!("{s} {k}/{n}")).collect();
     let _ = writeln!(md, "{}", stages.join(" → "));

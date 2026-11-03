@@ -1,0 +1,12 @@
+# Calibration sim bank (tools/gen_sim_calib.py), run with --sim-dir experiments/sim_calib and
+# --case sim_cal_ (fit) or --case sim_test_ (held out). 1/2/3 passes, each recording in its own wrong
+# atmosphere (c 337-349, wind ≤ 6 m/s) against the model's c 343 / no wind. Primary metric: coverage of
+# the conformal 50/80/90% regions on sim_test_ within ±0.05 of nominal (stage 3, matching_mathematical_methods.md).
+[eval]
+time_prior_s = 5.0
+
+[search]
+keep_top = 100
+
+[search.score]
+clock_sweep_s = 2.0

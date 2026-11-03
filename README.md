@@ -88,6 +88,8 @@ material published for this purpose, or with the recordist's consent. Don't use 
   request per name, cached.
 - Terrain: USGS 3DEP (public domain); fallback Copernicus GLO-30, © DLR e.V. 2010–2014 and © Airbus Defence and
   Space GmbH 2014–2018, provided under COPERNICUS by the European Union and ESA.
+- Weather: [Weather data by Open-Meteo.com](https://open-meteo.com/) (NOAA HRRR/GFS), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/);
+  interpolated in time and averaged over height layers. `crates/dp-core/src/weather/fixture_livermore.json` is a trimmed response.
 - Geoid: NGA EGM2008 (public domain) via [PROJ-data](https://cdn.proj.org/); `assets/geoid/` is a CONUS crop.
 - Livermore recordings: Praveen Pathak, [Zenodo 23424278](https://zenodo.org/records/23424278), CC BY 4.0.
   Header image imagery: USGS The National Map / NAIP, public domain.

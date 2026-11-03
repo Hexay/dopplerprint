@@ -27,7 +27,8 @@ This tool works out where an audio recording was made. It matches the aircraft D
 9. `sim`: an independent time-domain synthesiser that serves as ground truth for tests and eval.
 10. `output`: GeoPackage (QGIS), GeoJSON and a single-file HTML viewer.
 11. `config`: all tunables, overridable from TOML.
-12. `app`: the end-user `locate` pipeline (inputs → decode → discover → cached/fetched ADS-B → `search::locate` → report and files). See `docs/USAGE.md`.
+12. `app`: the end-user `locate` pipeline (inputs → decode → discover → cached/fetched ADS-B → archived weather → `search::locate` → report and files). See `docs/USAGE.md`.
+13. `weather`: Open-Meteo archive fetch/cache and profile → `physics::Column` (per-emission layer-mean c and wind vector, `docs/PHYSICS.md` §4a). Used by `app` and by eval (`[eval] weather = "archive"`).
 
 ## Search
 
@@ -39,7 +40,7 @@ The stages follow the video, plus fixes taken from prior art (see `docs/research
 4. **Silence.** A cell is penalised (not hard-cut) if it would have heard an extra flight. The penalty is weighted by predicted SNR and by ADS-B coverage.
 5. **Locked joint score.** A cell's score is the sum, over events, of whitened spectrogram power along the predicted curves. Each event has its own f0, found by an FFT correlation along log-frequency, and harmonics are combined incoherently. All events share one clock offset.
 6. **Refine.** Survivors are split into child cells, and the top modes are polished with Nelder–Mead over (x, y, clock).
-7. **Confidence.** Report ambiguity modes such as the mirror and along-track solutions. A null distribution comes from re-running the search with ADS-B shifted in time. The output is a posterior, a 90% region and a reliable/inconclusive flag.
+7. **Confidence.** Report ambiguity modes such as the mirror and along-track solutions. A null distribution comes from re-running the search with ADS-B shifted in time. The output is a posterior, a 90% region and a reliable/inconclusive flag. Built: area-weighted posterior over refined cells (`search/surface.rs`), basin modes (`search/modes.rs`), fitted T and per-stratum conformal q̂ (`search/calibration.toml`, `dopplerprint calibrate`); see docs/research/calibration_2026-11-03.md. Not built: the time-shifted null.
 
 ## Iteration loop
 

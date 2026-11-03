@@ -55,17 +55,19 @@ fn search<'py>(
 
 /// Relative likelihood exp((s − s_max)/T) at each (lat, lon), from the finest scored cell of a `search`
 /// result there (0 where unscored), plus the likelihood level enclosing each of `masses` (highest-density
-/// regions over the given equal-area samples). See dp_core::search::likelihood for the temperature.
+/// regions over the given equal-area samples; nominal masses, not the conformal q̂). `temperature`
+/// defaults to the fitted one (dp_core::search::calibration).
 #[pyfunction]
-#[pyo3(signature = (result, lat, lon, temperature=likelihood::DEFAULT_TEMPERATURE, masses=vec![0.5, 0.9]))]
+#[pyo3(signature = (result, lat, lon, temperature=None, masses=vec![0.5, 0.9]))]
 fn likelihood_grid<'py>(
     py: Python<'py>,
     result: &Bound<'py, PyDict>,
     lat: PyReadonlyArrayDyn<'py, f64>,
     lon: PyReadonlyArrayDyn<'py, f64>,
-    temperature: f64,
+    temperature: Option<f64>,
     masses: Vec<f64>,
 ) -> PyResult<(Bound<'py, PyArrayDyn<f64>>, Vec<f64>)> {
+    let temperature = temperature.unwrap_or_else(likelihood::default_temperature);
     if lat.shape() != lon.shape() {
         return Err(PyValueError::new_err("lat and lon must have the same shape"));
     }
@@ -75,7 +77,7 @@ fn likelihood_grid<'py>(
     let pts: Vec<(f64, f64)> = lat.as_array().iter().zip(lon.as_array().iter()).map(|(a, b)| (*a, *b)).collect();
     let (lik, levels) = py.detach(|| {
         let lik = likelihood::relative_likelihood(&likelihood::finest_score_at(&res.ranked, &pts), temperature);
-        let levels = masses.iter().map(|&m| likelihood::hpd_level(&lik, m)).collect::<Vec<_>>();
+        let levels = masses.iter().map(|&m| likelihood::hpd_level(&lik, &[], m)).collect::<Vec<_>>();
         (lik, levels)
     });
     let arr = ArrayD::from_shape_vec(IxDyn(&shape), lik).map_err(|e| PyValueError::new_err(e.to_string()))?;

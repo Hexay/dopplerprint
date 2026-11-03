@@ -4,11 +4,12 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 
+use super::posterior::Inside;
 use super::report::{Report, Status};
 use crate::audio::LogSpectrogram;
 use crate::events::Event;
 use crate::geo::ecef_to_geodetic;
-use crate::output::features::{CandidateRow, CellRow, EventRow, Results, RunInfo, TrackRow};
+use crate::output::features::{CandidateRow, CellRow, EventRow, RegionRow, Results, RunInfo, TrackRow};
 use crate::output::{geojson, gpkg, png, viewer};
 use crate::search::pipeline::Candidate;
 use crate::track::Track;
@@ -24,6 +25,8 @@ pub struct ResultInput<'a> {
     /// UNIX window of track points to draw.
     pub window: (f64, f64),
     pub spec: Option<&'a LogSpectrogram>,
+    /// Cells inside the calibrated 90% region, and its outlines.
+    pub region: Option<(&'a Inside, &'a [RegionRow])>,
 }
 
 pub const FILES: [&str; 4] = ["result.html", "result.geojson", "result.gpkg", "result.json"];
@@ -55,7 +58,7 @@ pub fn results(inp: &ResultInput<'_>) -> Results {
             score: c.score,
             event_scores: c.events.iter().map(|e| e.z).collect(),
             level: (inp.coarse_step_m / c.cell.step_m.max(1)).max(1).ilog2() as u8,
-            in_cr90: false,
+            in_cr90: inp.region.is_some_and(|r| r.0.0.contains(&c.cell)),
         })
         .collect();
     let picked: Vec<&Candidate> = inp.ranked.first().into_iter().chain(rep.alternatives.iter().map(|a| &inp.ranked[a.rank])).collect();
@@ -113,7 +116,7 @@ pub fn results(inp: &ResultInput<'_>) -> Results {
         candidates,
         tracks,
         events,
-        regions: Vec::new(),
+        regions: inp.region.map_or_else(Vec::new, |r| r.1.to_vec()),
     }
 }
 

@@ -5,10 +5,12 @@ use std::collections::HashMap;
 use super::pipeline::Candidate;
 use crate::geo::albers::{self, Cell};
 
-/// z-units per e-fold of likelihood. Scores are matched-filter z over overlapping, clipped frames, and CV
-/// model error moves them by several z, so the textbook exp(z²/2) is wildly over-confident. 3 z is the
-/// scale the search already treats as one unit of evidence (`AssocParams::silence_penalty`).
-pub const DEFAULT_TEMPERATURE: f64 = 3.0;
+/// z-units per e-fold of likelihood, fitted by log score (`search::calibration`). Scores are matched-filter
+/// z over overlapping, clipped frames and CV model error moves them by several z, so exp(z²/2) is wildly
+/// over-confident; the fit replaced the hand-set 3 z on 2026-11-03.
+pub fn default_temperature() -> f64 {
+    super::calibration::get().temperature
+}
 
 /// Score of the finest scored cell containing each (lat, lon); NaN where no level scored a cell there.
 pub fn finest_score_at(ranked: &[Candidate], points: &[(f64, f64)]) -> Vec<f64> {
@@ -31,19 +33,23 @@ pub fn relative_likelihood(scores: &[f64], temperature: f64) -> Vec<f64> {
     scores.iter().map(|&s| if s.is_finite() { ((s - top) / temperature).exp() } else { 0.0 }).collect()
 }
 
-/// Level L such that samples with likelihood ≥ L hold `mass` of the total (samples are equal-area).
-pub fn hpd_level(likelihood: &[f64], mass: f64) -> f64 {
-    let mut v: Vec<f64> = likelihood.iter().copied().filter(|l| *l > 0.0).collect();
-    v.sort_unstable_by(|a, b| b.total_cmp(a));
-    let total: f64 = v.iter().sum();
+/// Density level L such that samples with density ≥ L hold `mass` of the total, sample i covering
+/// `area[i]` (any unit; `&[]` = equal areas). Densities, not per-sample masses: a 200 m cell and a 25 m
+/// cell at the same density rank together.
+pub fn hpd_level(density: &[f64], area: &[f64], mass: f64) -> f64 {
+    assert!(area.is_empty() || area.len() == density.len(), "one area per sample");
+    let a = |i: usize| if area.is_empty() { 1.0 } else { area[i] };
+    let mut idx: Vec<usize> = (0..density.len()).filter(|&i| density[i] > 0.0 && a(i) > 0.0).collect();
+    idx.sort_unstable_by(|&x, &y| density[y].total_cmp(&density[x]));
+    let total: f64 = idx.iter().map(|&i| density[i] * a(i)).sum();
     let mut acc = 0.0;
-    for l in &v {
-        acc += l;
+    for &i in &idx {
+        acc += density[i] * a(i);
         if acc >= mass * total {
-            return *l;
+            return density[i];
         }
     }
-    v.last().copied().unwrap_or(0.0)
+    idx.last().map_or(0.0, |&i| density[i])
 }
 
 #[cfg(test)]
@@ -90,8 +96,16 @@ mod tests {
     #[test]
     fn hpd_level_covers_requested_mass() {
         let l = [0.5, 0.3, 0.1, 0.1];
-        assert_eq!(hpd_level(&l, 0.5), 0.5);
-        assert_eq!(hpd_level(&l, 0.8), 0.3);
-        assert_eq!(hpd_level(&l, 0.95), 0.1);
+        assert_eq!(hpd_level(&l, &[], 0.5), 0.5);
+        assert_eq!(hpd_level(&l, &[], 0.8), 0.3);
+        assert_eq!(hpd_level(&l, &[], 0.95), 0.1);
+    }
+
+    #[test]
+    fn hpd_level_weights_by_area() {
+        // A coarse cell at lower density outweighs a small peak: 0.9 of the mass needs both.
+        let (d, a) = ([4.0, 1.0], [1.0, 16.0]);
+        assert_eq!(hpd_level(&d, &a, 0.15), 4.0);
+        assert_eq!(hpd_level(&d, &a, 0.5), 1.0);
     }
 }

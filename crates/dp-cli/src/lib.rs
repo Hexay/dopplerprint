@@ -34,6 +34,8 @@ enum Command {
     Eval(cmd::eval::Args),
     /// Paired per-case comparison of two eval runs (B − A) with bootstrap CIs.
     Compare(cmd::compare::Args),
+    /// Fit posterior temperature and conformal region levels from eval runs; score them on held-out runs.
+    Calibrate(cmd::calibrate::Args),
     /// Detect mains hum: grid, ENF trace, sample-rate check, dropouts.
     Hum(cmd::hum::Args),
 }
@@ -61,6 +63,7 @@ where
         Command::Sim(a) => cmd::sim::run(a).map(|_| 0),
         Command::Eval(a) => cmd::eval::run(a).map(|_| 0),
         Command::Compare(a) => cmd::compare::run(a).map(|_| 0),
+        Command::Calibrate(a) => cmd::calibrate::run(a).map(|_| 0),
         Command::Hum(a) => cmd::hum::run(a).map(|_| 0),
     };
     done.unwrap_or_else(|e| {
