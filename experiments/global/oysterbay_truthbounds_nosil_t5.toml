@@ -1,0 +1,16 @@
+# oysterbay_truthbounds_t5 with the flat silence penalty off: does the national answer flip to truth
+# once busy airspace stops counting against it?
+[eval]
+cases = ["oysterbay"]
+region_mode = "global"
+global_truth_bounds = true
+time_prior_s = 5.0
+oracle_events = true
+
+[search]
+coarse_step_m = 200
+min_step_m = 25
+keep_top = 200
+
+[search.assoc]
+silence_penalty = 0.0

@@ -10,6 +10,7 @@ use crate::adsb::manifest::list_days;
 use crate::audio::spectrogram::log_spectrogram;
 use crate::config::Config;
 use crate::events::{DiscoverConfig, discover_audio};
+use crate::geo::{Geodetic, geodetic_to_ecef};
 use crate::search::EventSpec;
 use crate::search::global::{GlobalInput, GlobalResult, RegionProposal, StoreSource, locate_global};
 use crate::search::Scorer;
@@ -55,7 +56,11 @@ fn try_run(cfg: &Config, c: &Posed) -> anyhow::Result<CaseResult> {
     let shift = if sim { day_shift(&e.store_dir, c.t_start_true)? } else { 0.0 };
     let extra: Vec<Track> = if sim { c.tracks.iter().map(|t| shifted(t, shift)).collect() } else { Vec::new() };
     let t0 = c.t_start_true + shift;
-    let events = if !sim && e.global_fit_events { refit(c) } else { c.events.clone() };
+    let events = match (sim, e.global_truth_bounds, e.global_fit_events) {
+        (false, true, _) => truth_bounds(c),
+        (false, false, true) => refit(c),
+        _ => c.events.clone(),
+    };
     let plane = ScoringPlane::new(&log_spectrogram(&c.audio, &cfg.spec), &cfg.search.score);
     let scorer = Scorer::new(&plane, cfg.search.backend)?;
     let source = StoreSource { store: e.store_dir.clone(), extra };
@@ -136,6 +141,34 @@ fn shifted(t: &Track, dt: f64) -> Track {
     let mut t = t.clone();
     t.points.iter_mut().for_each(|p| p.t += dt);
     t
+}
+
+/// Oracle events with `pose_sim`'s bound widths around the truth flight's slant range and speed at its
+/// closest approach (±120 s of the oracle CPA). Events without a truth flight keep their oracle bounds.
+fn truth_bounds(c: &Posed) -> Vec<EventSpec> {
+    let h = c.truth_h_ell.or_else(|| c.dem.as_ref()?.height_ellipsoid_latlon(c.truth_lat, c.truth_lon)).unwrap_or(0.0);
+    let obs = geodetic_to_ecef(Geodetic { lat_deg: c.truth_lat, lon_deg: c.truth_lon, h_ell_m: h });
+    let t_cpa = |o: &EventSpec| c.t_start_true + o.t_cpa_audio;
+    c.events
+        .iter()
+        .zip(&c.truth_flights)
+        .map(|(o, f)| {
+            let cpa = f.as_ref().and_then(|f| {
+                c.tracks
+                    .iter()
+                    .filter(|t| format!("{:06x}", t.icao24) == *f)
+                    .flat_map(|t| &t.points)
+                    .filter(|p| (p.t - t_cpa(o)).abs() <= 120.0)
+                    .map(|p| ((p.pos - obs).norm(), p.vel.norm()))
+                    .min_by(|a, b| a.0.total_cmp(&b.0))
+            });
+            eprintln!("{} truth bounds: flight {f:?} cpa (d m, v m/s) {cpa:?}", c.id);
+            match cpa {
+                Some((d, v)) => EventSpec { d_range: (d * 0.6, d * 1.6), v_range: (v * 0.75, v * 1.3), ..o.clone() },
+                None => o.clone(),
+            }
+        })
+        .collect()
 }
 
 /// Oracle events with d/v bounds from the discovered event whose CPA is nearest (within 15 s).

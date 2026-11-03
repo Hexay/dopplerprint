@@ -62,6 +62,8 @@ pub struct EvalParams {
     /// Global mode, real cases: replace oracle d/v bounds with the CV fit of the discovered event
     /// nearest each oracle CPA (oracle bounds are too wide to localise nationally).
     pub global_fit_events: bool,
+    /// Global mode, real cases: sim-width d/v bounds around the truth flight's CPA (diagnostic ceiling).
+    pub global_truth_bounds: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -99,6 +101,7 @@ impl Default for EvalParams {
             nuisance_wind_en: Vec::new(),
             region_mode: RegionMode::Given,
             global_fit_events: false,
+            global_truth_bounds: false,
         }
     }
 }

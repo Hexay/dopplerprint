@@ -1,0 +1,13 @@
+# oysterbay_oracle_t5 with sim-width d/v bounds around the truth flights' CPA: is the national search
+# limited by bounds quality or by something else? See docs/research/global_search_2026-11-03.md.
+[eval]
+cases = ["oysterbay"]
+region_mode = "global"
+global_truth_bounds = true
+time_prior_s = 5.0
+oracle_events = true
+
+[search]
+coarse_step_m = 200
+min_step_m = 25
+keep_top = 200
