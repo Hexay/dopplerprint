@@ -61,6 +61,7 @@ pub fn pose(dir: &Path, truth: &Value, p: &EvalParams) -> Result<Posed> {
         truth_flights: vec![Some(format!("{icao:06x}"))],
         tracks,
         dem,
+        sim_atmosphere: None,
     })
 }
 

@@ -99,7 +99,7 @@ fn sim_ridge_matches_doppler_factors_in_wind() {
         let k = dp_core::physics::doppler_factors(&t.tracks[0], t.observer.mic_ecef, &times, &atm);
         near.iter().zip(&k).map(|(&(_, f), &ki)| (f - F0 * ki).abs()).fold(0.0, f64::max)
     };
-    let (windy, still) = (worst(Atmosphere { c: C, wind: t.wind_ecef }), worst(Atmosphere { c: C, wind: Vec3::ZERO }));
+    let (windy, still) = (worst(Atmosphere::uniform(C, t.wind_ecef)), worst(Atmosphere::uniform(C, Vec3::ZERO)));
     eprintln!("sim vs doppler_factors: worst {windy:.4} Hz with wind, {still:.4} Hz ignoring it");
     assert!(windy < 0.1 && still > 3.0 * windy);
 }
@@ -109,7 +109,7 @@ fn sim_truth_cpa_matches_physics_cpa() {
     for wind in [[0.0; 3], [6.0, -3.0, 0.0]] {
         let r = sim::render_toml(&scenario(wind, "[ground]\nreflection = 0.8", "[1.0, 0.5]")).unwrap();
         let t = &r.truth;
-        let atm = Atmosphere { c: t.c, wind: t.wind_ecef };
+        let atm = Atmosphere::uniform(t.c, t.wind_ecef);
         let c = cpa(&t.tracks[0], t.observer.mic_ecef, &atm).unwrap();
         let e = &t.events[0];
         assert!((c.t_arrive - e.cpa_arrival_unix).abs() < 1e-3, "{} vs {}", c.t_arrive, e.cpa_arrival_unix);

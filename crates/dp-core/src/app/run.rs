@@ -12,6 +12,7 @@ use super::place::Area;
 use super::report::{Clock, MIN_EVENT_Z, Report, Status, alternatives, location, matched};
 use super::results::{self, ResultInput};
 use super::ui::Ui;
+use super::weather::{describe_used, model_atmosphere};
 use super::when::{fmt_utc, StartPrior};
 use super::{LocateRequest, NeedsInput};
 use crate::adsb::{self, TrackQuery};
@@ -83,7 +84,10 @@ fn steps(req: &LocateRequest, ui: &dyn Ui, rep: &mut Report, started: Instant) -
 
     let (dem, terrain_note) = terrain(req, &cache, &area)?;
     rep.terrain = terrain_note;
-    let p = search_params(&cfg, &prior, &area);
+    let mut p = search_params(&cfg, &prior, &area);
+    let air = model_atmosphere(req, &cache, &area, dem.as_ref(), prior.nominal + 0.5 * rep.duration_s, p.atmosphere, ui);
+    p.atmosphere = air.atmosphere;
+    rep.air = air.source.clone();
     ui.step("search", 0.5, &format!(
         "Matching {} pass{} against {} flights within {:.0} km of {}...",
         events.len(),
@@ -108,6 +112,7 @@ fn steps(req: &LocateRequest, ui: &dyn Ui, rep: &mut Report, started: Instant) -
     };
 
     rep.location = Some(location(best));
+    rep.air = describe_used(&air, best, &tracks, dem.as_ref());
     let (alts, conf) = alternatives(&res.ranked);
     (rep.alternatives, rep.confidence) = (alts, Some(conf));
     let icaos: Vec<u32> = tracks.iter().filter(|t| best.track_ids.contains(&t.id)).map(|t| t.icao24).collect();

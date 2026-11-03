@@ -46,6 +46,9 @@ pub struct Args {
     /// Keep the raw adsb.lol archives after processing.
     #[arg(long, help_heading = "Data")]
     pub keep_raw: bool,
+    /// Search in still air instead of archived winds aloft and temperature (Open-Meteo).
+    #[arg(long, help_heading = "Data")]
+    pub no_weather: bool,
     /// Ground model (dp-dem-u16 .u16 file); default: one in <cache>/dem, else flat ground.
     #[arg(long, value_name = "FILE", help_heading = "Advanced")]
     pub dem: Option<PathBuf>,
@@ -73,6 +76,7 @@ pub fn run(a: Args) -> anyhow::Result<u8> {
         mains_hz: a.mains,
         config: a.config,
         offline: a.offline,
+        no_weather: a.no_weather,
         yes: a.yes,
         keep_raw: a.keep_raw,
         max_cache_gb: a.max_cache_gb,

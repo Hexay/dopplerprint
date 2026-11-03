@@ -39,7 +39,10 @@ pub struct EvalParams {
     /// Posterior temperature β and uniform floor ε for log score / 90% region (see `eval::metrics`).
     pub posterior_beta: f64,
     pub posterior_floor: f64,
-    /// Wind added to `search.atmosphere` per case, in the case's local frame (see `eval::atmosphere`).
+    /// Where each case's model atmosphere starts: `search.atmosphere`, archived weather (corpus cases) or
+    /// the sim's own truth (sim cases). See `eval::atmosphere`.
+    pub weather: crate::eval::atmosphere::WeatherSource,
+    /// Wind added to that atmosphere per case, in the case's local frame (see `eval::atmosphere`).
     pub wind_enu_mps: [f64; 3],
     /// Along/cross the truth flight's ground track (oracle direction: sensitivity probes only).
     pub wind_along_track_mps: f64,
@@ -47,6 +50,8 @@ pub struct EvalParams {
     /// Shared-nuisance profile grid: sound speeds (m/s) × horizontal winds [east, north] (m/s).
     /// Empty = the single model atmosphere. See `eval::nuisance`.
     pub nuisance_c: Vec<f64>,
+    /// Like `nuisance_c` but offsets from the case's c (e.g. a grid centred on archived weather).
+    pub nuisance_dc: Vec<f64>,
     pub nuisance_wind_en: Vec<[f64; 2]>,
 }
 
@@ -70,7 +75,9 @@ impl Default for EvalParams {
             wind_enu_mps: [0.0; 3],
             wind_along_track_mps: 0.0,
             wind_cross_track_mps: 0.0,
+            weather: Default::default(),
             nuisance_c: Vec::new(),
+            nuisance_dc: Vec::new(),
             nuisance_wind_en: Vec::new(),
         }
     }

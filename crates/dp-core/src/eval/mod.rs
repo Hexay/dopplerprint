@@ -48,6 +48,9 @@ pub struct CaseResult {
     /// Model atmosphere of the best candidate (the chosen grid point when a nuisance grid ran).
     #[serde(default)]
     pub atmosphere: Option<Atmosphere>,
+    /// Where the atmosphere came from when `eval.weather` is set (see `eval::atmosphere::sourced`).
+    #[serde(default)]
+    pub weather: Option<String>,
     pub best: Option<Candidate>,
     pub tuples: Vec<Candidate>,
 }
@@ -75,7 +78,9 @@ fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
     let e = &cfg.eval;
     p.assoc.t_start_prior = (c.t_start_true - e.time_prior_s, c.t_start_true + e.time_prior_s);
     p.flat_h_ell_m = c.truth_h_ell.unwrap_or_else(|| geoid_undulation(c.truth_lat, c.truth_lon));
-    p.atmosphere = atmosphere::case_atmosphere(p.atmosphere, c, e);
+    let region = displaced_region(c, e.region_offset_m, e.region_radius_m);
+    let (base, weather) = atmosphere::sourced(p.atmosphere, c, e, &region);
+    p.atmosphere = atmosphere::case_atmosphere(base, c, e);
     let variants = nuisance::variants(&p, c, e);
     // Not search::locate: the truth metrics need the plane and catalogue the search used.
     let plane = ScoringPlane::new(&log_spectrogram(&c.audio, &cfg.spec), &p.score);
@@ -84,7 +89,7 @@ fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
         plane: &plane,
         events: &c.events,
         catalog: &catalog,
-        region: displaced_region(c, e.region_offset_m, e.region_radius_m),
+        region,
         duration_s: c.audio.duration_s(),
         dem: c.dem.as_ref(),
     };
@@ -113,6 +118,7 @@ fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
         runtime_s: 0.0,
         metrics: metrics::measure(&inp, &variants, &res, &truth, pp),
         atmosphere: Some(variants[chosen].atmosphere),
+        weather,
         best,
         tuples: tuples.into_iter().take(10).collect(),
     }

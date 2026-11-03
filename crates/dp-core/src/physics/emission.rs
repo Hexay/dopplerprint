@@ -1,7 +1,8 @@
 //! Retarded-time Newton solve in the moving-air frame: |obs − p(τ) − w·(t−τ)| = c·(t−τ).
 //! Derivation of the residual, its derivative and the Doppler factor: see docs/PHYSICS.md §1–2.
+//! With a height column, c and w are those of the layer between the observer and p(τ) (§4a).
 
-use super::{Atmosphere, Emission};
+use super::{Atmosphere, Emission, Medium};
 use crate::geo::Vec3;
 use crate::track::Track;
 
@@ -20,32 +21,35 @@ struct Eval {
     pos: Vec3,
     vel: Vec3,
     k_hat: Vec3,
+    medium: Medium,
 }
 
 fn eval(track: &Track, obs: Vec3, t_obs: f64, atm: &Atmosphere, tau: f64) -> Option<Eval> {
     let s = track.state_at(tau)?;
-    let d = obs - s.pos - atm.wind * (t_obs - tau);
+    let m = atm.medium(obs, s.pos);
+    let d = obs - s.pos - m.wind * (t_obs - tau);
     let r = d.norm();
     let k_hat = d * (1.0 / r);
     Some(Eval {
-        g: (tau - t_obs) + r / atm.c,
-        dg: 1.0 + k_hat.dot(atm.wind - s.vel) / atm.c,
+        g: (tau - t_obs) + r / m.c,
+        dg: 1.0 + k_hat.dot(m.wind - s.vel) / m.c,
         pos: s.pos,
         vel: s.vel,
         k_hat,
+        medium: m,
     })
 }
 
 /// Received/emitted frequency ratio for ground velocity `vel`, air-frame wave normal `k_hat`.
-pub fn factor(vel: Vec3, k_hat: Vec3, atm: &Atmosphere) -> f64 {
-    let c_eff = atm.c + atm.wind.dot(k_hat);
+pub fn factor(vel: Vec3, k_hat: Vec3, m: &Medium) -> f64 {
+    let c_eff = m.c + m.wind.dot(k_hat);
     c_eff / (c_eff - vel.dot(k_hat))
 }
 
 /// Straight-line delay estimate from the position at `t_obs` (clamped into the track).
 pub fn cold_guess(track: &Track, obs: Vec3, t_obs: f64, atm: &Atmosphere) -> Option<f64> {
     let p = track.state_at(t_obs.clamp(track.t_start(), track.t_end()))?.pos;
-    Some(t_obs - (obs - p).norm() / atm.c)
+    Some(t_obs - (obs - p).norm() / atm.medium(obs, p).c)
 }
 
 /// Newton from `tau_guess`; returns the emission and the number of Newton updates taken.
@@ -68,7 +72,7 @@ pub fn emission_iters(
                 pos: e.pos,
                 vel: e.vel,
                 range_m: (obs - e.pos).norm(),
-                factor: factor(e.vel, e.k_hat, atm),
+                factor: factor(e.vel, e.k_hat, &e.medium),
             };
             return Some((em, it));
         }

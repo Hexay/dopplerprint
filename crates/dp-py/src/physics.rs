@@ -49,7 +49,7 @@ fn vec3(a: &PyReadonlyArray1<'_, f64>) -> PyResult<Vec3> {
 }
 
 fn atmosphere(c: f64, wind: Option<PyReadonlyArray1<'_, f64>>) -> PyResult<Atmosphere> {
-    Ok(Atmosphere { c, wind: wind.as_ref().map(vec3).transpose()?.unwrap_or(Vec3::ZERO) })
+    Ok(Atmosphere::uniform(c, wind.as_ref().map(vec3).transpose()?.unwrap_or(Vec3::ZERO)))
 }
 
 fn engine_class(s: &str) -> PyResult<EngineClass> {

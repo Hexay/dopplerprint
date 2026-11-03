@@ -38,6 +38,10 @@ impl Cache {
         self.root.join("dem")
     }
 
+    pub fn weather_dir(&self) -> PathBuf {
+        self.root.join("weather")
+    }
+
     pub fn geocode_file(&self) -> PathBuf {
         self.root.join("geocode.json")
     }

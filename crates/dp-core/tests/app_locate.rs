@@ -32,11 +32,25 @@ fn locates_synthetic_flyover_offline() {
     let ac = &rep.aircraft[0];
     assert_eq!((ac.icao24.as_str(), ac.registration.as_deref(), ac.type_code.as_deref()), ("a03a42", Some("N1134F"), Some("C172")));
     assert!(rep.terrain.contains("flat ground"));
+    assert!(rep.air.starts_with("still air, c 343.0 m/s (offline"), "{}", rep.air);
     for f in &rep.files {
         assert!(std::fs::metadata(f).is_ok_and(|m| m.len() > 0), "{f}");
     }
     let json: serde_json::Value = serde_json::from_slice(&std::fs::read(out.join("result.json")).unwrap()).unwrap();
     assert_eq!(json["status"], "found");
+
+    // Cached archive weather (the Livermore fixture moved to this hour) is used offline and reported.
+    let (lat, lon) = (format!("{:.4}", obs.0 + 0.006).parse().unwrap(), format!("{:.4}", obs.1 - 0.004).parse().unwrap());
+    let h0 = (T_MID / 3600.0).floor() * 3600.0 - 3600.0;
+    let mut wx: serde_json::Value = serde_json::from_str(include_str!("../src/weather/fixture_livermore.json")).unwrap();
+    wx["hourly"]["time"] = serde_json::json!([h0, h0 + 3600.0, h0 + 7200.0]);
+    let file = dp_core::weather::openmeteo::cache_file(&cache.join("weather"), lat, lon, &civil_date(T_MID));
+    std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+    std::fs::write(&file, wx.to_string()).unwrap();
+    let rep = app::locate(&req, &QuietUi).unwrap();
+    assert!(rep.air.contains("averaged 0–") && rep.air.contains("Open-Meteo"), "{}", rep.air);
+    let loc = rep.location.as_ref().unwrap();
+    assert!(distance_m(loc.lat, loc.lon, obs.0, obs.1) < 400.0);
 }
 
 #[test]
