@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use super::chain::ChainTruth;
 use super::scenario::{Aircraft, Scenario};
 use super::trajectory::Frame;
 use crate::geo::Vec3;
@@ -21,6 +22,9 @@ pub struct Truth {
     pub events: Vec<TruthEvent>,
     /// Tracks in UNIX seconds, same schema as `adsb::load_tracks` output.
     pub tracks: Vec<Track>,
+    /// Recording-chain ground truth (ENF trace, lines, wind gusts, applied source drift); absent without `[chain]`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chain: Option<ChainTruth>,
 }
 
 impl Truth {

@@ -1,8 +1,9 @@
-//! Deterministic RNG, calibrated coloured background, mains hum and device colouring.
+//! Deterministic RNG, calibrated coloured background and the legacy single-tone mains hum.
+//! Realistic hum, lines, wind and the device chain live in `sim::chain`.
 
-use std::f64::consts::{PI, TAU};
+use std::f64::consts::TAU;
 
-use super::scenario::{Device, Noise};
+use super::scenario::Noise;
 
 /// SplitMix64: tiny, seedable, good enough for synthetic noise.
 #[derive(Clone, Debug)]
@@ -48,6 +49,13 @@ pub fn background(n: usize, fs: f64, p: &Noise, rng: &mut Pcg) -> Vec<f64> {
         .collect()
 }
 
+/// White noise with one-sided PSD `snr_db − level_db` below an amplitude-1 tone in 1 Hz (sensor self-noise).
+pub fn white(n: usize, fs: f64, snr_db: f64, level_db: f64, rng: &mut Pcg) -> Vec<f64> {
+    let psd = 0.5 / 10f64.powf((snr_db - level_db) / 10.0);
+    let sigma = (psd * fs / 2.0).sqrt();
+    (0..n).map(|_| sigma * rng.gauss()).collect()
+}
+
 /// Mains hum at `hum_hz` plus its 3rd harmonic 6 dB down.
 pub fn add_hum(buf: &mut [f64], fs: f64, p: &Noise) {
     let Some(f) = p.hum_hz else { return };
@@ -56,32 +64,4 @@ pub fn add_hum(buf: &mut [f64], fs: f64, p: &Noise) {
         let t = i as f64 / fs;
         *x += a * ((TAU * f * t).sin() + 0.5 * (TAU * 3.0 * f * t + 0.3).sin());
     }
-}
-
-/// 2nd-order Butterworth high-pass (RBJ biquad).
-pub fn highpass(buf: &mut [f64], fs: f64, fc: f64) {
-    let w0 = 2.0 * PI * fc / fs;
-    let alpha = w0.sin() / (2.0 * std::f64::consts::FRAC_1_SQRT_2);
-    let cw = w0.cos();
-    let a0 = 1.0 + alpha;
-    let (b0, b1, b2) = ((1.0 + cw) / 2.0 / a0, -(1.0 + cw) / a0, (1.0 + cw) / 2.0 / a0);
-    let (a1, a2) = (-2.0 * cw / a0, (1.0 - alpha) / a0);
-    let (mut x1, mut x2, mut y1, mut y2) = (0.0, 0.0, 0.0, 0.0);
-    for x in buf.iter_mut() {
-        let y = b0 * *x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
-        (x2, x1, y2, y1) = (x1, *x, y1, y);
-        *x = y;
-    }
-}
-
-/// Optional high-pass, normalise to `peak_dbfs`, apply `gain_db`, hard-clip. Returns samples and the
-/// overall linear scale applied to the physical mix.
-pub fn apply_device(mut buf: Vec<f64>, fs: f64, d: &Device) -> (Vec<f32>, f64) {
-    if let Some(fc) = d.highpass_hz {
-        highpass(&mut buf, fs, fc);
-    }
-    let peak = buf.iter().fold(0.0_f64, |m, x| m.max(x.abs()));
-    let scale = if peak > 0.0 { 10f64.powf((d.peak_dbfs + d.gain_db) / 20.0) / peak } else { 1.0 };
-    let out = buf.iter().map(|x| (x * scale).clamp(-1.0, 1.0) as f32).collect();
-    (out, scale)
 }

@@ -3,6 +3,7 @@
 
 use rayon::prelude::*;
 
+use super::chain::modulation::DelayJitter;
 use super::source::{Tone, absorption_db_per_km};
 use crate::geo::Vec3;
 use crate::track::Track;
@@ -21,6 +22,8 @@ pub struct Path<'a> {
     pub gain: f64,
     pub c: f64,
     pub wind: Vec3,
+    /// Turbulent excess delay (ground-reflection coherence loss); `None` = rigid, coherent path.
+    pub jitter: Option<&'a DelayJitter>,
 }
 
 /// Position with linear extrapolation past the ends, so the fixed point always has a solution.
@@ -68,9 +71,10 @@ fn envelope(track: &Track, tau: f64) -> f64 {
 
 /// Adds this path's harmonic series to `out` (sample i at audio time i/fs).
 pub fn render_path(p: &Path, fs: f64, out: &mut [f64]) {
-    let nepers: Vec<f64> = (1..=p.tone.harmonics.len())
-        .map(|k| absorption_db_per_km(k as f64 * p.tone.f0_at(0.0)) * std::f64::consts::LN_10 / 20_000.0)
-        .collect();
+    let f_ref = p.tone.f0_at(0.0);
+    let neper = |f: f64| absorption_db_per_km(f) * std::f64::consts::LN_10 / 20_000.0;
+    let nepers: Vec<f64> = (1..=p.tone.harmonics.len()).map(|k| neper(k as f64 * f_ref)).collect();
+    let n_harm = p.tone.harmonics.len();
     out.par_chunks_mut(CHUNK).enumerate().for_each(|(ci, chunk)| {
         let mut hist: Option<(f64, f64)> = None;
         for (j, y) in chunk.iter_mut().enumerate() {
@@ -87,15 +91,23 @@ pub fn render_path(p: &Path, fs: f64, out: &mut [f64]) {
             }
             let phase = p.tone.phase(tau);
             let spread = p.gain * env * 1000.0 / r.max(1.0);
-            *y += p
+            let jit = |f: f64| p.jitter.map_or(0.0, |j| j.phase(f, t));
+            let mut sum = p
                 .tone
                 .harmonics
                 .iter()
                 .zip(&nepers)
                 .enumerate()
-                .map(|(k, (&(amp, th), &np))| amp * (-np * r).exp() * ((k + 1) as f64 * phase + th).sin())
-                .sum::<f64>()
-                * spread;
+                .map(|(k, (&(amp, th), &np))| {
+                    let kf = (k + 1) as f64;
+                    amp * p.tone.am.gain(k, tau) * (-np * r).exp() * (kf * phase + th + jit(kf * f_ref)).sin()
+                })
+                .sum::<f64>();
+            if let Some((amp, th)) = p.tone.half {
+                let g = p.tone.am.gain(n_harm, tau) * (-neper(0.5 * f_ref) * r).exp();
+                sum += amp * g * (0.5 * phase + th + jit(0.5 * f_ref)).sin();
+            }
+            *y += sum * spread;
         }
     });
 }
