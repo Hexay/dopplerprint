@@ -10,8 +10,40 @@ leaves a Doppler-shifted tone in the spectrogram; dopplerprint matches those cur
 ADS-B trajectories and searches the ground for the point that would have heard every one of them, at the
 right time and pitch, and heard nothing that it didn't.
 
-**Status: pre-alpha research code.** The pipeline runs end to end through the evaluation harness; there is
-no stable user-facing `locate` command or API yet. Accuracy figures live in `runs/` reports, not here.
+**Status: pre-alpha research code.** `dopplerprint locate` runs the whole pipeline on your own recording;
+expect rough edges, the contiguous US only, and no accuracy guarantees. Accuracy figures live in `runs/`
+reports, not here.
+
+## Quick start
+
+```bash
+pip install dopplerprint
+dopplerprint locate recording.mp3 --start "2026-05-14 10:02 -07:00" --near "Livermore, CA"
+```
+
+Give it the local time the recording started (with its UTC offset; add `"±10m"` if unsure) and roughly
+where (a place name, `lat,lon`, or a box). It finds the aircraft passes in the audio, downloads that day's
+ADS-B once (~3.5 GB, after asking; cached in `~/.cache/dopplerprint`), and prints something like:
+
+```
+dopplerprint · recording.mp3 (4 min 12 s, 1 aircraft pass)
+
+Found:       37.68291, -121.76840
+             https://www.openstreetmap.org/?mlat=37.68291&mlon=-121.76840#map=15/37.68291/-121.76840
+Confidence:  low, the next spot (mirror solution 1.1 km NE) scores 1.3 lower (score 38.2)
+Aircraft:
+  pass 1 at 2:07 in the audio   N9658K PA28 piston   closest 2026-05-14 17:04:19 UTC   tone 81 Hz   match z 38.2
+Clock:       recording started 2026-05-14 17:02:12 UTC (12 s after the time you gave)
+Searched:    10 km around Livermore, CA (37.6819, -121.7680)
+Terrain:     flat ground at the local geoid height (no DEM in the cache)
+Wrote:       dopplerprint-results/recording/  result.html  result.geojson  result.gpkg  result.json
+```
+
+(Illustrative output.) Open `result.html` for the score heatmap, the tracks and the spectrogram; load
+`result.gpkg` in QGIS. One pass can't tell the two sides of its track apart, so a lone flyover usually comes
+with a mirror solution; a second aircraft in the same recording settles it. Flags, the cache, confidence
+levels and exit codes: `dopplerprint locate --help` and `docs/USAGE.md`. From Python:
+`dopplerprint.locate("recording.mp3", start=..., near=..., yes=True)` returns the same report as a dict.
 
 ## Responsible use
 
@@ -36,28 +68,14 @@ Details: `docs/ARCHITECTURE.md`, `docs/PHYSICS.md`, `docs/AUDIO.md`, `docs/DATA.
 | Path | Contents |
 |---|---|
 | `crates/dp-core` | All computation (Rust). |
-| `crates/dp-cli` | `doppler-print` binary: `ingest`, `tracks`, `discover`, `sim`, `eval`. |
-| `crates/dp-py` | `dopplerprint._core` Python bindings (PyO3, abi3, numpy). |
-| `python/dopplerprint` | Offline prep (DEM, geoid) and the QGIS Processing plugin. |
+| `crates/dp-cli` | `dopplerprint` command: `locate`, plus `ingest`, `tracks`, `discover`, `sim`, `eval`. |
+| `crates/dp-py` | `dopplerprint._core` Python bindings (PyO3, abi3, numpy), including the CLI entry point. |
+| `python/dopplerprint` | `dopplerprint.locate`, the `dopplerprint` script, offline prep (DEM, geoid) and the QGIS plugin. |
 | `tools/` | Dev runner, corpus fetch, benchmarks. |
 | `experiments/` | One TOML per hypothesis, passed to `eval`. |
 | `docs/research/` | Literature and design research behind the choices above. |
 
-## Quick start
-
-Needs Rust ≥ 1.90 and, for the Python package, Python ≥ 3.11 with [uv](https://docs.astral.sh/uv/).
-
-```bash
-tools/dev.sh check                 # clippy, whole workspace
-tools/dev.sh test [filter]         # dp-core tests (cargo-nextest)
-uv venv && tools/dev.sh py         # build dopplerprint into .venv
-cargo run --release -p dp-cli -- discover recording.wav --out events.json
-```
-
-Real-world evaluation needs the validation corpus (recordings, ADS-B days, DEM), which is not in the repo:
-see `data/MANIFEST.md` and `tools/fetch_corpus.py`, then `tools/dev.sh eval [experiments/x.toml]`.
-
-From PyPI: `pip install dopplerprint`.
+Building from source, the dev loop and the evaluation corpus: `CONTRIBUTING.md`.
 
 ## Data and credits
 
@@ -70,6 +88,8 @@ From PyPI: `pip install dopplerprint`.
   [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/). Test fixtures under
   `crates/dp-core/tests/fixtures/adsb/` and any track store you build from adsb.lol data remain under ODbL.
 - Aircraft types and registry: [tar1090-db](https://github.com/wiedehopf/tar1090-db).
+- Place names: [OpenStreetMap Nominatim](https://nominatim.org/) (data © OpenStreetMap contributors, ODbL),
+  one request per name, cached.
 - Geoid: NGA EGM2008 (public domain), via [PROJ-data](https://cdn.proj.org/) `us_nga_egm08_25.tif`;
   the CONUS crop in `assets/geoid/` is derived from it.
 - Header figure (`tools/readme_figure.py`, case `livermore_N9658K_R24`): audio from Praveen Pathak, Zenodo
