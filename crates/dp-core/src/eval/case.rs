@@ -75,7 +75,7 @@ fn f(v: &Value, k: &str) -> Option<f64> {
     v.get(k).and_then(Value::as_f64)
 }
 
-fn oracle(window: (f64, f64), t_cpa: f64, f0: f64, p: &EvalParams) -> EventSpec {
+pub(super) fn oracle(window: (f64, f64), t_cpa: f64, f0: f64, p: &EvalParams) -> EventSpec {
     EventSpec {
         window,
         t_cpa_audio: t_cpa,
@@ -90,6 +90,9 @@ fn pose_real(dir: &Path, p: &EvalParams) -> Result<Posed> {
     let truth: Value = serde_json::from_slice(&std::fs::read(dir.join("truth.json"))?)?;
     if truth.get("kind").and_then(Value::as_str) != Some("real") {
         bail!("adapter: only real corpus cases are posed (kind != real)");
+    }
+    if super::livermore::is_livermore(&truth) {
+        return super::livermore::pose(dir, &truth, p);
     }
     let t0 = f(&truth, "recording_start_unix").context("needs recording_start_unix")?;
     let date = truth.get("date_utc").and_then(Value::as_str).context("needs date_utc")?.to_string();
@@ -125,13 +128,13 @@ fn pose_real(dir: &Path, p: &EvalParams) -> Result<Posed> {
     })
 }
 
-fn first_file(dir: &Path) -> Result<PathBuf> {
+pub(super) fn first_file(dir: &Path) -> Result<PathBuf> {
     let mut v: Vec<PathBuf> = std::fs::read_dir(dir)?.filter_map(|e| e.ok().map(|e| e.path())).collect();
     v.sort();
     v.into_iter().find(|p| p.is_file()).with_context(|| format!("no audio in {}", dir.display()))
 }
 
-fn load_tracks(p: &EvalParams, date: &str, lat: f64, lon: f64, t0: f64, dur: f64) -> Result<Vec<Track>> {
+pub(super) fn load_tracks(p: &EvalParams, date: &str, lat: f64, lon: f64, t0: f64, dur: f64) -> Result<Vec<Track>> {
     let store = p.store_dir.clone();
     if !store.join(format!("date={date}")).exists() {
         bail!("no ADS-B store for {date} under {} (run dopplerprint ingest)", store.display());

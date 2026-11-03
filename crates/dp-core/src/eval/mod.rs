@@ -2,6 +2,7 @@
 //! Output: runs/<stamp>/summary.{md,json} and one <case>.json per case.
 
 pub mod case;
+pub mod livermore;
 pub mod report;
 
 use std::path::Path;

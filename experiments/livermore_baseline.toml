@@ -1,0 +1,15 @@
+# Baseline for the Livermore single-passage cases (Pathak, Zenodo 23424278). Hypothesis: none; this is
+# the reference every atm_*/nuisance_* experiment is paired against. Primary metric: per-case error_m and
+# log_score. Clock: phone recordings carry UTC, so the start prior is ±2 s (audio start recovered by
+# aligning the published ridge, see eval/livermore.rs). Bounds widened to cover the corpus (R_min 289 m,
+# a 215 m/s jet).
+[eval]
+cases = ["livermore"]
+data_dir = "/srv/agents/work/doppler_print/data"
+store_dir = "/srv/agents/work/doppler_print/data/adsb/store"
+time_prior_s = 2.0
+oracle_d_range = [150.0, 8000.0]
+oracle_v_range = [20.0, 250.0]
+
+[search.score]
+clock_sweep_s = 2.0
