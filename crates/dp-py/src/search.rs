@@ -5,10 +5,12 @@ use dp_core::audio::Audio;
 use dp_core::config::Config;
 use dp_core::dem::{Dem, geoid_undulation};
 use dp_core::events::Event;
-use dp_core::search::{EventSpec, Region, locate};
-use numpy::PyReadonlyArray1;
+use dp_core::search::{EventSpec, Region, SearchResult, likelihood, locate};
+use numpy::ndarray::{ArrayD, IxDyn};
+use numpy::{IntoPyArray, PyArrayDyn, PyReadonlyArray1, PyReadonlyArrayDyn, PyUntypedArrayMethods};
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::PyList;
+use pyo3::types::{PyDict, PyList};
 
 /// Coarse-to-fine search for one recording. `events` are `discover` dicts; tracks come from the ADS-B
 /// `store` for [t0, t1] UNIX s in `bbox` (lat_min, lon_min, lat_max, lon_max). `region` = (lat, lon, radius_m);
@@ -51,11 +53,41 @@ fn search<'py>(
     json.call_method1("loads", (out,))
 }
 
+/// Relative likelihood exp((s − s_max)/T) at each (lat, lon), from the finest scored cell of a `search`
+/// result there (0 where unscored), plus the likelihood level enclosing each of `masses` (highest-density
+/// regions over the given equal-area samples). See dp_core::search::likelihood for the temperature.
+#[pyfunction]
+#[pyo3(signature = (result, lat, lon, temperature=likelihood::DEFAULT_TEMPERATURE, masses=vec![0.5, 0.9]))]
+fn likelihood_grid<'py>(
+    py: Python<'py>,
+    result: &Bound<'py, PyDict>,
+    lat: PyReadonlyArrayDyn<'py, f64>,
+    lon: PyReadonlyArrayDyn<'py, f64>,
+    temperature: f64,
+    masses: Vec<f64>,
+) -> PyResult<(Bound<'py, PyArrayDyn<f64>>, Vec<f64>)> {
+    if lat.shape() != lon.shape() {
+        return Err(PyValueError::new_err("lat and lon must have the same shape"));
+    }
+    let s: String = py.import("json")?.call_method1("dumps", (result,))?.extract()?;
+    let res = SearchResult::from_json(&s)?;
+    let shape = lat.shape().to_vec();
+    let pts: Vec<(f64, f64)> = lat.as_array().iter().zip(lon.as_array().iter()).map(|(a, b)| (*a, *b)).collect();
+    let (lik, levels) = py.detach(|| {
+        let lik = likelihood::relative_likelihood(&likelihood::finest_score_at(&res.ranked, &pts), temperature);
+        let levels = masses.iter().map(|&m| likelihood::hpd_level(&lik, m)).collect::<Vec<_>>();
+        (lik, levels)
+    });
+    let arr = ArrayD::from_shape_vec(IxDyn(&shape), lik).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    Ok((arr.into_pyarray(py), levels))
+}
+
 fn events_from_py(json: &Bound<'_, PyModule>, v: &Bound<'_, PyList>) -> PyResult<Vec<Event>> {
     let s: String = json.call_method1("dumps", (v,))?.extract()?;
     Ok(dp_core::events::events_from_json(&s)?)
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(search, m)?)
+    m.add_function(wrap_pyfunction!(search, m)?)?;
+    m.add_function(wrap_pyfunction!(likelihood_grid, m)?)
 }

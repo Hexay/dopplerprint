@@ -3,6 +3,7 @@
 
 pub mod catalog;
 pub mod hypothesis;
+pub mod likelihood;
 pub mod locate;
 pub mod pipeline;
 pub mod score;

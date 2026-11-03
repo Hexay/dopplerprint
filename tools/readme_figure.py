@@ -17,8 +17,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.collections import PolyCollection
-from matplotlib.colors import LightSource, LinearSegmentedColormap, PowerNorm
+from matplotlib.colors import LightSource, LinearSegmentedColormap
 from matplotlib.ticker import FixedLocator, NullLocator, ScalarFormatter
 from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 
@@ -31,6 +30,7 @@ CACHE = ROOT / "data/_downloads/hero"
 IMAGERY = ("https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/export"
            "?bbox={w},{s},{e},{n}&bboxSR=4326&imageSR=4326&size={px},{px}&format=png&f=image")
 IMAGERY_PX = 1024
+HEAT_PX = 80
 DEFAULT_CASE = "livermore_N9658K_R24"
 REGION_M = 4_000.0
 MAP_PAD_M = 300.0
@@ -45,12 +45,11 @@ LABEL_BOX = dict(boxstyle="round,pad=0.25", fc=SURFACE, ec="none", alpha=0.9)
 
 
 def heat_cmap() -> LinearSegmentedColormap:
-    """YlOrRd with alpha rising from 0, so weak cells let the photo through and hot spots stay opaque."""
-    base = plt.get_cmap("YlOrRd")
+    """Turbo (blue → cyan → yellow → red) with alpha rising from 0, so the photo shows where likelihood is low."""
     u = np.linspace(0, 1, 256)
-    rgba = base(0.15 + 0.85 * u)
-    rgba[:, 3] = np.clip(u * 1.6, 0, 0.9)
-    return LinearSegmentedColormap.from_list("heat_fade", rgba)
+    rgba = plt.get_cmap("turbo")(0.1 + 0.9 * u)
+    rgba[:, 3] = 0.85 * np.clip(u / 0.5, 0, 1)
+    return LinearSegmentedColormap.from_list("turbo_fade", rgba)
 
 
 def unix(iso: str) -> float:
@@ -142,23 +141,15 @@ def draw_background(ax, extent: tuple[float, float, float, float]) -> str:
     return "hillshade"
 
 
-def cell_poly(c: dict) -> np.ndarray:
-    ix, iy, s = c["cell"]["ix"], c["cell"]["iy"], c["cell"]["step_m"]
-    x = np.array([ix, ix + 1, ix + 1, ix], float) * s
-    y = np.array([iy, iy, iy + 1, iy + 1], float) * s
-    la, lo = _core.albers_inverse(x, y)
-    return np.column_stack([lo, la])
-
-
-def draw_heatmap(ax, ranked: list[dict]):
-    """Coarse cells first, refined children on top, so detail shows where the search zoomed in."""
-    cells = sorted(ranked, key=lambda c: -c["cell"]["step_m"])
-    scores = np.array([c["score"] for c in cells])
-    norm = PowerNorm(gamma=2.0, vmin=scores.min(), vmax=scores.max())
-    pc = PolyCollection([cell_poly(c) for c in cells], array=scores, cmap=heat_cmap(), norm=norm,
-                        edgecolors="none", zorder=1, rasterized=True)
-    ax.add_collection(pc)
-    return pc
+def draw_heatmap(ax, res: dict, extent: tuple[float, float, float, float]):
+    """Relative likelihood from dp-core on a ~40 m lon/lat grid; gaussian display resampling softens the
+    jumps where the search's refinement stopped (finer cells next to coarse ones)."""
+    lon = np.linspace(extent[0], extent[1], HEAT_PX)
+    lat = np.linspace(extent[2], extent[3], HEAT_PX)
+    LON, LAT = np.meshgrid(lon, lat)
+    lik, _ = _core.likelihood_grid(res, LAT, LON, masses=[])
+    return ax.imshow(lik, extent=extent, origin="lower", cmap=heat_cmap(), vmin=0, vmax=1,
+                     interpolation="gaussian", interpolation_stage="rgba", zorder=1)
 
 
 def map_extent(ranked: list[dict], lat: float) -> tuple[float, float, float, float]:
@@ -174,15 +165,13 @@ def draw_map(ax, truth: dict, res: dict, tracks: list[dict]):
     lat, lon = truth["lat"], truth["lon"]
     extent = map_extent(res["ranked"], lat)
     bg = draw_background(ax, extent)
-    pc = draw_heatmap(ax, res["ranked"])
+    pc = draw_heatmap(ax, res, extent)
 
     best = res["ranked"][0]
     tr = next(t for t in tracks if t["id"] == best["track_ids"][0])
     ax.plot(tr["lon"], tr["lat"], color=INK, lw=4.0, alpha=0.6, zorder=3, solid_capstyle="round")
     ax.plot(tr["lon"], tr["lat"], color="white", lw=2.0, zorder=4, solid_capstyle="round")
-    ax.scatter([lon], [lat], marker="*", s=300, color="white", edgecolors=INK, linewidths=1.2, zorder=6)
-    ax.annotate("true mic", (lon, lat), xytext=(12, -16), textcoords="offset points", fontsize=10, color=INK,
-                bbox=LABEL_BOX, zorder=7)
+    ax.scatter([lon], [lat], marker="o", s=70, color="white", edgecolors=INK, linewidths=1.8, zorder=6)
     km = 1e3 / (M_PER_DEG * np.cos(np.radians(lat)))
     bar = AnchoredSizeBar(ax.transData, km, "1 km", "lower left", pad=0.25, borderpad=0.6, sep=3, color=INK,
                           size_vertical=(extent[3] - extent[2]) * 0.005, label_top=True, frameon=True,
@@ -205,11 +194,11 @@ def colorbar_below(fig, ax, pc) -> None:
     box = ax.get_position()
     cax = fig.add_axes((box.x0 + box.width * 0.45, box.y0 - 0.075, box.width * 0.55, 0.022))
     cb = fig.colorbar(pc, cax=cax, orientation="horizontal")
-    lo, hi = pc.get_clim()
-    cb.set_ticks([lo, hi], labels=[f"{lo:.0f}", f"{hi:.0f}"])
+    cb.set_ticks([0, 0.5, 1])
     cb.outline.set_visible(False)
     cax.tick_params(colors=INK2, length=0, labelsize=9, pad=2)
-    cax.text(-0.03, 0.5, "search score (z)", transform=cax.transAxes, ha="right", va="center", fontsize=9, color=INK2)
+    cax.text(-0.03, 0.5, "relative likelihood", transform=cax.transAxes, ha="right", va="center", fontsize=9,
+             color=INK2)
 
 
 def style(ax) -> None:

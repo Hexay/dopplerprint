@@ -30,6 +30,9 @@ impl SearchResult {
     pub fn to_json(&self) -> anyhow::Result<String> {
         Ok(serde_json::to_string(self)?)
     }
+    pub fn from_json(s: &str) -> anyhow::Result<Self> {
+        Ok(serde_json::from_str(s)?)
+    }
 }
 
 /// `p.assoc.t_start_prior` and `p.flat_h_ell_m` must already be set by the caller.
