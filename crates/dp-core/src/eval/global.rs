@@ -187,7 +187,7 @@ fn refit(c: &Posed) -> Vec<EventSpec> {
                     d(a).total_cmp(&d(b))
                 });
             match near {
-                Some(f) => EventSpec { d_range: f.fit.d_range, v_range: f.fit.v_range, ..o.clone() },
+                Some(f) => EventSpec { d_range: f.fit.d_range, v_range: f.fit.v_range, kappa_range: f.fit.kappa_range, ..o.clone() },
                 None => o.clone(),
             }
         })

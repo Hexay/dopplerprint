@@ -110,6 +110,30 @@ Oyster Bay CPAs: a1dfeb 6.2 km at 137 m/s, ace391 3.7 km at 102 m/s. All rows ±
 - Fixed: the global eval path never called `SilenceParams::measure_recording`, so likelihood silence
   ran without the high-pass corner.
 
+### Oyster Bay with fitted bounds: solved (κ bounds, top_k 30)
+
+Current discovery fits both events sensibly (the d 10–42 m event-2 fit above came from older
+discovery). The fit now also bounds the CPA curvature κ = v²/d (`CvFit::kappa_range`: covariance +
+window spread, floor ±0.3 ln), and the vote uses `EventSpec::d_range_at(ground speed)` = d_range ∩
+v²/κ per candidate flight. Likelihood silence is the default. `oysterbay_t5.toml` (±5 s):
+
+| build | top_k | prop# / n | answer | error | margin z | rerank s | wall s |
+|---|---|---|---|---|---|---|---|
+| no κ | 10 | 17 / 692 | Denver (wrong) | 2585 km | 6.1 | 306 | 428 |
+| κ | 10 | 19 / 390 | Denver (wrong) | 2585 km | 39.4 | 146 | 238 |
+| no κ | 30 | 17 / 692 | Oyster Bay ✓ | 79 m | 20.9 | — | 466 |
+| **κ (default)** | **30** | 19 / 390 | **Oyster Bay ✓** | **79 m** | **21.6** | — | **329** |
+
+- Fit bounds used: event 1 d 1.5–30 km, v 0.5–343 m/s, κ 0.46–20 (point fit good: v 143, d 6.7 km,
+  κ 3.06 vs truth 137, 6.2 km, 3.02; sub-window refits disagree, so window spread blows every range).
+  Event 2 d 1.1–4.4 km, v 74–111, κ 2.89–5.27 (truth κ 2.87, just outside, by ground vs 3-D speed).
+- The **rerank is the bottleneck**, not the bounds: truth was #17–19, regional score 114 vs 78 for the
+  best rival. top_k 10 → 30 is the fix; κ halves proposals and rerank time. Confident wrong answers at
+  K 10 (margin 39 z) show the margin is only meaningful over regions actually searched.
+- Sim suite at top_k 30 (`sim_t5.toml`): two_props #1, 1 m, margin 22.3 (246 s, was 59 s);
+  manoeuvring_turn now 181 m, correct flight, still ambiguous (margin 1.6; 538 s, was 178 s);
+  faint_single ambiguous. Cost ≈ 3× on the regional stage.
+
 ## What works, what doesn't
 
 - **Works:** ≥ 2 events with honest d/v bounds. Clock agreement across events 920 s apart is very
@@ -139,8 +163,10 @@ Oyster Bay CPAs: a1dfeb 6.2 km at 137 m/s, ace391 3.7 km at 102 m/s. All rows ±
    (or no consistent pair) was found, and N flights across CONUS fit it. Give `--near` (a city or
    state) or a tighter start time, or record longer to catch a second aircraft." List the top 10
    proposals (flight ids, places, quick scores) as candidates.
-4. Next steps, in order: likelihood silence as the default (then refit `search/calibration.toml`);
-   an event fit that rejects unphysical bounds and refits d per candidate flight with its ADS-B speed
-   (pass = Oyster Bay solved nationally without `global_truth_bounds`); closed-form loci + EDT
+4. Done: likelihood silence default; κ bounds + top_k 30 (Oyster Bay solved with fitted bounds).
+   Next steps, in order: a rerank that ranks truth near the top (all supporting flights at
+   vote-cell resolution, with κ refit per flight) so K can shrink again; stable sub-window spread for
+   long, far passes (event 1); use κ in the regional association gate (`hypothesis/soft.rs`; needs a
+   calibration refit); closed-form loci + EDT
    clock-free scoring (methods doc) instead of the lattice; a coarse national DEM (≤ 1 km) for H;
    rerank with all supporting flights at the vote-cell resolution, or skip it when n_max ≥ 2.

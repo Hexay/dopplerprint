@@ -27,6 +27,7 @@ fn pass(id: &str, obs: Vec3, dir: Vec3, offset: Vec3, speed: f64, t_cpa: f64) ->
         v_range: (speed * 0.8, speed * 1.25),
         f0_range: (90.0, 110.0),
         t_cpa_halfwidth_s: 0.0,
+        kappa_range: None,
     };
     (line.track(id), ev)
 }

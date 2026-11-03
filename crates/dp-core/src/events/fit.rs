@@ -3,7 +3,7 @@
 use super::cvlm::{Problem, Th};
 use super::linalg::invert4;
 use super::stats::{lag1_autocorr, median_abs, quantile, seeds};
-use super::window::window_spread;
+use super::window::{Spread, window_spread};
 use super::{CvFit, Ridge};
 use crate::physics::cv::CvParams;
 
@@ -20,6 +20,8 @@ pub struct FitParams {
     pub v_floor: f64,
     /// Minimum d range as a factor: [d/(1+x), d(1+x)]. Curved tracks bias a straight-pass d badly.
     pub d_floor: f64,
+    /// Minimum half-width of the κ = v²/d range in ln units (drift biases d, see matching_mathematical_methods.md).
+    pub kappa_floor_ln: f64,
     pub f0_floor: f64,
     pub t_floor_s: f64,
     pub huber_k: f64,
@@ -35,6 +37,7 @@ impl Default for FitParams {
             c_rel_unc: 0.03,
             v_floor: 0.2,
             d_floor: 1.0,
+            kappa_floor_ln: 0.3,
             f0_floor: 0.01,
             t_floor_s: 3.0,
             huber_k: 1.345,
@@ -67,35 +70,43 @@ pub fn fit_cv_with(ridge: &Ridge, c: f64, p: &FitParams) -> CvFit {
     let best = fits
         .min_by(|a, b| median_abs(&prob.residuals(a)).total_cmp(&median_abs(&prob.residuals(b))))
         .expect("9 seeds");
-    let spread = if p.window_k > 0.0 { window_spread(&prob, &best) } else { (0.0, 0.0, 0.0) };
+    let spread = if p.window_k > 0.0 { window_spread(&prob, &best) } else { Spread::default() };
     bounds(&prob, best, spread, p)
 }
 
 /// Covariance bounds (autocorrelation-inflated), floored and widened by the window spread.
-fn bounds(prob: &Problem, best: Th, spread: (f64, f64, f64), p: &FitParams) -> CvFit {
+fn bounds(prob: &Problem, best: Th, spread: Spread, p: &FitParams) -> CvFit {
     let c = prob.c;
     let r = prob.residuals(&best);
     let s = prob.scale(&r);
     let (a, _) = prob.normal(&best, &r, s);
     let rho = lag1_autocorr(&r).clamp(0.0, 0.98);
     let infl = (1.0 + rho) / (1.0 - rho);
-    let sig: Th = match invert4(a) {
-        Some(inv) => std::array::from_fn(|q| (s * s * inv[q][q] * infl).max(0.0).sqrt()),
+    let [f0, v, d, ta] = best;
+    let cov = invert4(a).map(|inv| inv.map(|row| row.map(|x| s * s * x * infl)));
+    let sig: Th = match cov {
+        Some(m) => std::array::from_fn(|q| m[q][q].max(0.0).sqrt()),
         None => [f64::INFINITY; 4],
     };
+    // ln κ = 2 ln v − ln d: the CPA curvature, far better determined than v or d alone.
+    let sig_ln_kappa = cov.map_or(f64::INFINITY, |m| {
+        (4.0 * m[1][1] / (v * v) + m[2][2] / (d * d) - 4.0 * m[1][2] / (v * d)).max(0.0).sqrt()
+    });
     let inl: Vec<f64> = r.iter().copied().filter(|x| x.abs() <= 3.0 * s).collect();
     let rmse_hz = (inl.iter().map(|x| x * x).sum::<f64>() / inl.len().max(1) as f64).sqrt();
 
-    let [f0, v, d, ta] = best;
     let (k, wk) = (p.sigma_k, p.window_k);
-    let rv = (k * sig[1] / v + p.c_rel_unc).max(p.v_floor).max(wk * spread.0).min(10.0);
-    let rd = (k * sig[2] / d + p.c_rel_unc).max(p.d_floor).max((wk * spread.1).exp() - 1.0).min(100.0);
+    let rv = (k * sig[1] / v + p.c_rel_unc).max(p.v_floor).max(wk * spread.v).min(10.0);
+    let rd = (k * sig[2] / d + p.c_rel_unc).max(p.d_floor).max((wk * spread.ln_d).exp() - 1.0).min(100.0);
+    let hk = (k * sig_ln_kappa + p.c_rel_unc).max(p.kappa_floor_ln).max(wk * spread.ln_kappa).min(10.0);
     let rf = (k * sig[0] / f0).max(p.f0_floor).min(0.9);
-    let ht = (k * sig[3]).max(p.t_floor_s).max(wk * spread.2).min(1e4);
+    let ht = (k * sig[3]).max(p.t_floor_s).max(wk * spread.t).min(1e4);
+    let kappa = v * v / d;
     CvFit {
         best: CvParams { f0, v, d_cpa: d, t_cpa_arrive: ta, c },
         v_range: ((v * (1.0 - rv)).max(0.5), (v * (1.0 + rv)).min(0.97 * c * (1.0 + p.c_rel_unc))),
         d_range: (d / (1.0 + rd), d * (1.0 + rd)),
+        kappa_range: Some((kappa * (-hk).exp(), kappa * hk.exp())),
         f0_range: (f0 * (1.0 - rf), f0 * (1.0 + rf)),
         t_cpa_range: (ta - ht, ta + ht),
         rmse_hz,
@@ -110,6 +121,7 @@ fn degenerate(t: &[f64], f: &[f64], c: f64) -> CvFit {
         best: CvParams { f0, v: 0.0, d_cpa: 0.0, t_cpa_arrive: 0.5 * (ta + te), c },
         v_range: (0.5, 0.97 * c),
         d_range: (1.0, 2e5),
+        kappa_range: None,
         f0_range: (0.5 * f0, 1.5 * f0),
         t_cpa_range: (ta - 60.0, te + 60.0),
         // Finite on purpose: JSON has no infinity.

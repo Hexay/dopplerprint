@@ -18,6 +18,7 @@ fn event(t_cpa: f64) -> EventSpec {
         v_range: (40.0, 60.0),
         f0_range: (80.0, 90.0),
         t_cpa_halfwidth_s: 3.0,
+        kappa_range: None,
     }
 }
 

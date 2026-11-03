@@ -92,7 +92,7 @@ mod tests {
         let p0 = geodetic_to_ecef(Geodetic { lat_deg: lat, lon_deg: lon, h_ell_m: 500.0 });
         let pt = |t: f64| TrackPoint { t, pos: p0 + north * (60.0 * t), vel: north * 60.0 };
         let track = Track { id: "x".into(), icao24: 1, type_code: None, engine: EngineClass::Piston, points: vec![pt(-100.0), pt(100.0)] };
-        let ev = EventSpec { window: (0.0, 1.0), t_cpa_audio: 0.0, d_range: (0.0, 1.0), v_range: (0.0, 1.0), f0_range: (1.0, 2.0), t_cpa_halfwidth_s: 0.0 };
+        let ev = EventSpec { window: (0.0, 1.0), t_cpa_audio: 0.0, d_range: (0.0, 1.0), v_range: (0.0, 1.0), f0_range: (1.0, 2.0), t_cpa_halfwidth_s: 0.0, kappa_range: None };
         let c = Posed {
             id: "t".into(),
             audio: Audio { sample_rate: 8000, samples: Vec::new() },

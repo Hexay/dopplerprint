@@ -100,6 +100,7 @@ pub(super) fn oracle(window: (f64, f64), t_cpa: f64, f0: f64, p: &EvalParams) ->
         v_range: p.oracle_v_range,
         f0_range: (f0 * (1.0 - p.oracle_f0_frac), f0 * (1.0 + p.oracle_f0_frac)),
         t_cpa_halfwidth_s: 0.0,
+        kappa_range: None,
     }
 }
 
@@ -198,6 +199,7 @@ fn pose_sim(path: &Path, id: String, _p: &EvalParams) -> Result<Posed> {
             v_range: (e.speed_mps * 0.75, e.speed_mps * 1.3),
             f0_range: (e.f0 * 0.94, e.f0 * 1.06),
             t_cpa_halfwidth_s: 0.0,
+            kappa_range: None,
         })
         .collect();
     let flights = t.events.iter().filter(audible).map(|e| Some(e.track_id.clone())).collect();

@@ -65,6 +65,28 @@ fn fit_partial_receding_ridge_keeps_truth_in_bounds() {
         within(v, fit.v_range) && within(d, fit.d_range) && within(f0, fit.f0_range),
         "{fit:?}"
     );
+    assert!(within(v * v / d, fit.kappa_range.expect("kappa")), "{fit:?}");
+}
+
+#[test]
+fn kappa_narrows_d_for_a_known_speed() {
+    let (f0, v, d, ta) = (100.0, 60.0, 900.0, 30.0);
+    let fit = fit_cv(&ridge_from_model((f0, v, d, ta), 0.0, 60.0, 0.1, 3), C);
+    let k = fit.kappa_range.expect("kappa");
+    assert!(within(v * v / d, k), "{fit:?}");
+    let spec = crate::search::EventSpec {
+        window: (0.0, 60.0),
+        t_cpa_audio: ta,
+        d_range: fit.d_range,
+        v_range: fit.v_range,
+        f0_range: fit.f0_range,
+        t_cpa_halfwidth_s: 0.0,
+        kappa_range: fit.kappa_range,
+    };
+    let (lo, hi) = spec.d_range_at(v);
+    assert!(lo <= d && d <= hi && hi / lo < fit.d_range.1 / fit.d_range.0, "{lo}..{hi} vs {:?}", fit.d_range);
+    let (lo, hi) = spec.d_range_at(5.0 * v);
+    assert!(lo > hi, "a 5× speed cannot produce this curve within d_range: {lo}..{hi}");
 }
 
 fn flyover(f0: f64, v: f64, d: f64, ta: f64, harmonics: Vec<(u32, f64)>) -> Flyover {

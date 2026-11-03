@@ -100,8 +100,9 @@ fn sample(tr: &Track, t: f64, p: &GlobalParams) -> Option<Sample> {
 
 #[allow(clippy::too_many_arguments)]
 fn ground_votes(e: &EventSpec, ei: u16, ti: u32, s: &Sample, prior: (f64, f64), cell: f64, p: &GlobalParams, out: &mut Vec<Vote>) {
-    let (d_min, d_max) = e.d_range;
-    if d_max <= s.agl.0 {
+    let dr = e.d_range_at(s.gs);
+    let (d_min, d_max) = dr;
+    if d_max <= s.agl.0 || d_min > d_max {
         return;
     }
     let l_max = (d_max * d_max - s.agl.0 * s.agl.0).sqrt();
@@ -123,7 +124,7 @@ fn ground_votes(e: &EventSpec, ei: u16, ti: u32, s: &Sample, prior: (f64, f64), 
         if clk_lo > clk_hi {
             continue;
         }
-        let w = (range_weight(0.5 * (d_lo + d_hi), e.d_range) * wv) as f32;
+        let w = (range_weight(0.5 * (d_lo + d_hi), dr) * wv) as f32;
         let (b0, b1) = (bin(clk_lo, prior, p), bin(clk_hi, prior, p));
         for side in [-1.0, 1.0] {
             let (de, dn) = (side * l * s.perp.0, side * l * s.perp.1);

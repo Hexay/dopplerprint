@@ -22,6 +22,7 @@ impl EventSpec {
             v_range: e.fit.v_range,
             f0_range: (e.fit.f0_range.0 / h, e.fit.f0_range.1 / h),
             t_cpa_halfwidth_s: 0.5 * (e.fit.t_cpa_range.1 - e.fit.t_cpa_range.0),
+            kappa_range: e.fit.kappa_range,
         }
     }
 }

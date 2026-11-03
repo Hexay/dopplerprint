@@ -45,6 +45,9 @@ pub struct CvFit {
     pub best: CvParams,
     pub v_range: (f64, f64),
     pub d_range: (f64, f64),
+    /// Bounds on the CPA curvature κ = v²/d (m/s²); None for a degenerate fit.
+    #[serde(default)]
+    pub kappa_range: Option<(f64, f64)>,
     pub f0_range: (f64, f64),
     pub t_cpa_range: (f64, f64),
     pub rmse_hz: f64,

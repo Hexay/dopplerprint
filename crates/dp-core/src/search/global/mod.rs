@@ -38,7 +38,8 @@ pub struct GlobalParams {
     pub min_radius_m: f64,
     pub max_radius_m: f64,
     pub margin_m: f64,
-    /// Proposals handed to the regional search.
+    /// Proposals handed to the regional search. The rerank is weak (Oyster Bay truth #17–19); the regional
+    /// score is what separates truth, so K is generous (global_search_2026-11-03.md).
     pub top_k: usize,
     /// Proposals kept (and reranked by spectrogram score) before the top_k are searched.
     pub keep_proposals: usize,
@@ -65,7 +66,7 @@ impl Default for GlobalParams {
             min_radius_m: 1_500.0,
             max_radius_m: 5_000.0,
             margin_m: 750.0,
-            top_k: 10,
+            top_k: 30,
             keep_proposals: 5_000,
             bbox: Some((24.0, -125.5, 50.0, -66.0)),
             rerank_offset_m: 300.0,

@@ -34,9 +34,21 @@ pub struct EventSpec {
     /// Half-width (s) of the CPA-time band (`CvFit::t_cpa_range`); 0 = exact truth label (see `soft`).
     #[serde(default)]
     pub t_cpa_halfwidth_s: f64,
+    /// CPA curvature bounds κ = v²/d from the fit (`CvFit::kappa_range`); None = no constraint.
+    #[serde(default)]
+    pub kappa_range: Option<(f64, f64)>,
 }
 
 impl EventSpec {
+    /// `d_range` narrowed to the slant ranges consistent with κ for a source moving at `v`.
+    /// Empty (lo > hi) when the speed cannot produce this curve.
+    pub fn d_range_at(&self, v: f64) -> (f64, f64) {
+        match self.kappa_range {
+            Some((k_lo, k_hi)) => (self.d_range.0.max(v * v / k_hi), self.d_range.1.min(v * v / k_lo)),
+            None => self.d_range,
+        }
+    }
+
     /// A truth label: exact CPA time and a prior-box d/v, so every association gate is hard.
     pub fn is_exact(&self) -> bool {
         self.t_cpa_halfwidth_s <= 0.0
