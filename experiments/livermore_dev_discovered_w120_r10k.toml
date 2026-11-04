@@ -1,0 +1,12 @@
+# Livermore dev split as `dopplerprint locate --near <10 km>` runs it by default: discovered events, start
+# known to ±120 s. The app scenario of docs/research/bench_vs_dopplergeist_2026-11-03.md, without test cases.
+[eval]
+cases = ["livermore"]
+split = "dev"
+data_dir = "/srv/agents/work/doppler_print/data"
+store_dir = "/srv/agents/work/doppler_print/data/adsb/store"
+time_prior_s = 120.0
+region_radius_m = 10000.0
+oracle_d_range = [150.0, 8000.0]
+oracle_v_range = [20.0, 250.0]
+oracle_events = false
