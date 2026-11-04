@@ -88,8 +88,16 @@ f0 129. Truth f0 ≈ 126 lies outside the f0 range, so the scorer cannot follow 
 - **f0 window spread (sub-window refits widen `f0_range`, like v/d/t): no effect, reverted.** Both
   sub-windows share the bias (long approach, short recede), so they agree: event 42 stays 133.8–136.5 Hz.
 
-What would work is a stitch rule that trusts a joint fit when one fragment's own fit is ill-conditioned (a
-flat tail). That would need a recall/false-join check on the Livermore labelled corpus first. Not attempted.
+- **Tail stitch rule: worse, reverted.** If one fragment's own fit puts its CPA outside the fragment, only the
+  other's prediction counts (≤ 10 %) and the joint tolerance doubles. Event 44 was still not joined; event 2
+  only grew to 3100 s (t_cpa 3073.4, f0 132.9, range still excludes 126). Event 1 again took the 2063 s
+  approach fragment, and the event count went 54 → 59. Oyster Bay regional discovered returned no answer
+  (truth-cell rank +1102), nationwide discovered ±5 s lost the truth region, a unit test failed, and Livermore
+  dev was not significant (truth-cell rank −32 [−97, 2.5]).
+
+Joining event 1 to its approach fragment hurts every time (two rules, both worse), and event 2's tail is not
+joined by either. Stitching is the wrong lever for this case; a fit that models f0 drift or wind over a long
+asymmetric ridge is the likelier one.
 
 ## Next
 
