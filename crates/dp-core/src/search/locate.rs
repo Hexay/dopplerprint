@@ -13,7 +13,9 @@ impl EventSpec {
     /// Search bounds from a discovered event. The fit is of harmonic `ridge_harmonic`, so f0 is rescaled
     /// to the fundamental that the scorer's harmonic comb expects.
     pub fn from_event(e: &Event) -> Self {
-        let h = e.ridge_harmonic.max(1) as f64;
+        // Score from the lowest detected harmonic: the comb's heavy h=1,2 teeth then land on real lines.
+        let base = e.harmonics.iter().copied().min().unwrap_or(1).max(1) as f64;
+        let h = e.ridge_harmonic.max(1) as f64 / base;
         let window = e.ridge.t.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(a, b), &t| (a.min(t), b.max(t)));
         EventSpec {
             window,

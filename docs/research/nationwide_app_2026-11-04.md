@@ -39,7 +39,24 @@ label) and event 2 134–137 Hz (oracle 118–134, +7 %). Chance flight pairs so
 Limits: two decoys reject a chance winner only ~⅔ of the time. More shifts cost ~50–60 s each on an hour of
 audio. Runtime: 89 s (±5 s, decoys + regional), 109 s (±2 min).
 
+## f0 from the lowest detected harmonic (`EventSpec::from_event`)
+
+Event 1's f0 label is right (37.6 Hz, error 0.3 %), but its lines are harmonics 3–6, so the scorer's comb
+(h 1–6, weights 1.0 … 0.4) put its two heaviest teeth on empty bins. The spec now uses the lowest detected
+harmonic as f0 (event 1 → 112.8 Hz, where the oracle had it).
+
+| gate | result |
+|---|---|
+| Livermore dev, discovered (28) | neutral: error +0.2 m [−2.8, 3.3]; truth-cell rank −0.43 [−0.89, −0.07] |
+| Oyster Bay regional, discovered | error −16 m, log score +0.8, truth-cell rank −13 |
+| Oyster Bay global, oracle | unchanged (78.9 m, margin 17.5) |
+| nationwide discovered ±5 s | truth region #4 → **#2**, z 60 → 84.8 (raw 95.9); Denver 88.2 (raw 88.7) |
+| nationwide discovered ±120 s | ambiguous (margin 1.9); chance pairs now reach z 97 |
+
+The remaining gap is the association penalty (`score = raw − penalty`): 11 z on the true flights against 0.5
+on Denver's pair, because the truth lies outside event 2's d/v bounds (f0 +7 %, CPA slant −62 % vs ADS-B).
+
 ## Next
 
-Subharmonic-aware f0 for discovered events (score f0 × {1, 2, 3} when the ridge harmonic label is uncertain)
-is what would lift the truth region from z 60 toward 99.5.
+Why event 2's fit is biased (far pass, 2.2 km; harmonics [1, 2, 5, 6] look mislabelled), and whether the
+penalty should be softer for events with poor fits.
