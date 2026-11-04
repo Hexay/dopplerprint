@@ -1,8 +1,7 @@
 //! Robust fit of the constant-velocity curve (`cvlm`), with widened pruning bounds.
 
-use super::cvlm::{Problem, Th};
-use super::linalg::invert4;
-use super::stats::{lag1_autocorr, median_abs, quantile, seeds};
+use super::cvlm::{Problem, Th, sigmas};
+use super::stats::{median_abs, quantile, seeds};
 use super::window::{Spread, window_spread};
 use super::{CvFit, Ridge};
 use crate::physics::cv::CvParams;
@@ -70,7 +69,7 @@ pub fn fit_cv_with(ridge: &Ridge, c: f64, p: &FitParams) -> CvFit {
     let best = fits
         .min_by(|a, b| median_abs(&prob.residuals(a)).total_cmp(&median_abs(&prob.residuals(b))))
         .expect("9 seeds");
-    let spread = if p.window_k > 0.0 { window_spread(&prob, &best) } else { Spread::default() };
+    let spread = if p.window_k > 0.0 { window_spread(&prob, &best, p.sigma_k) } else { Spread::default() };
     bounds(&prob, best, spread, p)
 }
 
@@ -79,19 +78,9 @@ fn bounds(prob: &Problem, best: Th, spread: Spread, p: &FitParams) -> CvFit {
     let c = prob.c;
     let r = prob.residuals(&best);
     let s = prob.scale(&r);
-    let (a, _) = prob.normal(&best, &r, s);
-    let rho = lag1_autocorr(&r).clamp(0.0, 0.98);
-    let infl = (1.0 + rho) / (1.0 - rho);
     let [f0, v, d, ta] = best;
-    let cov = invert4(a).map(|inv| inv.map(|row| row.map(|x| s * s * x * infl)));
-    let sig: Th = match cov {
-        Some(m) => std::array::from_fn(|q| m[q][q].max(0.0).sqrt()),
-        None => [f64::INFINITY; 4],
-    };
     // ln κ = 2 ln v − ln d: the CPA curvature, far better determined than v or d alone.
-    let sig_ln_kappa = cov.map_or(f64::INFINITY, |m| {
-        (4.0 * m[1][1] / (v * v) + m[2][2] / (d * d) - 4.0 * m[1][2] / (v * d)).max(0.0).sqrt()
-    });
+    let (sig, sig_ln_kappa) = sigmas(prob.covariance(&best), &best);
     let inl: Vec<f64> = r.iter().copied().filter(|x| x.abs() <= 3.0 * s).collect();
     let rmse_hz = (inl.iter().map(|x| x * x).sum::<f64>() / inl.len().max(1) as f64).sqrt();
 

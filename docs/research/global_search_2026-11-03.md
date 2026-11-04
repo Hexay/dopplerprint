@@ -152,6 +152,23 @@ Truth's quick score is 101.7 against 87.1 for the best rival (was 71.5, scored 1
 rivals' 76–98). The gate is what stops wrong pairs fitting noise with an unchecked flight. Singles
 move both ways and stay ambiguous; only their candidate-list order changes.
 
+### Window spread net of sub-fit σ: event 1 bounds honest
+
+`events/window.rs` counted every sub-window disagreement as model error. Event 1's ridge (2124–2241 s,
+CPA 2156 s) loses its approach side when the leading 30% is dropped; that refit is ill-conditioned and
+its wander blew every range to the LM clamp. Now only |Δ| beyond `sigma_k` × the sub-fit's own σ counts.
+
+| | event 1 d | v | κ | global prop# / n | wall s |
+|---|---|---|---|---|---|
+| before | 1.5–30 km | 0.5–343 | 0.46–20 | 1 / 390 | 289 |
+| after | **3.3–13.3 km** | **114–171** | **2.27–4.13** | 4 / 37 | **143** |
+
+Truth 6.2 km, 137 m/s, κ 3.02: all inside. Event 2 unchanged. Same answer (79 m, margin 21.6 z).
+Regional discovered path, paired vs the `m3_*` runs (main 447dbed): Livermore dev (28) reported error
+mean −167 m [−479, +78], flights +1/−0, calibrated log score +0.16 [−0.11, 0.51], in-90% flips +2/−2;
+Oyster Bay discovered 826 → 668 m, log score +1.22. No calibration refit: the shift is inside noise
+and goes the right way; the κ-gate step refits anyway. Sims use oracle bounds (unaffected).
+
 ## What works, what doesn't
 
 - **Works:** ≥ 2 events with honest d/v bounds. Clock agreement across events 920 s apart is very
@@ -181,9 +198,8 @@ move both ways and stay ambiguous; only their candidate-list order changes.
    (or no consistent pair) was found, and N flights across CONUS fit it. Give `--near` (a city or
    state) or a tighter start time, or record longer to catch a second aircraft." List the top 10
    proposals (flight ids, places, quick scores) as candidates.
-4. Done: likelihood silence default; κ bounds; geometry-gated rerank (Oyster Bay truth #1, top_k 10).
-   Next steps, in order: stable sub-window spread for
-   long, far passes (event 1); use κ in the regional association gate (`hypothesis/soft.rs`; needs a
-   calibration refit); closed-form loci + EDT
-   clock-free scoring (methods doc) instead of the lattice; a coarse national DEM (≤ 1 km) for H;
-   rerank with all supporting flights at the vote-cell resolution, or skip it when n_max ≥ 2.
+4. Done: likelihood silence default; κ bounds; geometry-gated rerank (top_k 10); window spread net of
+   sub-fit σ. `tools/global_eval.sh EXPERIMENT` runs one global eval and prints ranks and bounds.
+   Next steps, in order: use κ in the regional association gate (`hypothesis/soft.rs`; needs a
+   calibration refit); closed-form loci + EDT clock-free scoring (methods doc) instead of the
+   lattice; a coarse national DEM (≤ 1 km) for H.

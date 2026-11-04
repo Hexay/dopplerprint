@@ -1,9 +1,18 @@
 //! Robust Levenberg–Marquardt on the constant-velocity curve: Huber IRLS, numeric Jacobian.
 
-use super::linalg::solve4;
-use super::stats::median_abs;
+use super::linalg::{invert4, solve4};
+use super::stats::{lag1_autocorr, median_abs};
 
 pub(super) type Th = [f64; 4];
+
+/// Standard deviations of (f0, v, d, t_arr) and of ln κ (κ = v²/d) from `Problem::covariance`.
+pub(super) fn sigmas(cov: Option<[[f64; 4]; 4]>, th: &Th) -> (Th, f64) {
+    let Some(m) = cov else { return ([f64::INFINITY; 4], f64::INFINITY) };
+    let (v, d) = (th[1], th[2]);
+    let sig = std::array::from_fn(|q| m[q][q].max(0.0).sqrt());
+    let ln_kappa = (4.0 * m[1][1] / (v * v) + m[2][2] / (d * d) - 4.0 * m[1][2] / (v * d)).max(0.0).sqrt();
+    (sig, ln_kappa)
+}
 
 /// `t_arr` is the CPA arrival time; the CPA emission time is `t_arr - d/c`.
 pub(crate) fn cv_freq(f0: f64, v: f64, d: f64, t_arr: f64, c: f64, t: f64) -> f64 {
@@ -63,6 +72,16 @@ impl Problem<'_> {
             }
         }
         (a, g)
+    }
+
+    /// Autocorrelation-inflated parameter covariance at `th`; None when the normal matrix is singular.
+    pub fn covariance(&self, th: &Th) -> Option<[[f64; 4]; 4]> {
+        let r = self.residuals(th);
+        let s = self.scale(&r);
+        let (a, _) = self.normal(th, &r, s);
+        let rho = lag1_autocorr(&r).clamp(0.0, 0.98);
+        let infl = (1.0 + rho) / (1.0 - rho);
+        invert4(a).map(|inv| inv.map(|row| row.map(|x| s * s * x * infl)))
     }
 
     pub fn lm(&self, mut th: Th) -> Th {
