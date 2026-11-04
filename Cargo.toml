@@ -27,11 +27,12 @@ lto = "thin"
 codegen-units = 1
 debug = "line-tables-only"
 
-# Iteration profile for eval/ingest/profiling runs: release speed without LTO's slow, non-incremental link.
+# Iteration profile for eval/py/ingest/profiling (tools/dev.sh): release speed and outputs, incremental, no LTO.
+# 256 CGUs: an edit re-optimises only small units (16 → 22 s, 256 → 7 s; docs/research/iteration_loop_2026-11-03.md).
 [profile.fastrel]
 inherits = "release"
 lto = false
-codegen-units = 16
+codegen-units = 256
 incremental = true
 
 [profile.dev]

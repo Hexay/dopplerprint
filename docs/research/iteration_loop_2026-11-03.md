@@ -76,3 +76,27 @@ numbers are needed for comparison with older runs.
   build.
 - **Transcript profile** (mine-transcripts, 3 sessions): the cost is mostly model latency and backgrounded
   cargo. Foreground grep/fileops p95 of 12–13 s points at disk/load contention, not at this loop.
+
+## Eval and py (2026-11-04)
+
+`dev.sh eval` used `cargo run --release` and `dev.sh py` used `maturin --release`: thin LTO, codegen-units = 1,
+sccache with `CARGO_INCREMENTAL=0`. Both now build `fastrel` through the same incremental wrapper as check/test
+(`DP_PROFILE=release` opts out), and `fastrel` uses 256 codegen units instead of 16. `dev.sh eval EXP --case X`
+passes extra arguments to `eval`. Measured with `taskset -c 8-15 tools/loop_timing.sh 3 <step>` under load 40–65.
+
+| Step (after a dp-core edit) | Before | After |
+|---|---|---|
+| eval build (dp-cli) | 131.6 s (131–133) | 23.9 s (24–28) |
+| eval run, `oysterbay_dg_parity` | 18.5 s (18–19) | 15.9 s (15–19) |
+| `dev.sh py` (maturin develop) | 139 s (133–143) | 19.6 s (19–20) |
+
+**Outputs unchanged.** `tools/eval_same.sh A B` diffs two eval dirs, ignoring `runtime_s`, `timing` and the
+summary's runtime column. Release vs fastrel (cgu 16 and 256) is identical on `oysterbay_dg_parity` (2 files),
+`livermore_test` (13) and `--case sim` (4). User CPU is the same within noise (65.7 vs 68.4 s, 56.8 vs 60.3 s,
+123.7 vs 129.0 s).
+
+**Codegen units.** dp-core rebuild after a one-line edit (`cargo --timings`): cgu 16 is 20–24 s (codegen 19–22 s),
+cgu 256 is 3–8 s. The hyperfine numbers above use the a/b flip edit and come out higher.
+
+Not changed: the cold release build of dp-cli took 1642 s in a fresh worktree (sccache misses, load ~100); the
+fastrel prime was 345 s. Eval runtime is dominated by `score_s` (39 of 45 s on oysterbay), see profiling_2026-11-03.md.

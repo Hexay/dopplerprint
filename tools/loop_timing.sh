@@ -32,8 +32,8 @@ cmd_for() {
     eval_build_new) echo "env -u CARGO_INCREMENTAL RUSTC_WRAPPER= cargo build ${M[*]} -q --profile fastrel -p dp-cli" ;;
     eval_run_release|eval_run_fastrel) p=${1#eval_run_}
                 echo "$CARGO_TARGET_DIR/$p/dopplerprint eval --experiment $EVAL_EXP --out $T/eval-$p" ;;
-    py_old)     echo "env CARGO_INCREMENTAL=0 VIRTUAL_ENV=$ROOT/.venv $ROOT/.venv/bin/maturin develop -q -m $ROOT/pyproject.toml --release" ;;
-    py_new)     echo "env -u CARGO_INCREMENTAL RUSTC_WRAPPER= VIRTUAL_ENV=$ROOT/.venv $ROOT/.venv/bin/maturin develop -q -m $ROOT/pyproject.toml --profile fastrel" ;;
+    py_old)     echo "env CARGO_INCREMENTAL=0 VIRTUAL_ENV=$ROOT/.venv $ROOT/.venv/bin/maturin develop -q --release" ;;
+    py_new)     echo "env -u CARGO_INCREMENTAL RUSTC_WRAPPER= VIRTUAL_ENV=$ROOT/.venv $ROOT/.venv/bin/maturin develop -q --profile fastrel" ;;
     *) echo "unknown step $1" >&2; exit 2 ;;
   esac
 }
