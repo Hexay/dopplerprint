@@ -52,6 +52,9 @@ pub struct CaseResult {
     pub n_events: usize,
     pub cells: usize,
     pub hypotheses: usize,
+    /// Scored cells whose full hypotheses hit `max_hypotheses` (`Candidate::capped`).
+    #[serde(default)]
+    pub capped_cells: usize,
     pub runtime_s: f64,
     /// Where the f0 sweep ran ("cpu" / "cuda (<device>)"); scores are identical, runtimes are not.
     #[serde(default)]
@@ -188,6 +191,7 @@ pub fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
         n_events: c.events.len(),
         cells: res.cells_scored,
         hypotheses: res.hypotheses_scored,
+        capped_cells: res.ranked.iter().filter(|c| c.capped).count(),
         runtime_s: 0.0,
         device: scorer.device(),
         timing,

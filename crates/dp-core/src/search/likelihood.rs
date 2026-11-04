@@ -68,6 +68,7 @@ mod tests {
             track_ids: Vec::new(),
             events: Vec::new(),
             unexplained: 0,
+            capped: false,
         }
     }
 

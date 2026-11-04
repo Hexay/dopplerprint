@@ -223,6 +223,8 @@ Same answer, flights and clock. The lower margin is from the Denver rival being 
    state) or a tighter start time, or record longer to catch a second aircraft." List the top 10
    proposals (flight ids, places, quick scores) as candidates.
 4. Done: likelihood silence default; κ bounds; geometry-gated rerank (top_k 10); window spread net of
-   sub-fit σ; national 1 km DEM. Tried and dropped: κ in the regional gate. `tools/global_eval.sh
+   sub-fit σ; national 1 km DEM; hypothesis cap flagged (`Candidate::capped`, report warning, eval
+   `capped_cells`: 0 of 99k scored cells in Livermore dev + Oyster Bay, so 64 is not binding). Tried
+   and dropped: κ in the regional gate. `tools/global_eval.sh
    EXPERIMENT` runs one global eval and prints ranks and bounds. Next: closed-form loci + EDT
    clock-free scoring (methods doc) instead of the lattice; weather for the top_k regions.

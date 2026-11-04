@@ -78,6 +78,7 @@ fn the_search_abstains_when_no_cell_beats_the_all_unexplained_null() {
         track_ids: vec!["a".into(), "b".into()],
         events: Vec::new(),
         unexplained: 0,
+        capped: false,
     };
     let res = |best: f64, null_score| SearchResult { ranked: vec![cand(best)], null_score, ..Default::default() };
     assert!(res(10.0, p.null_score(2)).abstains());

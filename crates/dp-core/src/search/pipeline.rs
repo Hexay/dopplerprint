@@ -80,6 +80,9 @@ pub struct Candidate {
     pub track_ids: Vec<String>,
     pub events: Vec<EventScore>,
     pub unexplained: usize,
+    /// The cell's full hypotheses hit `max_hypotheses`: the true pairing may have been cut.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub capped: bool,
 }
 
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
@@ -273,6 +276,7 @@ fn best_candidate(
 ) -> Option<Candidate> {
     let mut best: Option<Candidate> = None;
     let per_nat = score_per_nat(p.score.mode, GATE_Z_PER_NAT);
+    let capped = pl.hyps.iter().filter(|h| h.tracks.iter().all(Option::is_some)).count() >= p.assoc.max_hypotheses;
     for (h, js) in pl.hyps.iter().zip(scores) {
         let Some(js) = js else { continue };
         let score = js.total - h.penalty(&p.assoc, per_nat);
@@ -287,6 +291,7 @@ fn best_candidate(
                 track_ids: h.track_ids(|i| pl.nearby[i].track.id.clone()),
                 events: h.per_event_scores(js.events),
                 unexplained: h.unexplained,
+                capped,
             });
         }
     }

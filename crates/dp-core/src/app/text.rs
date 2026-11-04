@@ -33,6 +33,9 @@ pub fn render(r: &Report) -> String {
             return s;
         }
     }
+    if r.location.as_ref().is_some_and(|l| l.hypothesis_cap_hit) {
+        s.push_str("Warning:     so many flights fit here that only the most likely pairings were scored; the true\n             pairing may have been skipped.\n");
+    }
     if let Some(p) = &r.posterior {
         posterior_lines(&mut s, p);
     } else if let (Some(c), Some(l)) = (&r.confidence, &r.location) {

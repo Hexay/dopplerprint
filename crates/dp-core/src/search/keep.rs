@@ -86,7 +86,7 @@ mod tests {
             .map(|(i, &score)| {
                 let cell = Cell { ix: i as i32, iy: 0, step_m: 200 };
                 let (lat_deg, lon_deg) = albers::inverse(cell.center());
-                Candidate { cell, lat_deg, lon_deg, score, raw: score, clock: 0.0, track_ids: vec!["a".into()], events: Vec::new(), unexplained: 0 }
+                Candidate { cell, lat_deg, lon_deg, score, raw: score, clock: 0.0, track_ids: vec!["a".into()], events: Vec::new(), unexplained: 0, capped: false }
             })
             .collect();
         v.sort_by(|a, b| b.score.total_cmp(&a.score));

@@ -1,9 +1,10 @@
 //! End-to-end search on a painted spectrogram: two prop events 920 s apart plus decoy flights.
 
 use dp_core::audio::LogSpectrogram;
-use dp_core::geo::{Geodetic, Vec3, east_north, geodetic_to_ecef, up_vector};
+use dp_core::geo::{Geodetic, Vec3, albers, east_north, geodetic_to_ecef, up_vector};
 use dp_core::physics::{Atmosphere, cpa, cv::StraightLine, doppler_factors};
 use dp_core::search::score::{ScoreParams, ScoringPlane};
+use dp_core::search::pipeline::score_cell;
 use dp_core::search::{Catalog, EventSpec, MemCatalog, Region, Scorer, SearchInput, SearchParams, search};
 use dp_core::track::Track;
 
@@ -53,6 +54,30 @@ fn spec_for(tr: &Track, obs: Vec3, f0: f64) -> EventSpec {
         t_cpa_halfwidth_s: 0.0,
         kappa_range: None,
     }
+}
+
+#[test]
+fn hypothesis_cap_is_flagged() {
+    let obs = geodetic_to_ecef(Geodetic { lat_deg: LAT, lon_deg: LON, h_ell_m: H });
+    let (e, n) = east_north(LAT, LON);
+    let u = up_vector(LAT, LON);
+    let a1 = line(obs, n, u * 1200.0 + e * 700.0, 62.0, 1.7e9 + 600.0, "ac1");
+    let a2 = line(obs, (e + n * 0.3).normalized(), u * 900.0 - n * 1100.0, 75.0, 1.7e9 + 1520.0, "ac2");
+    let spec = paint(&[(&a1, 92.0), (&a2, 76.0)], obs, 4 * 1200);
+    let plane = ScoringPlane::new(&spec, &ScoreParams::default());
+    let events = [spec_for(&a1, obs, 92.0), spec_for(&a2, obs, 76.0)];
+    let catalog = MemCatalog::new(vec![a1, a2]);
+    let scorer = Scorer::new(&plane, Default::default()).unwrap();
+    let region = Region { lat_deg: LAT, lon_deg: LON, radius_m: 100.0 };
+    let inp = SearchInput { scorer: &scorer, events: &events, catalog: &catalog, region, duration_s: 1200.0, dem: None };
+    let cell = albers::Cell::of(albers::forward(LAT, LON), 25);
+    let capped = |max| {
+        let mut p = SearchParams { flat_h_ell_m: H - 1.5, ..Default::default() };
+        p.assoc.max_hypotheses = max;
+        score_cell(&inp, &p, cell).0.expect("truth cell scores").capped
+    };
+    assert!(capped(1), "one full hypothesis fills a cap of 1");
+    assert!(!capped(64));
 }
 
 #[test]

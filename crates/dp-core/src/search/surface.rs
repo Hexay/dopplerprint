@@ -120,7 +120,7 @@ mod tests {
 
     fn cand(cell: Cell, score: f64) -> Candidate {
         let (lat_deg, lon_deg) = albers::inverse(cell.center());
-        Candidate { cell, lat_deg, lon_deg, score, raw: score, clock: 0.0, track_ids: vec!["a".into()], events: Vec::new(), unexplained: 0 }
+        Candidate { cell, lat_deg, lon_deg, score, raw: score, clock: 0.0, track_ids: vec!["a".into()], events: Vec::new(), unexplained: 0, capped: false }
     }
 
     #[test]

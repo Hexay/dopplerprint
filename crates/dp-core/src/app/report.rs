@@ -101,6 +101,9 @@ pub struct Location {
     pub lon: f64,
     pub osm_url: String,
     pub score: f64,
+    /// See `Candidate::capped`.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub hypothesis_cap_hit: bool,
 }
 
 #[derive(Clone, Debug, serde::Serialize)]
@@ -155,7 +158,13 @@ pub fn osm_url(lat: f64, lon: f64) -> String {
 }
 
 pub fn location(c: &Candidate) -> Location {
-    Location { lat: c.lat_deg, lon: c.lon_deg, osm_url: osm_url(c.lat_deg, c.lon_deg), score: c.score }
+    Location {
+        lat: c.lat_deg,
+        lon: c.lon_deg,
+        osm_url: osm_url(c.lat_deg, c.lon_deg),
+        score: c.score,
+        hypothesis_cap_hit: c.capped,
+    }
 }
 
 /// Distinct alternatives to `ranked[0]` and the confidence that follows from their score gap.
@@ -253,6 +262,7 @@ mod tests {
             track_ids: ids.iter().map(|s| s.to_string()).collect(),
             events: Vec::new(),
             unexplained: 0,
+            capped: false,
         }
     }
 
