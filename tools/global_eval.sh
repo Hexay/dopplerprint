@@ -1,13 +1,19 @@
 #!/usr/bin/env bash
 # global_eval.sh EXPERIMENT.toml — run a region-free eval in this worktree; print the stage line, the
 # top regional tuples and timings per case. See docs/research/global_search_2026-11-03.md.
+# Uses $DP_BIN if set, else builds fastrel via tools/dev.sh build (DP_PROFILE=release for release).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT/target}" RAYON_NUM_THREADS="${RAYON_NUM_THREADS:-4}"
-cargo run --release -q -p dp-cli -j4 -- eval --experiment "$1" 2>&1 | grep -E "global:|err " | cut -c1-160
-R=$(ls -td "$ROOT"/runs/*/ | head -1)
-for f in "$R"*.json; do
+BIN="${DP_BIN:-}"
+[[ -n $BIN ]] || { "$ROOT/tools/dev.sh" build; BIN="$CARGO_TARGET_DIR/${DP_PROFILE:-fastrel}/dopplerprint"; }
+R="$ROOT/runs/global/$(basename "$1" .toml)"
+rm -rf "$R"; mkdir -p "$R"
+"$BIN" eval --experiment "$1" --out "$R" > "$R.log" 2>&1 || { tail -n 20 "$R.log"; exit 1; }
+echo "out: $R"
+grep -E "global:|err " "$R.log" | cut -c1-160
+for f in "$R"/*.json; do
   [[ $f == *summary.json ]] && continue
   python3 -I - "$f" <<'EOF'
 import json, sys
