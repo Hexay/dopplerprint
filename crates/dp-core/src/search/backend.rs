@@ -81,17 +81,18 @@ impl<'a> Scorer<'a> {
     /// per batch and the batch is rescored on the CPU, offsets included.
     pub fn score(&self, jobs: &mut [Job], p: &ScoreParams, tracks: &[Track]) -> Vec<Option<JointScore>> {
         if self.plane.mode == ScoreMode::PowerLlr {
-            materialise(&self.plane.spec, jobs, tracks);
+            materialise(&self.plane.spec, jobs, tracks, &[]);
             return super::power_llr::score_jobs(&self.plane.spec, jobs, p);
         }
+        // TODO: CUDA drift sweep (gpu/sweep.cu); until then a drift grid scores on the CPU.
         #[cfg(feature = "cuda")]
-        if let Some(g) = &self.gpu {
+        if let Some(g) = self.gpu.as_ref().filter(|_| p.drift_grid.is_empty()) {
             match g.sweep(&self.plane.spec, jobs, p, tracks) {
                 Ok((picks, evs)) => return joint_scores(self.plane, jobs, p, &picks, &evs),
                 Err(e) => eprintln!("warning: {e}; scoring this batch on the CPU"),
             }
         }
-        materialise(&self.plane.spec, jobs, tracks);
+        materialise(&self.plane.spec, jobs, tracks, &p.drift_grid);
         sweep::score_jobs(&self.plane.spec, jobs, p)
     }
 }

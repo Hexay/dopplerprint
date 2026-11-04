@@ -40,6 +40,10 @@ pub struct ScoreParams {
     pub z_clip: f32,
     /// f0 sweep step in log bins; sub-bin with linear interpolation, else quantisation biases position.
     pub f0_step_bins: f64,
+    /// Nonzero linear f0 drifts β (1/s) swept per event besides β = 0 (`search::drift`); empty = off.
+    pub drift_grid: Vec<f64>,
+    /// Prior σ of β (1/s) that prices each grid value (`drift::penalties`).
+    pub drift_sigma_per_s: f64,
 }
 
 impl Default for ScoreParams {
@@ -53,6 +57,8 @@ impl Default for ScoreParams {
             clock_sweep_s: 5.0,
             z_clip: 8.0,
             f0_step_bins: 0.25,
+            drift_grid: Vec::new(),
+            drift_sigma_per_s: 1e-4,
         }
     }
 }

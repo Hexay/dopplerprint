@@ -1,7 +1,7 @@
 //! One hypothesis prepared for scoring, independent of where the f0 sweep runs (CPU or CUDA).
 //! Both backends produce a per-(event, clock step) best f0 step; `assemble` turns that into a `JointScore`.
 
-use super::fixed;
+use super::{drift, fixed};
 use super::score::{EventScore, EventTarget, JointScore, ScoreParams};
 use crate::audio::LogSpectrogram;
 use crate::geo::Vec3;
@@ -22,6 +22,8 @@ pub struct Prepared {
     pub offsets: Vec<i64>,
     /// Offsets still to be computed, on the GPU (`gpu::emit`) or by `materialise`.
     pub emit: Option<Emitter>,
+    /// Per `ScoreParams::drift_grid` β, deltas added to `offsets` (`drift::deltas`); empty = no drift sweep.
+    pub drift: Vec<Vec<i64>>,
     /// First f0 step in bins (f64, for reporting f0) and as `fixed::pos` (for scoring).
     pub b0_start: f64,
     pub b0_start_fx: i64,
@@ -67,19 +69,35 @@ impl Prepared {
     }
 }
 
-/// Compute any deferred offsets on the CPU (`tracks` = the catalogue the emitters index).
-pub fn materialise(spec: &LogSpectrogram, jobs: &mut [Job], tracks: &[Track]) {
+/// Compute any deferred offsets (and their `drift_grid` deltas) on the CPU (`tracks` = the catalogue the
+/// emitters index).
+pub fn materialise(spec: &LogSpectrogram, jobs: &mut [Job], tracks: &[Track], drift_grid: &[f64]) {
     for pr in jobs.iter_mut().flat_map(|j| &mut j.events) {
         if let Some(e) = pr.emit.take() {
-            pr.offsets = host_offsets(spec, &tracks[e.track as usize], e.obs, &Atmosphere::uniform(e.c, e.wind), e.first, e.clock, e.n);
+            let atm = Atmosphere::uniform(e.c, e.wind);
+            (pr.offsets, pr.drift) = host_offsets(spec, &tracks[e.track as usize], e.obs, &atm, e.first, e.clock, e.n, drift_grid);
         }
     }
 }
 
-fn host_offsets(spec: &LogSpectrogram, track: &Track, obs: Vec3, atm: &Atmosphere, first: i64, clock: f64, n: usize) -> Vec<i64> {
+/// Offsets and their drift deltas.
+#[allow(clippy::too_many_arguments)]
+fn host_offsets(
+    spec: &LogSpectrogram,
+    track: &Track,
+    obs: Vec3,
+    atm: &Atmosphere,
+    first: i64,
+    clock: f64,
+    n: usize,
+    drift_grid: &[f64],
+) -> (Vec<i64>, Vec<Vec<i64>>) {
     let times: Vec<f64> = (0..n as i64).map(|j| spec.t0 + (first + j) as f64 * spec.dt + clock).collect();
     let bpo = spec.bins_per_octave as f64;
-    physics::doppler_factors(track, obs, &times, atm).into_iter().map(|f| fixed::pos(bpo * f.log2())).collect()
+    let (factors, taus): (Vec<f64>, Vec<f64>) =
+        physics::emission::emissions(track, obs, &times, atm).map(|e| e.map_or((f64::NAN, f64::NAN), |e| (e.factor, e.tau))).unzip();
+    let offsets = factors.into_iter().map(|f| fixed::pos(bpo * f.log2())).collect();
+    (offsets, drift::deltas(bpo, &taus, drift_grid))
 }
 
 pub fn k_max(spec: &LogSpectrogram, p: &ScoreParams) -> usize {
@@ -140,9 +158,9 @@ fn prepare(
     let f_b = (spec.frame_of(t.window.1).floor().max(0.0) as usize + 1).min(spec.n_t);
     let first = f_a as i64 - k_max;
     let n = ((f_b.saturating_sub(f_a)) as i64 + 2 * k_max).max(0) as usize;
-    let (offsets, emit) = match defer_track {
-        Some(track) => (Vec::new(), Some(Emitter { track, obs, first, clock, n, c: atm.c, wind: atm.wind })),
-        None => (host_offsets(spec, t.track, obs, atm, first, clock, n), None),
+    let ((offsets, drift), emit) = match defer_track {
+        Some(track) => ((Vec::new(), Vec::new()), Some(Emitter { track, obs, first, clock, n, c: atm.c, wind: atm.wind })),
+        None => (host_offsets(spec, t.track, obs, atm, first, clock, n, &p.drift_grid), None),
     };
     let (b0_lo, b0_hi) = (spec.bin_of(t.f0_range.0), spec.bin_of(t.f0_range.1));
     let frames = f_a..f_b.max(f_a);
@@ -152,6 +170,7 @@ fn prepare(
         frames,
         offsets,
         emit,
+        drift,
         b0_start: b0_lo,
         b0_start_fx: fixed::pos(b0_lo),
         n_steps: ((b0_hi - b0_lo) / p.f0_step_bins).ceil().max(0.0) as usize + 1,

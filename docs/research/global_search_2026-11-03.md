@@ -186,8 +186,27 @@ the narrower d adds little information and cuts correct pairs whose fitted κ is
 its bounds; now v and d both inside at 1.5 and 5 km. Livermore dev discovered: reported error mean
 +0.3 m [−0.07, +0.9], no flips; Oyster Bay discovered and global unchanged. σ_β 1e-4 also fixed the
 harness but cost Livermore +17 m [+0.2, +50] and one calibrated-90 % flip, so the lower prior ships.
-The search scorer still has no β term (150–900 m cross-track at 1 %/min, localization_verification.md);
-adding it touches the CUDA sweep and needs `gpu_parity.sh`.
+
+### f0 drift in the scorer: opt-in, off by default
+
+`search/drift.rs`: each `ScoreParams::drift_grid` β adds bpo·log2(1 + β·(τ − τ_ref)) to an event's
+offsets; the sweep keeps the best β less a Gaussian prior (`drift_sigma_per_s`, z = 1.58·½(β/σ)²).
+CPU only: with a grid set, `Scorer::score` skips the GPU (TODO in backend.rs; port `sweep.cu`, then
+`gpu_parity.sh`). Grid ±0.5/±1 %/min, σ 1e-4 unless noted.
+
+| test | result |
+|---|---|
+| single pass, `drift_bias` (MEASURE_LOCATE), no prior | drifting cross-track 686–895 → 8–38 m, but steady 1.5 km −23 → +2709 m |
+| single pass, σ 1e-4 / 2e-4 | steady fixed / not; drifting mostly unchanged, one case +2.5 km either way |
+| `sim_drift` pairs (12, `simdrift_*.toml`) | error −11.5 m [−19.8, −4.7] (σ 2e-4: −21.5 [−35.7, −7.8]); flights unchanged |
+| Livermore dev discovered | error +5 m [−7, +20], calibrated log score −0.07 [−0.14, −0.01], one calibrated-90 % flip lost |
+| Oyster Bay discovered / global | +30 m, log −0.21 / 79 → 66 m, prop #4 → #2, wall 85 → 356 s |
+
+Single passes can't separate β from geometry (their clock/along-track ridge absorbs it); pairs can.
+On real data the max over β inflates every hypothesis's z, which the calibration (fit without drift)
+reads as overconfidence. Turning it on needs the CUDA port (runtime) and a calibration refit on drift-on
+runs; `search_score::true_observer_wins_and_recovers_f0_and_clock` also fails with the grid on (f0 reported
+at τ_ref, not CPA).
 
 ### National DEM (Terrarium 1 km)
 

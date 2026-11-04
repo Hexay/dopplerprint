@@ -1,0 +1,11 @@
+# Sim, experiments/sim_drift (run with --sim-dir experiments/sim_drift): 12 two-aircraft scenes with
+# linear source drift 0/±0.5/±1 %/min (tools/gen_sim_atm.py). Scorer drift A/B: search/drift.rs.
+[eval]
+cases = ["drift_pair"]
+time_prior_s = 5.0
+
+[search]
+keep_top = 100
+
+[search.score]
+clock_sweep_s = 2.0

@@ -64,10 +64,14 @@ fn best_event(evs: &[Event], f0: f64) -> Option<&Event> {
         .max_by_key(|e| e.ridge.t.len())
 }
 
-fn locate_err(sc: &Scenario, f0_cpa: f64, dir: &std::path::Path, tag: &str) -> String {
+/// Scorer drift grid for the second locate column: ±0.5 and ±1 %/min.
+const DRIFT_GRID: [f64; 4] = [-1.0 / 6000.0, -0.5 / 6000.0, 0.5 / 6000.0, 1.0 / 6000.0];
+
+fn locate_err(sc: &Scenario, f0_cpa: f64, dir: &std::path::Path, tag: &str, grid: &[f64]) -> String {
     let path = dir.join(format!("{tag}.toml"));
     std::fs::write(&path, toml::to_string(sc).expect("scenario serialises")).expect("write scenario");
-    let cfg = Config::default();
+    let mut cfg = Config::default();
+    cfg.search.score.drift_grid = grid.to_vec();
     let mut posed = pose(&CaseSource::Sim(path), &cfg.eval).expect("pose sim");
     posed.events.iter_mut().for_each(|e| e.f0_range = (0.94 * f0_cpa, 1.06 * f0_cpa));
     let r = run_case(&cfg, &posed);
@@ -88,8 +92,9 @@ fn drift_bias() {
     let dir = std::env::temp_dir().join("dp_measure_drift");
     std::fs::create_dir_all(&dir).expect("tmp dir");
     println!("β in %/min (emission time). f0 err vs f0·(1+β·τ_cpa). Pred d = β·c·d/v² (research first-order).");
-    println!("| v m/s | d m | β %/min | ridge s | f0 err % | v err % | d err % | pred d % | t_cpa s | v,d in bounds | locate err m | north err m | clock s |");
-    println!("|---|---|---|---|---|---|---|---|---|---|---|---|---|");
+    println!("Locate columns: plain scorer, then with drift grid ±0.5/±1 %/min.");
+    println!("| v m/s | d m | β %/min | ridge s | f0 err % | v err % | d err % | pred d % | t_cpa s | v,d in bounds | locate err m | north err m | clock s | drift: err m | north m | clock s |");
+    println!("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
     let subset = std::env::var("MEASURE_SUBSET").is_ok_and(|v| v == "1");
     let (vs, ds, bs): (&[f64], &[f64], &[f64]) = if subset {
         (&[50.0], &[1500.0, 5000.0], &[0.0, 1.0, -1.0])
@@ -108,9 +113,10 @@ fn drift_bias() {
                 let audio = Audio { sample_rate: r.sample_rate, samples: r.samples };
                 let evs = discover_audio(&audio, &DiscoverConfig::default());
                 let loc = if with_locate {
-                    locate_err(&sc, f0_cpa, &dir, &format!("v{v}_d{d}_b{beta_pm}"))
+                    let tag = format!("v{v}_d{d}_b{beta_pm}");
+                    format!("{} | {}", locate_err(&sc, f0_cpa, &dir, &tag, &[]), locate_err(&sc, f0_cpa, &dir, &tag, &DRIFT_GRID))
                 } else {
-                    "– | – | –".into()
+                    "– | – | – | – | – | –".into()
                 };
                 let pred = 100.0 * beta * C * te.slant_m / (te.speed_mps * te.speed_mps);
                 let Some(e) = best_event(&evs, f0_cpa) else {

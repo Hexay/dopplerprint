@@ -4,6 +4,7 @@
 pub mod backend;
 pub mod calibration;
 pub mod catalog;
+mod drift;
 mod fixed;
 pub mod global;
 #[cfg(feature = "cuda")]

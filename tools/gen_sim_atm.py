@@ -1,6 +1,7 @@
 """Write experiments/sim_atm/*.toml: GA/turboprop flyovers rendered in a known non-default atmosphere
 (c = 337 m/s, ~10 °C; 6 m/s wind toward the east) so model-atmosphere mismatch can be measured with exact
-truth; plus experiments/sim_wind/ (see wind_set). Deterministic; rerun to regenerate.
+truth; plus experiments/sim_wind/ (see wind_set) and experiments/sim_drift/ (see drift_set).
+Deterministic; rerun to regenerate.
 Usage: python3 -I tools/gen_sim_atm.py"""
 
 import math
@@ -84,6 +85,7 @@ def main():
         body += aircraft(rng, 0xA71001 + 2 * i, 200.0, (h1 + rng.uniform(90, 180)) % 360)
         (OUT / f"atm_pair_{i:02d}.toml").write_text(body)
     wind_set()
+    drift_set()
 
 
 # experiments/sim_wind: a stronger wind (12 m/s from 240°) and a mix of GA and low jets, where the
@@ -117,6 +119,27 @@ def wind_set():
         body += aircraft(rng, 0xA73000 + 2 * i, 60.0, h1)
         body += (jet if i % 2 else aircraft)(rng, 0xA73001 + 2 * i, 200.0, (h1 + rng.uniform(90, 180)) % 360)
         (OUT_WIND / f"wind_pair_{i:02d}.toml").write_text(body)
+
+
+# experiments/sim_drift: two-aircraft scenes in still air (c 343) whose sources drift linearly at
+# 0, ±0.5 or ±1 %/min, for the scorer drift A/B (search/drift.rs). The pair pins the clock.
+OUT_DRIFT = OUT.parent / "sim_drift"
+DRIFTS_PCT_MIN = [-1.0, -0.5, 0.0, 0.5, 1.0]
+
+
+def drifting(body, pct_min):
+    return body.replace("jitter_frac = 0.001", f"jitter_frac = 0.001\ndrift_per_s = {pct_min / 6000.0:.3e}")
+
+
+def drift_set():
+    OUT_DRIFT.mkdir(parents=True, exist_ok=True)
+    rng = random.Random(20261105)
+    for i in range(12):
+        h1 = rng.uniform(0, 360)
+        body = HEADER.format(c=343.0, w=[0.0, 0.0, 0.0], seed=500 + i, dur=260.0)
+        body += drifting(aircraft(rng, 0xA74000 + 2 * i, 60.0, h1), rng.choice(DRIFTS_PCT_MIN))
+        body += drifting(aircraft(rng, 0xA74001 + 2 * i, 200.0, (h1 + rng.uniform(90, 180)) % 360), rng.choice(DRIFTS_PCT_MIN))
+        (OUT_DRIFT / f"drift_pair_{i:02d}.toml").write_text(body.replace("true atmosphere c = 343.0", "c = 343.0, drifting sources"))
 
 
 if __name__ == "__main__":
