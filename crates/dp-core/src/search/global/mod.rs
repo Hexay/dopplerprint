@@ -38,15 +38,17 @@ pub struct GlobalParams {
     pub min_radius_m: f64,
     pub max_radius_m: f64,
     pub margin_m: f64,
-    /// Proposals handed to the regional search. The rerank is weak (Oyster Bay truth #17–19); the regional
-    /// score is what separates truth, so K is generous (global_search_2026-11-03.md).
+    /// Proposals handed to the regional search (cost ~4–11 s each; global_search_2026-11-03.md).
     pub top_k: usize,
     /// Proposals kept (and reranked by spectrogram score) before the top_k are searched.
     pub keep_proposals: usize,
     /// Track bbox (lat_min, lon_min, lat_max, lon_max); the store is worldwide.
     pub bbox: Option<(f64, f64, f64, f64)>,
-    /// Half-width (m) of the 3×3 offset grid tried around each proposal centre by `rerank`.
-    pub rerank_offset_m: f64,
+    /// Voted cells per proposal that `rerank` scores (one spectrogram score each).
+    pub rerank_cells: usize,
+    /// Slack factor on d bounds and seconds on CPA time for `rerank`'s geometry gate.
+    pub rerank_d_slack: f64,
+    pub rerank_t_slack_s: f64,
     /// Proposals (geometry order) that get the spectrogram rerank; ~0.2 s each on an hour of audio.
     pub rerank_max: usize,
 }
@@ -66,10 +68,12 @@ impl Default for GlobalParams {
             min_radius_m: 1_500.0,
             max_radius_m: 5_000.0,
             margin_m: 750.0,
-            top_k: 30,
+            top_k: 10,
             keep_proposals: 5_000,
             bbox: Some((24.0, -125.5, 50.0, -66.0)),
-            rerank_offset_m: 300.0,
+            rerank_cells: 6,
+            rerank_d_slack: 1.25,
+            rerank_t_slack_s: 5.0,
             rerank_max: 1_000,
         }
     }
@@ -89,9 +93,12 @@ pub struct RegionProposal {
     /// Indices of `flights` into the proposal-stage window tracks.
     #[serde(skip)]
     pub tracks: Vec<Vec<u32>>,
-    /// Spectrogram score (z) of the supporting flights from the region centre (`rerank`).
+    /// Best spectrogram score (z) of a geometry-consistent flight combination at the voted cells (`rerank`).
     pub quick: Option<f64>,
     pub n_cells: usize,
+    /// (lat, lon) of the voted cells that explain `n_events`, best first (capped at `rerank_cells`).
+    #[serde(skip)]
+    pub cells: Vec<(f64, f64)>,
 }
 
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]

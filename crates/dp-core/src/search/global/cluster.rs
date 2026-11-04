@@ -146,6 +146,7 @@ fn cover(patch: &[&CellBest], prior: (f64, f64), cell_m: f64, p: &GlobalParams, 
         let seed = order[s];
         let sc = centre(seed, cell_m);
         let (mut r, mut n_cells, mut b_lo, mut b_hi) = (0.0f64, 0usize, seed.bin, seed.bin);
+        let mut cells = Vec::new();
         let near = (-span..=span).flat_map(|dx| (-span..=span).map(move |dy| (seed.ix + dx, seed.iy + dy)));
         for j in near.filter_map(|k| at.get(&k).copied()) {
             let c = order[j];
@@ -158,6 +159,9 @@ fn cover(patch: &[&CellBest], prior: (f64, f64), cell_m: f64, p: &GlobalParams, 
             if c.n == seed.n {
                 r = r.max(dist);
                 n_cells += 1;
+                if cells.len() < p.rerank_cells {
+                    cells.push(albers::inverse(xy));
+                }
                 b_lo = b_lo.min(c.bin);
                 b_hi = b_hi.max(c.bin);
             }
@@ -173,6 +177,7 @@ fn cover(patch: &[&CellBest], prior: (f64, f64), cell_m: f64, p: &GlobalParams, 
             tracks: Vec::new(),
             quick: None,
             n_cells,
+            cells,
         };
         out.push((prop, *seed));
     }

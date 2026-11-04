@@ -134,6 +134,24 @@ v²/κ per candidate flight. Likelihood silence is the default. `oysterbay_t5.to
   manoeuvring_turn now 181 m, correct flight, still ambiguous (margin 1.6; 538 s, was 178 s);
   faint_single ambiguous. Cost ≈ 3× on the regional stage.
 
+### Geometry-gated rerank: truth #1, top_k back to 10
+
+`rerank.rs` now scores each proposal at its best voted cells (`rerank_cells` = 6) instead of centre
+±300 m. At each cell it picks, per event, the supporting flight (≤ 3) whose CPA from that cell best fits
+`d_range_at(gs)`, `v_range` and the CPA time (slack ×1.25 d/v, +5 s); a cell with no consistent flight
+is skipped. One `score_joint` per cell, as before. Fitted bounds, ±5 s:
+
+| case | prop# before → after | top_k | answer | margin z | rerank s | wall s |
+|---|---|---|---|---|---|---|
+| Oyster Bay | 19 / 390 → **1 / 390** | 10 | 79 m ✓ | 19.95 | 146 → **34** | 329 (K 30) → **289** |
+| two_props | 1 / 56 → 1 / 56 | 10 | 1 m ✓ | 22.3 | 6 | 246 (K 30) → 101 |
+| manoeuvring_turn | 19 → 32 / 575 | 10 | ambiguous | 0.30 | 49 | 178 |
+| faint_single | 969 → 91 / 2156 | 10 | ambiguous | 0.40 | 55 | 141 |
+
+Truth's quick score is 101.7 against 87.1 for the best rival (was 71.5, scored 1.5 km off truth, below
+rivals' 76–98). The gate is what stops wrong pairs fitting noise with an unchecked flight. Singles
+move both ways and stay ambiguous; only their candidate-list order changes.
+
 ## What works, what doesn't
 
 - **Works:** ≥ 2 events with honest d/v bounds. Clock agreement across events 920 s apart is very
@@ -147,9 +165,9 @@ v²/κ per candidate flight. Likelihood silence is the default. `oysterbay_t5.to
   matches. The CV refit on Oyster Bay latched onto the wrong ridge for event 2. With real bounds (sim
   ±60% d, ±25% v) truth is #1. Fit d is also biased by f0 drift (+6–51% at 1 %/min, same methods doc).
   Loci should therefore be seeds, refit with the candidate flight's ADS-B speed.
-- **Negative: the rerank as built.** It helps nothing on the 2-event sims (already #1). It hurts
-  single events (150 → 969, 11 → 19), and on Oyster Bay it only lifted truth from > 500 to #122 at
-  20 min CPU. Scoring at a 500 m-coarse centre with only the first supporting flight is too blunt.
+- **Negative: the first rerank** (centre ±300 m, first supporting flight, no geometry gate). It hurt
+  single events (150 → 969, 11 → 19) and left Oyster Bay truth at #122. Replaced by the gated rerank
+  above.
 - **Silence term not used in proposals.** The regional search applies it per region. A national
   silence pre-filter would need tracks over the whole recording, not just event windows (1 h for
   Oyster Bay). Not attempted.
@@ -163,9 +181,8 @@ v²/κ per candidate flight. Likelihood silence is the default. `oysterbay_t5.to
    (or no consistent pair) was found, and N flights across CONUS fit it. Give `--near` (a city or
    state) or a tighter start time, or record longer to catch a second aircraft." List the top 10
    proposals (flight ids, places, quick scores) as candidates.
-4. Done: likelihood silence default; κ bounds + top_k 30 (Oyster Bay solved with fitted bounds).
-   Next steps, in order: a rerank that ranks truth near the top (all supporting flights at
-   vote-cell resolution, with κ refit per flight) so K can shrink again; stable sub-window spread for
+4. Done: likelihood silence default; κ bounds; geometry-gated rerank (Oyster Bay truth #1, top_k 10).
+   Next steps, in order: stable sub-window spread for
    long, far passes (event 1); use κ in the regional association gate (`hypothesis/soft.rs`; needs a
    calibration refit); closed-form loci + EDT
    clock-free scoring (methods doc) instead of the lattice; a coarse national DEM (≤ 1 km) for H;
