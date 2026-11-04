@@ -27,6 +27,8 @@ pub struct FitParams {
     /// v, d and t_cpa bounds are at least this multiple of their sub-window refit spread (`window`); 0 disables.
     /// 2 = plateau of gate recall on the Livermore dev split (fix_event_select_fitbias.md).
     pub window_k: f64,
+    /// Class prior σ of linear f0 drift (1/s; 1e-4 = 0.6 %/min), widening bounds via `Problem::covariance`.
+    pub drift_sigma_per_s: f64,
 }
 
 impl Default for FitParams {
@@ -41,6 +43,7 @@ impl Default for FitParams {
             t_floor_s: 3.0,
             huber_k: 1.345,
             window_k: 2.0,
+            drift_sigma_per_s: 5e-5,
         }
     }
 }
@@ -64,7 +67,7 @@ pub fn fit_cv_with(ridge: &Ridge, c: f64, p: &FitParams) -> CvFit {
         return degenerate(&t, &f, c);
     }
     let fmed = quantile(&f, 0.5);
-    let prob = Problem { t: &t, f: &f, c, k: p.huber_k, scale_floor: 1e-5 * fmed };
+    let prob = Problem { t: &t, f: &f, c, k: p.huber_k, scale_floor: 1e-5 * fmed, drift_sigma: p.drift_sigma_per_s };
     let fits = seeds(&t, &f, c).into_iter().map(|s| prob.lm(s));
     let best = fits
         .min_by(|a, b| median_abs(&prob.residuals(a)).total_cmp(&median_abs(&prob.residuals(b))))

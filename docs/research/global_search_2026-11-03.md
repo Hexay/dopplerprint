@@ -178,6 +178,17 @@ unchanged (prop #4, margin 20.8). Not shipped, so no calibration refit. κ stays
 rerank bound only. The regional gate already sees the flight's actual speed and slant range, so
 the narrower d adds little information and cuts correct pairs whose fitted κ is biased.
 
+### f0 drift as a consider parameter in the event fit
+
+`events/cvlm.rs::covariance` adds S·σ_β²·Sᵀ, S = dθ/dβ for a linear source drift left at 0 in the fit
+(fitting β is ill-conditioned on short spans). `drift_sigma_per_s` default 5e-5 (0.3 %/min).
+`drift_bias` harness (`MEASURE_SUBSET=1`, 50 m/s): at 5 km and ±1 %/min, v −20 / +29 % was outside
+its bounds; now v and d both inside at 1.5 and 5 km. Livermore dev discovered: reported error mean
++0.3 m [−0.07, +0.9], no flips; Oyster Bay discovered and global unchanged. σ_β 1e-4 also fixed the
+harness but cost Livermore +17 m [+0.2, +50] and one calibrated-90 % flip, so the lower prior ships.
+The search scorer still has no β term (150–900 m cross-track at 1 %/min, localization_verification.md);
+adding it touches the CUDA sweep and needs `gpu_parity.sh`.
+
 ### National DEM (Terrarium 1 km)
 
 `data/dem/5070/conus_1000m` (docs/GEO.md) replaces the 0–800 m MSL band. Each footprint vote uses
@@ -224,7 +235,9 @@ Same answer, flights and clock. The lower margin is from the Denver rival being 
    proposals (flight ids, places, quick scores) as candidates.
 4. Done: likelihood silence default; κ bounds; geometry-gated rerank (top_k 10); window spread net of
    sub-fit σ; national 1 km DEM; hypothesis cap flagged (`Candidate::capped`, report warning, eval
-   `capped_cells`: 0 of 99k scored cells in Livermore dev + Oyster Bay, so 64 is not binding). Tried
+   `capped_cells`: 0 of 99k scored cells in Livermore dev + Oyster Bay, so 64 is not binding); f0 drift
+   consider covariance in the event fit. Already present, nothing to port: scorer charges uncovered
+   window frames (`job.rs` norm over all frames); harmonic / same-source fold (`events/merge.rs`). Tried
    and dropped: κ in the regional gate. `tools/global_eval.sh
    EXPERIMENT` runs one global eval and prints ranks and bounds. Next: closed-form loci + EDT
    clock-free scoring (methods doc) instead of the lattice; weather for the top_k regions.
