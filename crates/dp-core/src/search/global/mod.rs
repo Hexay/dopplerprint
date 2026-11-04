@@ -54,6 +54,11 @@ pub struct GlobalParams {
     pub rerank_t_slack_s: f64,
     /// Proposals (geometry order) that get the spectrogram rerank; ~0.2 s each on an hour of audio.
     pub rerank_max: usize,
+    /// Events voted only if d_max ≥ `min_event_d_m` (aircraft, not a ground source) and the d and v
+    /// ranges span at most these ratios; wider ones vote everywhere and only add chance agreements.
+    pub min_event_d_m: f64,
+    pub max_event_d_ratio: f64,
+    pub max_event_v_ratio: f64,
 }
 
 impl Default for GlobalParams {
@@ -79,8 +84,22 @@ impl Default for GlobalParams {
             rerank_d_slack: 1.25,
             rerank_t_slack_s: 5.0,
             rerank_max: 1_000,
+            min_event_d_m: 300.0,
+            max_event_d_ratio: 30.0,
+            max_event_v_ratio: 5.0,
         }
     }
+}
+
+/// Indices of the events the nationwide vote uses (`GlobalParams::min_event_d_m` and the ratio caps).
+pub fn informative_events(events: &[EventSpec], p: &GlobalParams) -> Vec<usize> {
+    let ratio = |r: (f64, f64)| r.1 / r.0.max(1e-9);
+    (0..events.len())
+        .filter(|&i| {
+            let e = &events[i];
+            e.d_range.1 >= p.min_event_d_m && ratio(e.d_range) <= p.max_event_d_ratio && ratio(e.v_range) <= p.max_event_v_ratio
+        })
+        .collect()
 }
 
 /// A candidate region for the regional search, from agreeing (event, flight) footprints.

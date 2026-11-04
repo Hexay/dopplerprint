@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use super::source::{TrackSource, window_tracks};
 use super::rerank::rerank;
-use super::{GlobalParams, ProposalStats, RegionProposal, propose_regions};
+use super::{GlobalParams, ProposalStats, RegionProposal, informative_events, propose_regions};
 use crate::adsb::TrackQuery;
 use crate::dem::{Dem, geoid_undulation};
 use crate::geo::{Geodetic, geodetic_to_ecef};
@@ -50,6 +50,9 @@ pub struct GlobalTimings {
 
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct GlobalResult {
+    /// Indices into `GlobalInput::events` that were searched (`informative_events`); candidates' per-event
+    /// ids follow this order.
+    pub events_used: Vec<usize>,
     pub proposals: Vec<RegionProposal>,
     pub stats: ProposalStats,
     /// Scored regions, best first.
@@ -69,11 +72,13 @@ const AMBIGUITY_MARGIN: f64 = 3.0;
 
 pub fn locate_global(inp: &GlobalInput<'_>, sp: &SearchParams, gp: &GlobalParams) -> anyhow::Result<GlobalResult> {
     let mut timings = GlobalTimings::default();
+    let events_used = informative_events(inp.events, gp);
+    let events: Vec<EventSpec> = events_used.iter().map(|&i| inp.events[i].clone()).collect();
     let t = Instant::now();
-    let tracks = window_tracks(inp.source, inp.events, inp.prior, gp)?;
+    let tracks = window_tracks(inp.source, &events, inp.prior, gp)?;
     timings.load_s = t.elapsed().as_secs_f64();
     let t = Instant::now();
-    let (mut proposals, stats) = propose_regions(inp.events, &tracks, inp.prior, inp.national, gp);
+    let (mut proposals, stats) = propose_regions(&events, &tracks, inp.prior, inp.national, gp);
     timings.propose_s = t.elapsed().as_secs_f64();
     let t = Instant::now();
     let ground = |lat: f64, lon: f64| {
@@ -81,13 +86,13 @@ pub fn locate_global(inp: &GlobalInput<'_>, sp: &SearchParams, gp: &GlobalParams
         let dem = dem.or_else(|| inp.national.and_then(|d| d.height_ellipsoid_latlon(lat, lon)));
         dem.unwrap_or_else(|| flat_ground(inp, gp, lat, lon))
     };
-    rerank(&mut proposals, &tracks, inp.scorer.plane(), inp.events, &ground, sp, gp);
+    rerank(&mut proposals, &tracks, inp.scorer.plane(), &events, &ground, sp, gp);
     drop(tracks);
     timings.rerank_s = t.elapsed().as_secs_f64();
     let t = Instant::now();
     let mut regions = Vec::new();
     for (i, prop) in proposals.iter().enumerate().take(gp.top_k) {
-        regions.push(score_region(inp, i, prop, sp, gp)?);
+        regions.push(score_region(inp, &events, i, prop, sp, gp)?);
     }
     timings.locate_s = t.elapsed().as_secs_f64();
     let score = |r: &RegionOutcome| r.best.as_ref().map_or(f64::NEG_INFINITY, |b| b.score);
@@ -98,11 +103,12 @@ pub fn locate_global(inp: &GlobalInput<'_>, sp: &SearchParams, gp: &GlobalParams
         rival.map(|c| b.score - c.score)
     });
     let ambiguous = stats.n_max < 2 || margin.is_some_and(|m| m < AMBIGUITY_MARGIN);
-    Ok(GlobalResult { proposals, stats, regions, best, margin, ambiguous, timings })
+    Ok(GlobalResult { events_used, proposals, stats, regions, best, margin, ambiguous, timings })
 }
 
 fn score_region(
     inp: &GlobalInput<'_>,
+    events: &[EventSpec],
     idx: usize,
     prop: &RegionProposal,
     sp: &SearchParams,
@@ -130,7 +136,7 @@ fn score_region(
     };
     let catalog = MemCatalog::new(inp.source.load(&q)?);
     let n_tracks = catalog.all().len();
-    let si = SearchInput { scorer: inp.scorer, events: inp.events, catalog: &catalog, region: r, duration_s: inp.duration_s, dem };
+    let si = SearchInput { scorer: inp.scorer, events, catalog: &catalog, region: r, duration_s: inp.duration_s, dem };
     let res = search(&si, &p);
     Ok(RegionOutcome {
         proposal: idx,

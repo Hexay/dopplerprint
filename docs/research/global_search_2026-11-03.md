@@ -260,3 +260,5 @@ Same answer, flights and clock. The lower margin is from the Denver rival being 
    and dropped: κ in the regional gate. `tools/global_eval.sh
    EXPERIMENT` runs one global eval and prints ranks and bounds. Next: closed-form loci + EDT
    clock-free scoring (methods doc) instead of the lattice; weather for the top_k regions.
+5. Shipped in the app, with a nationwide decoy check and a two-pass rule. On discovered events Oyster Bay is
+   not solved (truth region z 60 vs 99.5 oracle; chance pairs reach 71): see nationwide_app_2026-11-04.md.

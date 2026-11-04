@@ -43,8 +43,12 @@ pub fn missing_fields(req: &LocateRequest, rep: &Report) -> Vec<&'static str> {
     }
     let start_bad = given_start(req).is_err();
     // Steps run start → area → tolerance, so a failure after a good start and before the area is the place.
-    let near_bad = req.near.as_deref().is_none_or(|s| parse_near(s).is_err()) || (!start_bad && rep.area.is_none());
-    let tolerance_bad = rep.area.is_some() && rep.start.is_none();
+    // Without --near the whole country is searched; it asks for --near only when that is ambiguous.
+    let near_bad = match req.near.as_deref() {
+        Some(s) => parse_near(s).is_err() || (!start_bad && rep.area.is_none()),
+        None => start_bad || rep.message.as_deref().is_some_and(|m| m.starts_with(super::nationwide::ASK_NEAR)),
+    };
+    let tolerance_bad = !start_bad && (rep.area.is_some() || req.near.is_none()) && rep.start.is_none();
     [("start", start_bad || tolerance_bad), ("near", near_bad)].into_iter().filter(|f| f.1).map(|f| f.0).collect()
 }
 

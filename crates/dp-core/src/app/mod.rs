@@ -8,6 +8,7 @@ pub mod filetime;
 pub mod geocode;
 pub mod http;
 mod inputs;
+mod nationwide;
 pub mod place;
 pub mod posterior;
 pub mod report;

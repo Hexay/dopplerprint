@@ -30,7 +30,7 @@ pub struct Area {
 
 pub fn missing_near() -> NeedsInput {
     NeedsInput(format!(
-        "Need roughly where the recording was made: add {EXAMPLE} (within ~{DEFAULT_RADIUS_KM:.0} km; whole-country search isn't supported yet)."
+        "Need roughly where the recording was made: add {EXAMPLE} (within ~{DEFAULT_RADIUS_KM:.0} km), or leave --near out to search the whole country."
     ))
 }
 
@@ -88,7 +88,7 @@ pub fn area(near: &Near, label: Option<&str>, radius_override_km: Option<f64>) -
     }
     if !(r > 0.0 && r <= MAX_RADIUS_KM) {
         return Err(NeedsInput(format!(
-            "A {r:.0} km search radius is too wide; narrow --near to within {MAX_RADIUS_KM:.0} km (whole-country search isn't supported yet)."
+            "A {r:.0} km search radius is too wide; narrow --near to within {MAX_RADIUS_KM:.0} km, or leave --near out to search the whole country."
         )));
     }
     Ok(Area { lat, lon, radius_km: r, label })
@@ -114,7 +114,7 @@ mod tests {
         assert!(bbox.contains("west,south,east,north"), "{bbox}");
         assert!(parse_near("1,2,3,4,5").unwrap_err().0.contains("lat,lon,radius_km"));
         let missing = missing_near().0;
-        assert!(missing.contains("--near") && missing.contains("whole-country") && !missing.contains('\n'));
+        assert!(missing.contains("--near") && missing.contains("whole country") && !missing.contains('\n'));
     }
 
     #[test]
@@ -127,7 +127,7 @@ mod tests {
         let b = area(&parse_near("-121.9,37.6,-121.6,37.8").unwrap(), Some("box"), None).unwrap();
         assert!((b.lat - 37.7).abs() < 1e-9 && (b.radius_km - 17.5).abs() < 1.5, "{b:?}");
         let wide = area(&p, None, Some(400.0)).unwrap_err().0;
-        assert!(wide.contains("whole-country"), "{wide}");
+        assert!(wide.contains("whole country"), "{wide}");
         let paris = area(&parse_near("48.85,2.35").unwrap(), Some("Paris"), None).unwrap_err().0;
         assert!(paris.contains("contiguous US"), "{paris}");
     }

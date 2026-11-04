@@ -56,6 +56,25 @@ fn locates_synthetic_flyover_offline() {
 }
 
 #[test]
+fn nationwide_single_pass_asks_for_near_with_candidates() {
+    let fx = Fixture::build();
+    let req = LocateRequest {
+        audio: fx.audio.clone(),
+        start: Some(local_edt(fx.start + 20.0)),
+        cache: Some(fx.cache.clone()),
+        config: Some(fx.config.clone()),
+        out: Some(fx.tmp.path().join("out")),
+        offline: true,
+        ..LocateRequest::default()
+    };
+    let rep = app::locate(&req, &QuietUi).unwrap();
+    assert_eq!(rep.status, Status::NeedsInput, "{:?}", rep.message);
+    let msg = rep.message.as_deref().unwrap();
+    assert!(msg.starts_with("Searched the whole country:") && msg.contains("a03a42"), "{msg}");
+    assert_eq!(app::missing_fields(&req, &rep), ["near"]);
+}
+
+#[test]
 fn missing_inputs_and_offline_data_need_input() {
     let tmp = tempfile::tempdir().unwrap();
     let wav = tmp.path().join("quiet.wav");
@@ -73,10 +92,12 @@ fn missing_inputs_and_offline_data_need_input() {
     assert_eq!(app::missing_fields(&no_start_req, &no_start), ["start"]);
     assert_eq!(app::missing_fields(&base, &run(&base)), ["start", "near"]);
 
+    // Without --near the whole country is searched; quiet audio stops before that at "no aircraft pass".
     let no_near_req = LocateRequest { start: Some("2026-09-08T17:00Z".into()), ..base.clone() };
     let no_near = run(&no_near_req);
-    assert!(no_near.message.as_deref().unwrap().contains("--near"));
-    assert_eq!(app::missing_fields(&no_near_req, &no_near), ["near"]);
+    assert_eq!(no_near.status, Status::Inconclusive, "{:?}", no_near.message);
+    assert!(no_near.message.as_deref().unwrap().contains("no aircraft pass"));
+    assert!(app::missing_fields(&no_near_req, &no_near).is_empty());
 
     let no_zone = run(&LocateRequest { start: Some("2026-09-08 13:00".into()), near: Some("40.41,-83.2".into()), ..base.clone() });
     assert!(no_zone.message.as_deref().unwrap().contains("UTC offset"));

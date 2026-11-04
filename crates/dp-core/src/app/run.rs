@@ -9,6 +9,7 @@ use super::cache::Cache;
 use super::decoy;
 use super::fetch::{FetchOptions, dates_between, ensure_days};
 use super::inputs::{given_start, registrations, resolve_area, start_prior, terrain};
+use super::nationwide;
 use super::place::Area;
 use super::posterior;
 use super::report::{Clock, MIN_EVENT_Z, Report, Status, alternatives, location, matched};
@@ -53,8 +54,8 @@ fn steps(req: &LocateRequest, ui: &dyn Ui, rep: &mut Report, started: Instant) -
         None => Config::default(),
     };
     let given = given_start(req)?;
-    let area = resolve_area(req, &cache, ui)?;
-    rep.area = Some(area.clone());
+    let near = req.near.is_some().then(|| resolve_area(req, &cache, ui)).transpose()?;
+    rep.area = near.clone();
 
     let mut dcfg = DiscoverConfig::default();
     dcfg.front.mains_hz = req.mains_hz.or(dcfg.front.mains_hz);
@@ -76,6 +77,17 @@ fn steps(req: &LocateRequest, ui: &dyn Ui, rep: &mut Report, started: Instant) -
     let window = (prior.lo - TRACK_MARGIN_S, prior.hi + rep.duration_s + TRACK_MARGIN_S);
     let fo = FetchOptions { offline: req.offline, yes: req.yes, keep_raw: req.keep_raw, max_cache_gb: req.max_cache_gb };
     ensure_days(&cache, &dates_between(window.0, window.1), &fo, ui)?;
+    let nationwide = near.is_none();
+    let area = match near {
+        Some(a) => a,
+        None => {
+            ui.step("nationwide", 0.3, "No --near given: searching the whole country for flights that fit...");
+            let a = nationwide::find_area(&cache, &audio, &events, &prior, window, &cfg)?;
+            ui.info(&format!("nationwide match near {:.4}, {:.4}; refining there", a.lat, a.lon));
+            rep.area = Some(a.clone());
+            a
+        }
+    };
     let tracks = load_tracks(&cache, &area, window)?;
     rep.tracks_considered = tracks.len();
     if tracks.is_empty() {
@@ -136,6 +148,12 @@ fn steps(req: &LocateRequest, ui: &dyn Ui, rep: &mut Report, started: Instant) -
                 i + 1,
                 w.z
             ));
+        }
+        _ if nationwide && best.events.iter().enumerate().filter(explained).count() < 2 => {
+            rep.status = Status::Inconclusive;
+            rep.message = Some(
+                "without --near only an answer matched by two or more passes is trusted, and here one pass matched; treat the location as a guess and add --near to confirm it.".into(),
+            );
         }
         _ => rep.status = Status::Found,
     }

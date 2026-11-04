@@ -30,7 +30,17 @@ both. A tag without a time zone is not guessed at; dopplerprint asks for `--star
 Nominatim and cached), `lat,lon`, `lat,lon,radius_km`, or a box `west,south,east,north`. The default radius is
 10 km (`--radius` to change, max 50): search time grows with the area (a 10 km radius is ~8,000 cells of
 200 m before refinement), and an aircraft is rarely heard from further than that. Coverage is the contiguous
-US for now (the embedded geoid and the EPSG:5070 lattice); whole-country search is not supported yet.
+US for now (the embedded geoid and the EPSG:5070 lattice).
+
+Without `--near`, the whole contiguous US is searched (needs `--start` or a file timestamp; a few minutes):
+every logged flight that could explain each pass votes for where the recorder stood, and the regions where
+two or more passes agree are scored before the usual search refines the best one. It reports a place only
+when at least two passes agree, no distinct spot comes close (margin 3) and the same nationwide search
+against flights from about an hour earlier and later scores lower; otherwise it asks for `--near` and lists
+the candidate spots and flights. An answer the refined search backs with only one pass is reported as
+inconclusive. On real recordings this mostly ends in "add `--near`" today (docs/research/nationwide_app_2026-11-04.md).
+Method: docs/research/global_search_2026-11-03.md. With
+`<cache>/dem/5070/conus_1000m.u16` present (docs/GEO.md), votes use real ground heights instead of 0–800 m.
 
 ## Data and the cache
 

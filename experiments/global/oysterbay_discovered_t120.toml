@@ -1,0 +1,15 @@
+# Region-free (CONUS) search on Oyster Bay as `dopplerprint locate` without --near runs it: discovered events
+# (events::select, 4 strongest), start known to ±120 s (the app's default ±2 min). See
+# docs/research/global_search_2026-11-03.md.
+[eval]
+cases = ["oysterbay"]
+data_dir = "/srv/agents/work/doppler_print/data"
+store_dir = "/srv/agents/work/doppler_print/data/adsb/store"
+region_mode = "global"
+time_prior_s = 120.0
+oracle_events = false
+
+[search]
+coarse_step_m = 200
+min_step_m = 25
+keep_top = 200

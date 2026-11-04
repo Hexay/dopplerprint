@@ -86,6 +86,9 @@ fn try_run(cfg: &Config, c: &Posed) -> anyhow::Result<CaseResult> {
 
 fn result(c: &Posed, t0: f64, shift: f64, events: Vec<EventSpec>, res: GlobalResult) -> CaseResult {
     let truth: Option<Vec<String>> = c.truth_flights.iter().cloned().collect();
+    // Per-event ids follow the events the global search kept.
+    let truth = truth.map(|t| res.events_used.iter().filter_map(|&i| t.get(i).cloned()).collect::<Vec<_>>());
+    let events: Vec<EventSpec> = res.events_used.iter().map(|&i| events[i].clone()).collect();
     let inside = |p: &RegionProposal| distance_m(p.region.lat_deg, p.region.lon_deg, c.truth_lat, c.truth_lon) <= p.region.radius_m;
     let has_flights = |p: &RegionProposal| {
         truth.as_ref().is_some_and(|t| {
