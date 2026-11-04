@@ -1,0 +1,19 @@
+# experiments/oysterbay_dg_parity.toml (like-for-like with DOPPLERGEIST reproduce-local.json) with the clock
+# step matched to their 0.5 s (our step is one spectrogram hop; default 0.25 s).
+[eval]
+cases = ["oysterbay"]
+region_radius_m = 5600.0
+region_offset_m = 450.0
+time_prior_s = 5.0
+oracle_events = true
+
+[spec]
+hop_s = 0.5
+
+[search]
+coarse_step_m = 200
+min_step_m = 25
+keep_top = 200
+
+[search.score]
+clock_sweep_s = 5.0

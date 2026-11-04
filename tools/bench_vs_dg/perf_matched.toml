@@ -1,0 +1,12 @@
+# Matched-work settings for the speed/memory comparison (docs/research/bench_vs_dopplergeist_2026-11-03.md#matched).
+# DOPPLERGEIST: 200 m coarse grid, 25 m finest, clock sweep ±5 s in 0.5 s steps, still air c 343 m/s.
+# Our clock step is one spectrogram hop, so hop_s = 0.5 matches their 0.5 s step (default 0.25).
+[spec]
+hop_s = 0.5
+
+[search]
+coarse_step_m = 200
+min_step_m = 25
+
+[search.score]
+clock_sweep_s = 5.0

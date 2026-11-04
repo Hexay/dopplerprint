@@ -1,0 +1,14 @@
+# liv_disc_w120 at locate's 10 km search radius, event_set rule = evidence (area-vs-window test).
+[eval]
+cases = ["N172EL_R35", "N500MG_R17", "N60RS_R11", "N748SP_R36", "N413AK_R16", "N788BM_R03", "N4040_R12", "N86LP_R01", "N248LF_R14", "N456CS_R38"]
+split = "all"
+data_dir = "/srv/agents/work/doppler_print/data"
+store_dir = "/srv/agents/work/doppler_print/data/adsb/store"
+time_prior_s = 120.0
+region_radius_m = 10000.0
+oracle_d_range = [150.0, 8000.0]
+oracle_v_range = [20.0, 250.0]
+oracle_events = false
+
+[event_set]
+rule = "evidence"

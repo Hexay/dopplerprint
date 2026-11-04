@@ -1,0 +1,7 @@
+# lu6 plus the likelihood silence term at r50 = 2 km
+[search.assoc]
+unexplained_cost = -6.0
+
+[search.assoc.silence]
+mode = "likelihood"
+r50_m = 2000.0
