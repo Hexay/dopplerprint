@@ -27,14 +27,30 @@ pub fn top(n_f: usize) -> i64 {
 
 /// Linear interpolation at fixed-point `p`, `0 ≤ p < top(row.len())`.
 pub fn lerp(row: &[f32], p: i64) -> f32 {
-    let j = (p >> POS_SHIFT) as usize;
-    let fr = ((p >> (POS_SHIFT - 24)) & 0xff_ffff) as f32 * (1.0 / 16_777_216.0);
+    let (j, fr) = split(p);
     row[j] * (1.0 - fr) + row[j + 1] * fr
+}
+
+/// Bin index and lerp weight of fixed-point `p ≥ 0`.
+pub fn split(p: i64) -> (usize, f32) {
+    ((p >> POS_SHIFT) as usize, ((p >> (POS_SHIFT - 24)) & 0xff_ffff) as f32 * (1.0 / 16_777_216.0))
 }
 
 /// One term of the sum, truncated toward zero to 2^-ACC_SHIFT.
 pub fn term(v: f32) -> i64 {
     (v * (1u32 << ACC_SHIFT) as f32) as i32 as i64
+}
+
+/// `term` written as selects so a loop of it vectorises (`as i32` saturation compiles to scalar branches).
+/// Equal to `term` for every input, NaN and ±∞ included (tests).
+#[inline(always)]
+#[allow(clippy::manual_clamp)]
+pub fn term_select(v: f32) -> i64 {
+    let x = v * (1u32 << ACC_SHIFT) as f32;
+    // max/min return the non-NaN operand (clamp would pass NaN), so the cast never sees NaN or an out-of-range value.
+    let t = unsafe { x.max(-2_147_483_648.0).min(2_147_483_520.0).to_int_unchecked::<i32>() };
+    let t = if x >= 2_147_483_648.0 { i32::MAX } else { t };
+    (if x.is_nan() { 0 } else { t }) as i64
 }
 
 pub fn total(acc: i64) -> f64 {
@@ -46,6 +62,14 @@ pub fn in_row(base: i64, step: i64, top: i64, n: usize) -> std::ops::Range<usize
     let first = |bound: i64| -> usize {
         // smallest s ≥ 0 with base + s·step ≥ bound
         if base >= bound { 0 } else { ((bound - base + step - 1) / step).min(n as i64) as usize }
+    };
+    first(0)..first(top).max(first(0))
+}
+
+/// `in_row` for `step = 2^log_step`, with shifts instead of i64 divisions.
+pub fn in_row_pow2(base: i64, log_step: u32, top: i64, n: usize) -> std::ops::Range<usize> {
+    let first = |bound: i64| -> usize {
+        if base >= bound { 0 } else { ((bound - base + (1 << log_step) - 1) >> log_step).min(n as i64) as usize }
     };
     first(0)..first(top).max(first(0))
 }
@@ -62,6 +86,9 @@ mod tests {
             let want: Vec<usize> = (0..n).filter(|&s| (0..top_).contains(&(base + s as i64 * step))).collect();
             let r = in_row(base, step, top_, n);
             assert_eq!(r.clone().collect::<Vec<_>>(), want, "base {base}");
+            for q in [28, 30, 31, 32] {
+                assert_eq!(in_row_pow2(base, q, top_, n), in_row(base, 1 << q, top_, n), "base {base} q {q}");
+            }
         }
     }
 
@@ -73,5 +100,21 @@ mod tests {
         assert_eq!(term(-2.5 * q), -2);
         assert_eq!(term(1e9), i32::MAX as i64);
         assert_eq!(term(7.75), 31 << (ACC_SHIFT - 2));
+    }
+
+    #[test]
+    fn term_select_equals_term() {
+        let edge = [0.0, -0.0, f32::NAN, -f32::NAN, f32::INFINITY, f32::NEG_INFINITY, f32::MAX, f32::MIN, f32::MIN_POSITIVE, 127.99999, 128.0, -128.0, -128.00002, 1e-30];
+        let mut x = 0x9e37_79b9_u32;
+        let random = (0..4_000_000).map(|_| {
+            x ^= x << 13;
+            x ^= x >> 17;
+            x ^= x << 5;
+            f32::from_bits(x)
+        });
+        let near = (-1_000_000..1_000_000).map(|i| i as f32 * 1.3e-4);
+        for v in edge.into_iter().chain(random).chain(near) {
+            assert_eq!(term_select(v), term(v), "v = {v:e} ({:#x})", v.to_bits());
+        }
     }
 }
