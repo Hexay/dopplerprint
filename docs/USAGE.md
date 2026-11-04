@@ -93,6 +93,13 @@ Exit codes: 0 found, 1 error, 2 needs input (a missing time or place, or a downl
 inconclusive (no passes heard, no flights in the window, or a match too weak to trust; the report says
 which).
 
+<a id="decoy"></a>**Chance check.** After a match, the same search runs twice more against flights from times
+the recording was not made (start shifted by the window plus the recording plus 10 min, at least 15 min,
+each way; only ADS-B days already cached). If a decoy scores as well as the best match, the run is
+inconclusive: some flight fits the passes by chance, which happens with a wide `--start` window or a large
+`--near` radius. This roughly triples search time. `decoy` in the JSON holds the decoy scores and the margin.
+Validation: docs/research/decoy_check_2026-11-04.md.
+
 <a id="browser-app"></a>
 ## Browser app
 

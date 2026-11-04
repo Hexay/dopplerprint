@@ -57,6 +57,8 @@ pub struct Report {
     pub cells_scored: usize,
     pub runtime_s: f64,
     pub files: Vec<String>,
+    /// Look-elsewhere check (`app::decoy`); `None` when no decoy ADS-B was cached or no answer was found.
+    pub decoy: Option<super::decoy::DecoyCheck>,
 }
 
 impl Report {
@@ -82,6 +84,7 @@ impl Report {
             cells_scored: 0,
             runtime_s: 0.0,
             files: Vec::new(),
+            decoy: None,
         }
     }
 

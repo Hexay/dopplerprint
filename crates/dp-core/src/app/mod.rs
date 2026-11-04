@@ -2,6 +2,7 @@
 //! The CLI and the Python package both call `locate`; flags and defaults are documented in docs/USAGE.md.
 
 pub mod cache;
+pub mod decoy;
 pub mod fetch;
 pub mod filetime;
 pub mod geocode;

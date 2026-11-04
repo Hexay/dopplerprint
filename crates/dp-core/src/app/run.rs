@@ -6,6 +6,7 @@ use std::time::Instant;
 use anyhow::{Context, Result, ensure};
 
 use super::cache::Cache;
+use super::decoy;
 use super::fetch::{FetchOptions, dates_between, ensure_days};
 use super::inputs::{given_start, registrations, resolve_area, start_prior, terrain};
 use super::place::Area;
@@ -96,7 +97,7 @@ fn steps(req: &LocateRequest, ui: &dyn Ui, rep: &mut Report, started: Instant) -
         area.radius_km,
         area.label
     ));
-    let (res, used) = search_dropping_weakest(&audio, events, &tracks, &area, dem.as_ref(), &cfg, &p)?;
+    let (res, used) = search_dropping_weakest(&audio, events.clone(), &tracks, &area, dem.as_ref(), &cfg, &p)?;
     rep.cells_scored = res.cells_scored;
     rep.events_used = used.len();
     if res.abstains() {
@@ -137,6 +138,30 @@ fn steps(req: &LocateRequest, ui: &dyn Ui, rep: &mut Report, started: Instant) -
             ));
         }
         _ => rep.status = Status::Found,
+    }
+    let shifts = decoy::shifts(&prior, rep.duration_s, window, &cache);
+    if !shifts.is_empty() {
+        ui.step("decoys", 0.8, "Checking the match beats chance: same search against flights from other times...");
+    }
+    let mut search_decoy = |d: f64| -> Result<Option<f64>> {
+        let decoy_tracks = load_tracks(&cache, &area, (window.0 + d, window.1 + d))?;
+        if decoy_tracks.is_empty() {
+            return Ok(None);
+        }
+        let mut pd = p.clone();
+        pd.assoc.t_start_prior = (prior.lo + d, prior.hi + d);
+        let (r, _) = search_dropping_weakest(&audio, events.clone(), &decoy_tracks, &area, dem.as_ref(), &cfg, &pd)?;
+        Ok(r.ranked.first().map(|c| c.score))
+    };
+    rep.decoy = decoy::check(best.score, &shifts, &mut search_decoy)?;
+    if let (Status::Found, Some(d)) = (rep.status, &rep.decoy)
+        && !d.passed()
+    {
+        rep.status = Status::Inconclusive;
+        rep.message = Some(format!(
+            "flights logged {:.0} min away from the given start explain these passes as well as the best match does, so the match may be chance; treat the location as a guess, and narrow --start or --near if you can.",
+            d.shifts_s.iter().map(|s| s.abs()).fold(0.0, f64::max) / 60.0
+        ));
     }
 
     let dir = req.out.clone().unwrap_or_else(|| default_out(req));
