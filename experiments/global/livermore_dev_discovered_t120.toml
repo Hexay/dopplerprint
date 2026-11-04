@@ -1,0 +1,11 @@
+# Region-free (CONUS) search on the Livermore dev split as `dopplerprint locate` without --near runs it:
+# discovered events, start known to ±120 s. Mostly single passes, so the right answer is "ambiguous"; the
+# number that matters is confident-wrong answers. See docs/research/nationwide_app_2026-11-04.md.
+[eval]
+cases = ["livermore"]
+split = "dev"
+data_dir = "/srv/agents/work/doppler_print/data"
+store_dir = "/srv/agents/work/doppler_print/data/adsb/store"
+region_mode = "global"
+time_prior_s = 120.0
+oracle_events = false

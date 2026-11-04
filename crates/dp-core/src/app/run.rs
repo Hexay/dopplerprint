@@ -23,6 +23,7 @@ use crate::audio::{self, Audio};
 use crate::config::Config;
 use crate::dem::{Dem, geoid_undulation};
 use crate::events::{DiscoverConfig, Event, discover_refined, select};
+use crate::search::global::AMBIGUITY_MARGIN;
 use crate::search::hypothesis::UNEXPLAINED_ID;
 use crate::search::{self, EventSpec, Region, SearchParams, SearchResult};
 use crate::track::Track;
@@ -172,8 +173,10 @@ fn steps(req: &LocateRequest, ui: &dyn Ui, rep: &mut Report, started: Instant) -
         Ok(r.ranked.first().map(|c| c.score))
     };
     rep.decoy = decoy::check(best.score, &shifts, &mut search_decoy)?;
+    // Without --near the area itself came from a nationwide max, so the decoy needs the nationwide margin too.
+    let decoy_margin = if nationwide { AMBIGUITY_MARGIN } else { 0.0 };
     if let (Status::Found, Some(d)) = (rep.status, &rep.decoy)
-        && !d.passed()
+        && !d.passed_by(decoy_margin)
     {
         rep.status = Status::Inconclusive;
         rep.message = Some(format!(

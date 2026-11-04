@@ -72,6 +72,22 @@ keeps it.
 | CLI ±5 s (app events) | Denver, inconclusive | Oyster Bay, **592 m, right aircraft (N22NY)**; inconclusive: 1 pass matched, regional decoy −1.5 |
 | CLI ±2 min | needs `--near` | needs `--near` (truth 4th of 5 listed), 42 s |
 
+## Livermore dev, discovered, ±120 s (`experiments/global/livermore_dev_discovered_t120.toml`)
+
+28 short clips, mostly one pass, so the correct outcome is "ambiguous". At the `locate_global` stage (no
+decoys, no two-pass rule), 26 are ambiguous or have no answer and **2 are confident and wrong**:
+
+| case | global stage | CLI before | CLI with the decoy margin |
+|---|---|---|---|
+| N61NG_R37 | 4019 km, margin 34 | needs `--near` (nationwide decoy −3.7) | same |
+| N60RS_R11 | 450 km, margin 65 | **found, high, Oxnard** (2 chance piston matches, z ~100 each; regional decoy +2.1 of 205) | **inconclusive** |
+
+Fix: without `--near`, both decoy checks need the nationwide rival margin (`AMBIGUITY_MARGIN`, 3 z;
+`DecoyCheck::passed_by`), not merely > 0. N60RS passed the nationwide decoy and was stopped by the regional
+one. With `--near` the regional rule is unchanged (decoy_check_2026-11-04.md). Oyster Bay ±5 s is unchanged.
+After this change, no recording tested so far (Oyster Bay ±5 s/±2 min, 28 Livermore at ±2 min) reports a
+confident wrong place without `--near`.
+
 ## Event 2 (ace391, faint CRJ9): why it stays unmatched; two negative results
 
 The ridge is split, not truncated. Event 42 (3032–3092 s) has SNR ≈ 0 at its CPA (3068–3074 s). Its

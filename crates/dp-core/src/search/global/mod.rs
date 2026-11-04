@@ -15,7 +15,7 @@ use super::pipeline::Region;
 use crate::dem::Dem;
 use crate::track::Track;
 
-pub use run::{GlobalInput, GlobalResult, RegionOutcome, locate_global};
+pub use run::{AMBIGUITY_MARGIN, GlobalInput, GlobalResult, RegionOutcome, locate_global};
 pub use source::{StoreSource, TrackSource};
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]

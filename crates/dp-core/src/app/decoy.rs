@@ -24,7 +24,12 @@ pub struct DecoyCheck {
 impl DecoyCheck {
     /// False when some decoy, which cannot be the recording, scores at least as well as the answer.
     pub fn passed(&self) -> bool {
-        self.margin.is_none_or(|m| m > 0.0)
+        self.passed_by(0.0)
+    }
+
+    /// False unless the answer beats every decoy by more than `min` (z).
+    pub fn passed_by(&self, min: f64) -> bool {
+        self.margin.is_none_or(|m| m > min)
     }
 }
 
@@ -54,6 +59,13 @@ mod tests {
         let c = check(50.0, &[-900.0, 900.0], &mut f).unwrap().unwrap();
         assert_eq!(c.margin, Some(10.0));
         assert!(c.passed());
+    }
+
+    #[test]
+    fn passed_by_needs_the_margin() {
+        let mut f = |_: f64| Ok(Some(48.0));
+        let c = check(50.0, &[-900.0], &mut f).unwrap().unwrap();
+        assert!(c.passed() && !c.passed_by(3.0));
     }
 
     #[test]

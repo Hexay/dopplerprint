@@ -14,7 +14,7 @@ use crate::audio::{Audio, log_spectrogram};
 use crate::config::Config;
 use crate::dem::Dem;
 use crate::events::Event;
-use crate::search::global::{GlobalInput, GlobalResult, StoreSource, locate_global};
+use crate::search::global::{AMBIGUITY_MARGIN, GlobalInput, GlobalResult, StoreSource, locate_global};
 use crate::search::hypothesis::UNEXPLAINED_ID;
 use crate::search::score::ScoringPlane;
 use crate::search::{EventSpec, Scorer};
@@ -56,7 +56,8 @@ pub fn find_area(cache: &Cache, audio: &Audio, events: &[Event], prior: &StartPr
     // A nationwide match is the best of thousands of flights; the regional decoy only replays one area.
     let shifts = decoy::shifts(prior, audio.duration_s(), window, cache);
     let check = decoy::check(b.score, &shifts, &mut |d| Ok(run(d)?.best.map(|c| c.score)))?;
-    if let Some(d) = check.filter(|d| !d.passed()) {
+    // A decoy is one more distinct rival, so it must be beaten by the same margin as a rival region.
+    if let Some(d) = check.filter(|d| !d.passed_by(AMBIGUITY_MARGIN)) {
         let why = format!(
             "flights logged {:.0} min from the given start fit as well as the best match (margin {:.1}), so it may be chance",
             d.shifts_s.iter().map(|s| s.abs()).fold(0.0, f64::max) / 60.0,

@@ -69,7 +69,7 @@ pub struct GlobalResult {
 /// Separation (m) beyond which two regions' best cells are distinct answers.
 const AMBIGUITY_M: f64 = 2_000.0;
 /// Score margin (z) below which a distinct runner-up makes the answer ambiguous.
-const AMBIGUITY_MARGIN: f64 = 3.0;
+pub const AMBIGUITY_MARGIN: f64 = 3.0;
 
 pub fn locate_global(inp: &GlobalInput<'_>, sp: &SearchParams, gp: &GlobalParams) -> anyhow::Result<GlobalResult> {
     let mut timings = GlobalTimings::default();
