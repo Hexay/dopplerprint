@@ -91,6 +91,13 @@ labelled passage) otherwise got it reported found 450 km off, with a decoy margi
 The wall time is the 8× f0 sweep, run three times (real + 2 decoys) nationwide, plus the regional run and
 its decoys.
 
+**All 28 Livermore dev cases, CLI without `--near` at 81fba2c** (start = mid of the truth window, ±2 min;
+scratchpad runner `nw_livermore_cli.sh`): 27 need `--near` (candidates listed), 1 inconclusive (N60RS_R11),
+**0 found**, so 0 confident-wrong. Wall time: median 151 s, range 23–535 s, 91 min for all 28. These clips
+are 1–3 min long with one labelled pass each, so "needs `--near`" is the right answer. The JSON
+`confidence.level` on an inconclusive result is the gap to nearby alternatives, not trust; the text prints it
+as "Best guess", not "Confidence".
+
 ## f0 range floor 1 % → 8 % (`FitParams::f0_floor`)
 
 The fit's f0 band was under-covered. Of 29 labelled passes (Livermore dev + Oyster Bay), |f0 error| < 1 %
