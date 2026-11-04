@@ -39,7 +39,7 @@ impl Default for FitParams {
             v_floor: 0.2,
             d_floor: 1.0,
             kappa_floor_ln: 0.3,
-            f0_floor: 0.01,
+            f0_floor: 0.08,
             t_floor_s: 3.0,
             huber_k: 1.345,
             window_k: 2.0,

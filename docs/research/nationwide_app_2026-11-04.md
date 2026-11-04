@@ -72,6 +72,24 @@ keeps it.
 | CLI ±5 s (app events) | Denver, inconclusive | Oyster Bay, **592 m, right aircraft (N22NY)**; inconclusive: 1 pass matched, regional decoy −1.5 |
 | CLI ±2 min | needs `--near` | needs `--near` (truth 4th of 5 listed), 42 s |
 
+## f0 range floor 1 % → 8 % (`FitParams::f0_floor`)
+
+The fit's f0 band was under-covered. Of 29 labelled passes (Livermore dev + Oyster Bay), |f0 error| < 1 %
+for 11, < 3 % for 19, < 5 % for 22 and < 8 % for 25. The 1 % floor excluded the truth for most of them,
+Oyster Bay event 2 (+7.2 %) included. An earlier 3 % test had been neutral.
+
+| gate | result |
+|---|---|
+| Livermore dev discovered (28) | log score **+0.46 [0.05, 1.02]**, calibrated log **+0.21 [0.04, 0.43]**, truth-cell rank **−3.4 [−7.9, −0.25]**, error −31 m (n.s.), calibrated 90 % area +1.4 km² |
+| Oyster Bay regional discovered | error −20 m, log +0.7 |
+| Oyster Bay global, oracle | unchanged, 60.7 m |
+| **nationwide discovered ±5 s** | **truth #1, 145 m, margin 12.1, both true flights** (was #1, 514 m, margin 2.55: ambiguous) |
+| CLI ±5 s | right area; still inconclusive: the regional refinement matched only pass 1 |
+| cost | scorer f0 steps ×8: Livermore +2.7 s median per case; nationwide top_k locate 32 → 309 s |
+
+The cost is in the f0 sweep (`job.rs` n_steps ∝ f0 range). It is the first thing to speed up (CUDA or a
+coarse-to-fine f0 step).
+
 ## Livermore dev, discovered, ±120 s (`experiments/global/livermore_dev_discovered_t120.toml`)
 
 28 short clips, mostly one pass, so the correct outcome is "ambiguous". At the `locate_global` stage (no
