@@ -3,7 +3,7 @@
 //! side (the mirror); sliding the CPA along the track trades against the clock offset.
 
 use super::GlobalParams;
-use crate::dem::geoid_undulation;
+use crate::dem::{Dem, geoid_undulation};
 use crate::geo::{albers, east_north, ecef_to_geodetic, radii_of_curvature};
 use crate::search::hypothesis::EventSpec;
 use crate::track::Track;
@@ -42,7 +42,9 @@ struct Sample {
     t: f64,
     lat: f64,
     lon: f64,
-    /// Height above the ground (min, max) over the assumed ground-height range.
+    h_ell: f64,
+    /// Height above the ground (min, max) over the ground band: DEM at nadir ± `terrain_relief_m`, else
+    /// `ground_msl_m`. It bounds the offset sweep; with a DEM each voted point uses its own ground.
     agl: (f64, f64),
     /// Unit left-perpendicular of the ground track, (east, north).
     perp: (f64, f64),
@@ -58,6 +60,7 @@ pub(super) fn track_votes(
     prior: (f64, f64),
     cell: f64,
     p: &GlobalParams,
+    dem: Option<&Dem>,
     out: &mut Vec<Vote>,
 ) {
     let (lo, hi) = emission_window(e, prior, p.c);
@@ -68,9 +71,9 @@ pub(super) fn track_votes(
     let start = out.len();
     let mut t = t0;
     while t <= t1 {
-        let Some(s) = sample(tr, t, p) else { break };
+        let Some(s) = sample(tr, t, p, dem) else { break };
         if s.gs >= e.v_range.0 && s.gs <= e.v_range.1 {
-            ground_votes(e, ei, ti, &s, prior, cell, p, out);
+            ground_votes(e, ei, ti, &s, prior, cell, p, dem, out);
         }
         t += (0.7 * cell / s.gs.max(1.0)).min(p.max_dt_s);
     }
@@ -86,20 +89,34 @@ pub(super) fn track_votes(
     out.truncate(keep);
 }
 
-fn sample(tr: &Track, t: f64, p: &GlobalParams) -> Option<Sample> {
+fn sample(tr: &Track, t: f64, p: &GlobalParams, dem: Option<&Dem>) -> Option<Sample> {
     let s = tr.state_at(t)?;
     let g = ecef_to_geodetic(s.pos);
     let (east, north) = east_north(g.lat_deg, g.lon_deg);
     let (ve, vn) = (s.vel.dot(east), s.vel.dot(north));
     let gs = ve.hypot(vn);
+    let band = match dem.and_then(|d| d.height_msl_latlon(g.lat_deg, g.lon_deg)) {
+        Some(h) => (h - p.terrain_relief_m, h + p.terrain_relief_m),
+        None => p.ground_msl_m,
+    };
     let ground = geoid_undulation(g.lat_deg, g.lon_deg) + p.mic_height_m;
-    let agl = ((g.h_ell_m - ground - p.ground_msl_m.1).max(0.0), (g.h_ell_m - ground - p.ground_msl_m.0).max(0.0));
+    let agl = ((g.h_ell_m - ground - band.1).max(0.0), (g.h_ell_m - ground - band.0).max(0.0));
     let perp = if gs > 0.0 { (-vn / gs, ve / gs) } else { (0.0, 0.0) };
-    Some(Sample { t, lat: g.lat_deg, lon: g.lon_deg, agl, perp, gs })
+    Some(Sample { t, lat: g.lat_deg, lon: g.lon_deg, h_ell: g.h_ell_m, agl, perp, gs })
 }
 
 #[allow(clippy::too_many_arguments)]
-fn ground_votes(e: &EventSpec, ei: u16, ti: u32, s: &Sample, prior: (f64, f64), cell: f64, p: &GlobalParams, out: &mut Vec<Vote>) {
+fn ground_votes(
+    e: &EventSpec,
+    ei: u16,
+    ti: u32,
+    s: &Sample,
+    prior: (f64, f64),
+    cell: f64,
+    p: &GlobalParams,
+    dem: Option<&Dem>,
+    out: &mut Vec<Vote>,
+) {
     let dr = e.d_range_at(s.gs);
     let (d_min, d_max) = dr;
     if d_max <= s.agl.0 || d_min > d_max {
@@ -114,25 +131,30 @@ fn ground_votes(e: &EventSpec, ei: u16, ti: u32, s: &Sample, prior: (f64, f64), 
     let n = ((l_max - l_min) / step).ceil().max(0.0) as usize;
     for k in 0..=n {
         let l = (l_min + k as f64 * step).min(l_max);
-        let d_lo = l.hypot(s.agl.0).max(d_min);
-        let d_hi = l.hypot(s.agl.1).min(d_max);
-        if d_lo > d_hi {
-            continue;
-        }
-        let clk_lo = (s.t + d_lo / p.c - e.t_cpa_audio).max(prior.0);
-        let clk_hi = (s.t + d_hi / p.c - e.t_cpa_audio).min(prior.1);
-        if clk_lo > clk_hi {
-            continue;
-        }
-        let w = (range_weight(0.5 * (d_lo + d_hi), dr) * wv) as f32;
-        let (b0, b1) = (bin(clk_lo, prior, p), bin(clk_hi, prior, p));
+        let band = (l.hypot(s.agl.0).max(d_min), l.hypot(s.agl.1).min(d_max));
         for side in [-1.0, 1.0] {
             let (de, dn) = (side * l * s.perp.0, side * l * s.perp.1);
             let lat = s.lat + (dn / m_rad).to_degrees();
             let lon = s.lon + (de / (n_rad * cos_lat)).to_degrees();
+            let (d_lo, d_hi) = match dem.and_then(|d| d.height_ellipsoid_latlon(lat, lon)) {
+                Some(g) => {
+                    let h = (s.h_ell - g - p.mic_height_m).max(0.0);
+                    ((l - 0.5 * step).max(0.0).hypot(h).max(d_min), (l + 0.5 * step).hypot(h).min(d_max))
+                }
+                None => band,
+            };
+            if d_lo > d_hi {
+                continue;
+            }
+            let clk_lo = (s.t + d_lo / p.c - e.t_cpa_audio).max(prior.0);
+            let clk_hi = (s.t + d_hi / p.c - e.t_cpa_audio).min(prior.1);
+            if clk_lo > clk_hi {
+                continue;
+            }
+            let w = (range_weight(0.5 * (d_lo + d_hi), dr) * wv) as f32;
             let xy = albers::forward(lat, lon);
             let (ix, iy) = ((xy.x / cell).floor() as i32, (xy.y / cell).floor() as i32);
-            for b in b0..=b1 {
+            for b in bin(clk_lo, prior, p)..=bin(clk_hi, prior, p) {
                 out.push(Vote { ix, iy, bin: b, event: ei, track: ti, w });
             }
         }

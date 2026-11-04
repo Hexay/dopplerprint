@@ -30,6 +30,11 @@ Design rationale: `docs/research/geo_compute_stack.md` ("Design implications"). 
   - case region: `--case data/cases/<id> --radius-km 25` (default step 30 m, bilinear)
   - CONUS: `--bbox -125 24 -66 50 --step 100 --name conus_100m` (average resampling, ~2.7 GB, streams ~40 GB of
     tiles; processed in 1024-row strips so memory stays at a few hundred MB)
+  - National (coarse, for the region-free search): `--bbox -125 24 -66 50 --step 1000 --name conus_1000m
+    --sources terrarium` (39 MB). `prep/terrarium.py` mosaics AWS Terrain Tiles (Terrarium PNG, zoom 7,
+    ~0.9 km/px, 286 tiles cached in `data/dem/terrarium/`), mixed MSL datums, sea floor clamped to 0.
+    `eval::global` loads `data/dem/5070/conus_1000m.u16` when present: per-vote ground in
+    `search::global` footprints, and the ground wherever the case DEM does not cover.
 - Sources, per 1° tile in preference order (`--sources`):
   1. USGS 3DEP 1″ bare earth (NAVD88), `prd-tnm.s3.amazonaws.com/StagedProducts/Elevation/1/TIFF/current/`,
      cached in `data/dem/3dep1/`.

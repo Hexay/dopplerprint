@@ -4,6 +4,7 @@ Format, alignment and sources: docs/GEO.md. Examples:
 
     python -m dopplerprint.prep.dem --case data/cases/livermore_N86LP_R01 --radius-km 25
     python -m dopplerprint.prep.dem --bbox -125 24 -66 50 --step 100 --name conus_100m
+    python -m dopplerprint.prep.dem --bbox -125 24 -66 50 --step 1000 --name conus_1000m --sources terrarium
 """
 
 import argparse
@@ -15,7 +16,9 @@ from pathlib import Path
 
 import numpy as np
 
-from dopplerprint.prep import dem_sources
+from dopplerprint.prep import dem_sources, terrarium
+
+TERRARIUM_ZOOM = 7
 
 FORMAT = "dp-dem-u16-v1"
 SCALE_M, OFFSET_M, NODATA = 0.1, -100.0, 0
@@ -47,7 +50,8 @@ def encode(h: np.ndarray) -> np.ndarray:
     return np.where(np.isfinite(q), np.clip(q, 1, 65535), NODATA).astype("<u2")
 
 
-def warp_strip(g: dict, r0: int, nrows: int, cache: Path, sources, resampling, used: set) -> np.ndarray:
+def warp_strip(g: dict, r0: int, nrows: int, cache: Path, sources, resampling, used: set,
+               mosaic: Path | None = None) -> np.ndarray:
     import rasterio
     from rasterio.transform import from_origin
     from rasterio.warp import reproject, transform_bounds
@@ -57,12 +61,18 @@ def warp_strip(g: dict, r0: int, nrows: int, cache: Path, sources, resampling, u
     tr = from_origin(g["x0"] - s / 2, g["y0"] - r0 * s + s / 2, s, s)
     out = np.full((nrows, g["ncols"]), np.nan, dtype=np.float32)
     bounds = (g["x0"] - s, g["y0"] - (r0 + nrows) * s, g["x0"] + g["ncols"] * s, g["y0"] - r0 * s + s)
-    for tile in dem_sources.tiles_for_bbox(*transform_bounds("EPSG:5070", "EPSG:4326", *bounds, densify_pts=64)):
-        st = dem_sources.fetch(tile, cache, sources)
-        if st is None:
-            continue
-        used.add(f"{st.source}:{st.path.name}")
-        with rasterio.open(st.path) as src:
+    if mosaic is not None:
+        paths = [mosaic]
+        used.add(f"terrarium:{mosaic.name}")
+    else:
+        paths = []
+        for tile in dem_sources.tiles_for_bbox(*transform_bounds("EPSG:5070", "EPSG:4326", *bounds, densify_pts=64)):
+            st = dem_sources.fetch(tile, cache, sources)
+            if st is not None:
+                used.add(f"{st.source}:{st.path.name}")
+                paths.append(st.path)
+    for path in paths:
+        with rasterio.open(path) as src:
             reproject(rasterio.band(src, 1), out, src_nodata=src.nodata, dst_transform=tr, dst_crs="EPSG:5070",
                       dst_nodata=np.nan, resampling=resampling, init_dest_nodata=False)
     return out
@@ -78,9 +88,10 @@ def build(bbox, step: float, name: str, out_dir: Path, cache: Path, sources, res
     print(f"{name}: {g['ncols']}x{g['nrows']} nodes at {step:g} m ({g['ncols'] * g['nrows'] * 2 / 1e6:.1f} MB)")
     mm = np.memmap(raw, dtype="<u2", mode="w+", shape=(g["nrows"], g["ncols"]))
     used: set[str] = set()
+    mosaic = terrarium.mosaic(bbox, TERRARIUM_ZOOM, cache / "terrarium") if "terrarium" in sources else None
     for r0 in range(0, g["nrows"], STRIP_ROWS):
         n = min(STRIP_ROWS, g["nrows"] - r0)
-        mm[r0:r0 + n] = encode(warp_strip(g, r0, n, cache, sources, resampling, used))
+        mm[r0:r0 + n] = encode(warp_strip(g, r0, n, cache, sources, resampling, used, mosaic))
     mm.flush()
     valid = mm[mm != NODATA]
     stats = {"valid_fraction": float(valid.size / mm.size)}
@@ -90,7 +101,8 @@ def build(bbox, step: float, name: str, out_dir: Path, cache: Path, sources, res
     del mm
     header = {"format": FORMAT, "crs": "EPSG:5070", **g, "scale_m": SCALE_M, "offset_m": OFFSET_M,
               "nodata": NODATA, "sources": sorted(used), "resampling": resampling_name,
-              "vertical_datum": "MSL: NAVD88 (3DEP) / EGM2008 (GLO-30)", "bbox_lonlat": list(bbox),
+              "vertical_datum": "MSL: NAVD88 (3DEP) / EGM2008 (GLO-30) / mixed MSL (terrarium)",
+              "bbox_lonlat": list(bbox),
               "layout": "row-major little-endian u16, row 0 north; node = (x0 + col*step, y0 - row*step)",
               "created_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "stats": stats}
     raw.with_suffix(".json").write_text(json.dumps(header, indent=1) + "\n")

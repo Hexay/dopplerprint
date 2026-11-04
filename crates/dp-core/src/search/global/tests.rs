@@ -51,7 +51,7 @@ fn scene() -> (Vec<Track>, Vec<EventSpec>) {
 fn two_events_intersect_at_truth() {
     let (tracks, events) = scene();
     let p = GlobalParams { ground_msl_m: (250.0, 350.0), ..Default::default() };
-    let (props, stats) = propose_regions(&events, &tracks, (T0 - 60.0, T0 + 60.0), &p);
+    let (props, stats) = propose_regions(&events, &tracks, (T0 - 60.0, T0 + 60.0), None, &p);
     assert_eq!(stats.n_max, 2);
     let top = &props[0];
     assert_eq!(top.n_events, 2);
@@ -65,7 +65,7 @@ fn two_events_intersect_at_truth() {
 fn single_event_reports_mirror_and_distractor() {
     let (tracks, events) = scene();
     let p = GlobalParams { ground_msl_m: (250.0, 350.0), ..Default::default() };
-    let (props, stats) = propose_regions(&events[..1], &tracks, (T0 - 60.0, T0 + 60.0), &p);
+    let (props, stats) = propose_regions(&events[..1], &tracks, (T0 - 60.0, T0 + 60.0), None, &p);
     assert_eq!(stats.n_max, 1);
     assert!(props.iter().any(contains));
     let flights: std::collections::HashSet<&str> = props.iter().flat_map(|q| q.flights[0].iter().map(String::as_str)).collect();

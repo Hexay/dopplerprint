@@ -169,6 +169,30 @@ mean −167 m [−479, +78], flights +1/−0, calibrated log score +0.16 [−0.1
 Oyster Bay discovered 826 → 668 m, log score +1.22. No calibration refit: the shift is inside noise
 and goes the right way; the κ-gate step refits anyway. Sims use oracle bounds (unaffected).
 
+### κ in the regional association gate: negative
+
+`soft.rs` admitting on `d_range_at(ground speed)` (pure κ range when the intersection is empty),
+paired vs the step-2 runs: Livermore dev reported error mean +92 m [−26, +301], 9 better / 16 worse,
+flights +0/−1, calibrated log score +0.01; Oyster Bay discovered unchanged; global Oyster Bay
+unchanged (prop #4, margin 20.8). Not shipped, so no calibration refit. κ stays a footprint and
+rerank bound only. The regional gate already sees the flight's actual speed and slant range, so
+the narrower d adds little information and cuts correct pairs whose fitted κ is biased.
+
+### National DEM (Terrarium 1 km)
+
+`data/dem/5070/conus_1000m` (docs/GEO.md) replaces the 0–800 m MSL band. Each footprint vote uses
+the ground at its own point, the sweep is bounded by nadir ground ± `terrain_relief_m` 500, and
+regions outside the case DEM get national ground instead of geoid + 400 m.
+
+| | prop# / n | error | margin | runner-up | wall s |
+|---|---|---|---|---|---|
+| band 0–800 m | 4 / 37 | 79 m | 20.8 | – | 143 |
+| national DEM | 4 / 36 | 79 m | 17.5 | 40.16 −104.39 (Denver, 82.0) | 103 |
+
+Same answer, flights and clock. The lower margin is from the Denver rival being scored on its real
+~1.6 km ground instead of 400 m: a more honest number, not a loss. Sims skip the national DEM
+(rendered over flat truth ground); sim_t5 unchanged (two_props #1 at 1 m, margin 22.3).
+
 ## What works, what doesn't
 
 - **Works:** ≥ 2 events with honest d/v bounds. Clock agreement across events 920 s apart is very
@@ -199,7 +223,6 @@ and goes the right way; the κ-gate step refits anyway. Sims use oracle bounds (
    state) or a tighter start time, or record longer to catch a second aircraft." List the top 10
    proposals (flight ids, places, quick scores) as candidates.
 4. Done: likelihood silence default; κ bounds; geometry-gated rerank (top_k 10); window spread net of
-   sub-fit σ. `tools/global_eval.sh EXPERIMENT` runs one global eval and prints ranks and bounds.
-   Next steps, in order: use κ in the regional association gate (`hypothesis/soft.rs`; needs a
-   calibration refit); closed-form loci + EDT clock-free scoring (methods doc) instead of the
-   lattice; a coarse national DEM (≤ 1 km) for H.
+   sub-fit σ; national 1 km DEM. Tried and dropped: κ in the regional gate. `tools/global_eval.sh
+   EXPERIMENT` runs one global eval and prints ranks and bounds. Next: closed-form loci + EDT
+   clock-free scoring (methods doc) instead of the lattice; weather for the top_k regions.

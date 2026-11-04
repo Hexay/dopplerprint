@@ -12,6 +12,7 @@ use rayon::prelude::*;
 
 use super::hypothesis::EventSpec;
 use super::pipeline::Region;
+use crate::dem::Dem;
 use crate::track::Track;
 
 pub use run::{GlobalInput, GlobalResult, RegionOutcome, locate_global};
@@ -28,8 +29,10 @@ pub struct GlobalParams {
     pub clock_bin_s: f64,
     /// Max clock disagreement (s) between events of one proposal.
     pub clock_tol_s: f64,
-    /// Ground MSL height range assumed when converting slant range to horizontal offset (no national DEM).
+    /// Ground MSL height range assumed when converting slant range to horizontal offset where no DEM covers.
     pub ground_msl_m: (f64, f64),
+    /// ± ground height (m) around the national DEM at the aircraft's nadir that bounds the offset sweep.
+    pub terrain_relief_m: f64,
     pub mic_height_m: f64,
     pub c: f64,
     pub max_dt_s: f64,
@@ -61,6 +64,7 @@ impl Default for GlobalParams {
             clock_bin_s: 4.0,
             clock_tol_s: 10.0,
             ground_msl_m: (0.0, 800.0),
+            terrain_relief_m: 500.0,
             mic_height_m: 1.5,
             c: 343.0,
             max_dt_s: 2.0,
@@ -126,10 +130,12 @@ pub fn vote_cell_m(events: &[EventSpec], prior: (f64, f64), p: &GlobalParams) ->
 
 /// Rank regions where the observer could be, given only the events, the window's tracks and the
 /// recording-start prior. `tracks` must cover every event's emission window (`emission_windows`).
+/// `dem` (national, coarse) sets the ground under each vote; None = `ground_msl_m` everywhere.
 pub fn propose_regions(
     events: &[EventSpec],
     tracks: &[Track],
     prior: (f64, f64),
+    dem: Option<&Dem>,
     p: &GlobalParams,
 ) -> (Vec<RegionProposal>, ProposalStats) {
     let cell = vote_cell_m(events, prior, p);
@@ -139,7 +145,7 @@ pub fn propose_regions(
         .flat_map_iter(|(ti, tr)| {
             let mut out = Vec::new();
             for (ei, e) in events.iter().enumerate() {
-                footprint::track_votes(e, ei as u16, tr, ti as u32, prior, cell, p, &mut out);
+                footprint::track_votes(e, ei as u16, tr, ti as u32, prior, cell, p, dem, &mut out);
             }
             out
         })

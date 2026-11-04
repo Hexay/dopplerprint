@@ -20,9 +20,12 @@ pub struct GlobalInput<'a> {
     /// Recording-start prior (UNIX s).
     pub prior: (f64, f64),
     pub duration_s: f64,
-    /// Used where it covers a cell; elsewhere the ground is `flat_h_ell_m`.
+    /// Fine DEM, used where it covers a cell.
     pub dem: Option<&'a Dem>,
-    /// Ground ellipsoidal height; `None` = geoid + mid `ground_msl_m` at each region centre.
+    /// Coarse national DEM (`data/dem/5070/conus_1000m`): ground under the votes, and wherever `dem` does not
+    /// cover.
+    pub national: Option<&'a Dem>,
+    /// Ground ellipsoidal height where no DEM covers; `None` = geoid + mid `ground_msl_m`.
     pub flat_h_ell_m: Option<f64>,
 }
 
@@ -70,11 +73,12 @@ pub fn locate_global(inp: &GlobalInput<'_>, sp: &SearchParams, gp: &GlobalParams
     let tracks = window_tracks(inp.source, inp.events, inp.prior, gp)?;
     timings.load_s = t.elapsed().as_secs_f64();
     let t = Instant::now();
-    let (mut proposals, stats) = propose_regions(inp.events, &tracks, inp.prior, gp);
+    let (mut proposals, stats) = propose_regions(inp.events, &tracks, inp.prior, inp.national, gp);
     timings.propose_s = t.elapsed().as_secs_f64();
     let t = Instant::now();
     let ground = |lat: f64, lon: f64| {
         let dem = inp.dem.and_then(|d| d.height_ellipsoid_latlon(lat, lon));
+        let dem = dem.or_else(|| inp.national.and_then(|d| d.height_ellipsoid_latlon(lat, lon)));
         dem.unwrap_or_else(|| flat_ground(inp, gp, lat, lon))
     };
     rerank(&mut proposals, &tracks, inp.scorer.plane(), inp.events, &ground, sp, gp);
@@ -111,6 +115,9 @@ fn score_region(
         (prop.clock_range.0 - gp.clock_tol_s).max(inp.prior.0),
         (prop.clock_range.1 + gp.clock_tol_s).min(inp.prior.1),
     );
+    // The fine DEM when it covers this region, else the national one; flat ground where neither does.
+    let covers = |d: &&Dem| d.height_msl_latlon(r.lat_deg, r.lon_deg).is_some();
+    let dem = inp.dem.filter(covers).or(inp.national.filter(covers));
     p.flat_h_ell_m = flat_ground(inp, gp, r.lat_deg, r.lon_deg);
     let reach = r.radius_m + p.track_radius_m + 2_000.0;
     let (dlat, dlon) = (reach / 111_000.0, reach / (111_000.0 * r.lat_deg.to_radians().cos()));
@@ -123,7 +130,7 @@ fn score_region(
     };
     let catalog = MemCatalog::new(inp.source.load(&q)?);
     let n_tracks = catalog.all().len();
-    let si = SearchInput { scorer: inp.scorer, events: inp.events, catalog: &catalog, region: r, duration_s: inp.duration_s, dem: inp.dem };
+    let si = SearchInput { scorer: inp.scorer, events: inp.events, catalog: &catalog, region: r, duration_s: inp.duration_s, dem };
     let res = search(&si, &p);
     Ok(RegionOutcome {
         proposal: idx,

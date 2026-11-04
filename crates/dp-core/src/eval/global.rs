@@ -9,6 +9,7 @@ use super::{CaseResult, distance_m, same_flights};
 use crate::adsb::manifest::list_days;
 use crate::audio::spectrogram::log_spectrogram;
 use crate::config::Config;
+use crate::dem::Dem;
 use crate::events::{DiscoverConfig, discover_audio};
 use crate::geo::{Geodetic, geodetic_to_ecef};
 use crate::search::EventSpec;
@@ -64,6 +65,9 @@ fn try_run(cfg: &Config, c: &Posed) -> anyhow::Result<CaseResult> {
     let plane = ScoringPlane::new(&log_spectrogram(&c.audio, &cfg.spec), &cfg.search.score);
     let scorer = Scorer::new(&plane, cfg.search.backend)?;
     let source = StoreSource { store: e.store_dir.clone(), extra };
+    // Sims are rendered over flat truth ground; real cases get the national DEM when it has been built.
+    let national_path = e.data_dir.join("dem/5070/conus_1000m.u16");
+    let national = (!sim && national_path.exists()).then(|| Dem::open(&national_path)).transpose()?;
     let inp = GlobalInput {
         scorer: &scorer,
         events: &events,
@@ -71,6 +75,7 @@ fn try_run(cfg: &Config, c: &Posed) -> anyhow::Result<CaseResult> {
         prior: (t0 - e.time_prior_s, t0 + e.time_prior_s),
         duration_s: c.audio.duration_s(),
         dem: c.dem.as_ref(),
+        national: national.as_ref(),
         flat_h_ell_m: c.truth_h_ell,
     };
     let mut sp = cfg.search.clone();
