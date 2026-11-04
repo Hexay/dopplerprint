@@ -72,6 +72,25 @@ keeps it.
 | CLI ±5 s (app events) | Denver, inconclusive | Oyster Bay, **592 m, right aircraft (N22NY)**; inconclusive: 1 pass matched, regional decoy −1.5 |
 | CLI ±2 min | needs `--near` | needs `--near` (truth 4th of 5 listed), 42 s |
 
+## Event 2 (ace391, faint CRJ9): why it stays unmatched; two negative results
+
+The ridge is split, not truncated. Event 42 (3032–3092 s) has SNR ≈ 0 at its CPA (3068–3074 s). Its
+receding tail is a separate event 44 (3094–3119 s, ~106 → 103 Hz, fit as a static source, pass_p 0). The fit
+on 42 alone gives t_cpa 3071.7, f0 135.1 ± 1 %. A joint fit of 42 + 44 gives t_cpa 3076.5 (oracle 3076.4) and
+f0 129. Truth f0 ≈ 126 lies outside the f0 range, so the scorer cannot follow the true curve. `stitch` rejects
+42 + 44: each fragment's own fit misses the other's end by 8 % (limit 3 %), and the joint rmse is 1.34 Hz
+(tolerance 1.17).
+
+- **Stitch on confident ridges (SNR ≥ 1, as `finalize` does): worse, reverted.** 42 + 44 were still not
+  joined. Event 1 was stitched to an earlier fragment (d 6.7 → 6.3 km). Oyster Bay regional discovered got
+  +4.05 km worse, nationwide discovered ±5 s lost the truth region (#1 → not searched), and Livermore dev was
+  neutral (+6 m [−6, 26]).
+- **f0 window spread (sub-window refits widen `f0_range`, like v/d/t): no effect, reverted.** Both
+  sub-windows share the bias (long approach, short recede), so they agree: event 42 stays 133.8–136.5 Hz.
+
+What would work is a stitch rule that trusts a joint fit when one fragment's own fit is ill-conditioned (a
+flat tail). That would need a recall/false-join check on the Livermore labelled corpus first. Not attempted.
+
 ## Next
 
 Why event 2's fit is biased (far pass, 2.2 km; harmonics [1, 2, 5, 6] look mislabelled), and whether the
