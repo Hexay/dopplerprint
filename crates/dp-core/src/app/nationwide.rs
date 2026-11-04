@@ -26,8 +26,16 @@ const SHOWN: usize = 5;
 /// Start of the `NeedsInput` message asking for `--near` (`inputs::missing_fields` keys on it).
 pub const ASK_NEAR: &str = "Searched the whole country:";
 
-/// `window` = the ADS-B time window of the real search; decoys run only on days already cached.
-pub fn find_area(cache: &Cache, audio: &Audio, events: &[Event], prior: &StartPrior, window: (f64, f64), cfg: &Config) -> Result<Area> {
+/// The area and the indices of `events` it was found from (`GlobalResult::events_used`). `window` = the
+/// ADS-B time window of the real search; decoys run only on days already cached.
+pub fn find_area(
+    cache: &Cache,
+    audio: &Audio,
+    events: &[Event],
+    prior: &StartPrior,
+    window: (f64, f64),
+    cfg: &Config,
+) -> Result<(Area, Vec<usize>)> {
     let specs: Vec<EventSpec> = events.iter().map(EventSpec::from_event).collect();
     let plane = ScoringPlane::new(&log_spectrogram(audio, &cfg.spec), &cfg.search.score);
     let scorer = Scorer::new(&plane, cfg.search.backend)?;
@@ -67,7 +75,25 @@ pub fn find_area(cache: &Cache, audio: &Audio, events: &[Event], prior: &StartPr
     }
     let r = res.regions.first().map_or(0.0, |o| res.proposals[o.proposal].region.radius_m / 1000.0);
     let label = format!("the nationwide match ({:.4}, {:.4})", b.lat_deg, b.lon_deg);
-    Ok(Area { lat: b.lat_deg, lon: b.lon_deg, radius_km: r.max(MIN_RADIUS_KM), label })
+    Ok((Area { lat: b.lat_deg, lon: b.lon_deg, radius_km: r.max(MIN_RADIUS_KM), label }, res.events_used.clone()))
+}
+
+/// Passes among `idx` that are independent fixes: one whose ridge overlaps an already counted one by more than
+/// half the shorter span counts once (one aircraft's unmerged harmonics, or two that a pass cannot separate).
+pub fn independent_passes(events: &[Event], idx: &[usize]) -> usize {
+    let span = |i: usize| {
+        let t = &events[i].ridge.t;
+        (t.first().copied().unwrap_or(0.0), t.last().copied().unwrap_or(0.0))
+    };
+    let mut counted: Vec<(f64, f64)> = Vec::new();
+    for &i in idx {
+        let (a0, a1) = span(i);
+        let overlaps = counted.iter().any(|&(b0, b1)| (a1.min(b1) - a0.max(b0)) > 0.5 * (a1 - a0).min(b1 - b0));
+        if !overlaps {
+            counted.push((a0, a1));
+        }
+    }
+    counted.len()
 }
 
 fn why_ambiguous(res: &GlobalResult, n_events: usize) -> String {
@@ -91,4 +117,27 @@ fn ambiguous_message(res: &GlobalResult, why: &str) -> String {
         }
     }
     s
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::events::{FitParams, Ridge, fit_cv_with};
+
+    fn event(t0: f64, t1: f64) -> Event {
+        let ridge = Ridge { t: vec![t0, t1], f_hz: vec![110.0, 100.0], snr: vec![5.0, 5.0] };
+        let fit = fit_cv_with(&ridge, 343.0, &FitParams::default());
+        Event { id: 0, ridge, harmonics: vec![1], fit, ridge_harmonic: 1, snr: 10.0, pass_p: 1.0 }
+    }
+
+    #[test]
+    fn overlapping_passes_count_once() {
+        // N60RS_R11: ridges 6–92 s and 31–69 s are one fix; Oyster Bay's passes 15 min apart are two.
+        let same = [event(6.0, 92.0), event(31.0, 69.0)];
+        assert_eq!(independent_passes(&same, &[0, 1]), 1);
+        let apart = [event(2124.0, 2241.0), event(3032.0, 3092.0)];
+        assert_eq!(independent_passes(&apart, &[0, 1]), 2);
+        let brush = [event(0.0, 40.0), event(35.0, 90.0)];
+        assert_eq!(independent_passes(&brush, &[0, 1]), 2);
+    }
 }

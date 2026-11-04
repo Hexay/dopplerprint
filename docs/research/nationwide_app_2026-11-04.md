@@ -72,6 +72,25 @@ keeps it.
 | CLI ±5 s (app events) | Denver, inconclusive | Oyster Bay, **592 m, right aircraft (N22NY)**; inconclusive: 1 pass matched, regional decoy −1.5 |
 | CLI ±2 min | needs `--near` | needs `--near` (truth 4th of 5 listed), 42 s |
 
+## Refine on the nationwide events; independent passes (Oyster Bay found)
+
+After the f0 floor, the nationwide stage matched both true flights, but the regional refinement searched
+all 4 selected events. `search_dropping_weakest` then shed the faint real event 2 (lowest SNR) while keeping
+the two non-aircraft ones. Without `--near`, the refinement now uses `GlobalResult::events_used`. The
+two-pass rule now counts passes whose ridges overlap by more than half the shorter one as one
+(`nationwide::independent_passes`). N60RS_R11's two "passes" (ridges 6–92 s and 31–69 s, f0 ratio ≈ 2, one
+labelled passage) otherwise got it reported found 450 km off, with a decoy margin of 9.2.
+
+| CLI without `--near` | result | wall |
+|---|---|---|
+| **Oyster Bay ±5 s** | **found (high), 116 m, a1dfeb (N22NY) + ace391 (N93CQ)**, decoy margin 29.9 | 940 s |
+| **Oyster Bay ±2 min** | **found (high), 86 m, both true flights**, decoy margin 40.9 | 1202 s |
+| Livermore N60RS_R11 ±2 min | inconclusive (overlapping passes) | 521 s |
+| Livermore N61NG_R37 ±2 min | needs `--near` (nationwide decoy −0.6) | 270 s |
+
+The wall time is the 8× f0 sweep, run three times (real + 2 decoys) nationwide, plus the regional run and
+its decoys.
+
 ## f0 range floor 1 % → 8 % (`FitParams::f0_floor`)
 
 The fit's f0 band was under-covered. Of 29 labelled passes (Livermore dev + Oyster Bay), |f0 error| < 1 %

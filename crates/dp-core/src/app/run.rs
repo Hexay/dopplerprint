@@ -79,14 +79,15 @@ fn steps(req: &LocateRequest, ui: &dyn Ui, rep: &mut Report, started: Instant) -
     let fo = FetchOptions { offline: req.offline, yes: req.yes, keep_raw: req.keep_raw, max_cache_gb: req.max_cache_gb };
     ensure_days(&cache, &dates_between(window.0, window.1), &fo, ui)?;
     let nationwide = near.is_none();
-    let area = match near {
-        Some(a) => a,
+    let (area, events) = match near {
+        Some(a) => (a, events),
         None => {
             ui.step("nationwide", 0.3, "No --near given: searching the whole country for flights that fit...");
-            let a = nationwide::find_area(&cache, &audio, &events, &prior, window, &cfg)?;
+            let (a, used) = nationwide::find_area(&cache, &audio, &events, &prior, window, &cfg)?;
             ui.info(&format!("nationwide match near {:.4}, {:.4}; refining there", a.lat, a.lon));
             rep.area = Some(a.clone());
-            a
+            // Refine on the passes the nationwide answer was built from; dropping by SNR would shed a faint real one.
+            (a, used.into_iter().map(|i| events[i].clone()).collect())
         }
     };
     let tracks = load_tracks(&cache, &area, window)?;
@@ -150,10 +151,10 @@ fn steps(req: &LocateRequest, ui: &dyn Ui, rep: &mut Report, started: Instant) -
                 w.z
             ));
         }
-        _ if nationwide && best.events.iter().enumerate().filter(explained).count() < 2 => {
+        _ if nationwide && nationwide::independent_passes(&used, &best.events.iter().enumerate().filter(explained).map(|(i, _)| i).collect::<Vec<_>>()) < 2 => {
             rep.status = Status::Inconclusive;
             rep.message = Some(
-                "without --near only an answer matched by two or more passes is trusted, and here one pass matched; treat the location as a guess and add --near to confirm it.".into(),
+                "without --near only an answer matched by two or more separate passes is trusted, and here one pass (or two at the same moment) matched; treat the location as a guess and add --near to confirm it.".into(),
             );
         }
         _ => rep.status = Status::Found,

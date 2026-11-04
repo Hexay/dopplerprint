@@ -32,13 +32,14 @@ Nominatim and cached), `lat,lon`, `lat,lon,radius_km`, or a box `west,south,east
 200 m before refinement), and an aircraft is rarely heard from further than that. Coverage is the contiguous
 US for now (the embedded geoid and the EPSG:5070 lattice).
 
-Without `--near`, the whole contiguous US is searched (needs `--start` or a file timestamp; a few minutes):
-every logged flight that could explain each pass votes for where the recorder stood, and the regions where
-two or more passes agree are scored before the usual search refines the best one. It reports a place only
-when at least two passes agree, no distinct spot comes close (margin 3) and the same nationwide search
-against flights from about an hour earlier and later scores lower; otherwise it asks for `--near` and lists
-the candidate spots and flights. An answer the refined search backs with only one pass is reported as
-inconclusive. On real recordings this mostly ends in "add `--near`" today (docs/research/nationwide_app_2026-11-04.md).
+Without `--near`, the whole contiguous US is searched (needs `--start` or a file timestamp; 15–20 min on
+CPU for an hour of audio, 4–9 min for a short clip): every logged flight that could explain each pass votes
+for where the recorder stood, and the regions where two or more passes agree are scored before the usual
+search refines the best one. It reports a place only when at least two separate passes agree, no distinct
+spot comes close (margin 3), and the same searches against flights from about an hour earlier and later
+score at least 3 lower. Otherwise it asks for `--near` and lists the candidate spots and flights, or reports
+inconclusive. A recording with one pass, or two passes at the same moment, always needs `--near`. Results
+on real recordings: docs/research/nationwide_app_2026-11-04.md.
 Method: docs/research/global_search_2026-11-03.md. With
 `<cache>/dem/5070/conus_1000m.u16` present (docs/GEO.md), votes use real ground heights instead of 0–800 m.
 
