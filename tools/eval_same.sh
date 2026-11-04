@@ -3,6 +3,7 @@
 # fields: tools/eval_same.sh runs/A runs/B
 set -euo pipefail
 A=$1 B=$2; bad=0
+for d in "$A" "$B"; do [[ -f $d/summary.md ]] || { echo "no eval output in $d" >&2; exit 2; }; done
 strip() { jq -S 'walk(if type == "object" then del(.runtime_s, .timing, .discover_s, .load_s, .propose_s, .rerank_s, .locate_s) else . end)' "$1"; }
 md() { awk -F'|' -v OFS='|' '$11 ~ /^ *[0-9.]+ *$/ {$11=""} {print}' "$1"; }  # column "s" is per-case runtime
 list() { (cd "$1" && find . -name '*.json' | sort); }

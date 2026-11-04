@@ -53,6 +53,9 @@ eval, ~11 s across the 28 Livermore dev cases. `perf` on the Oyster eval put 70 
   `oysterbay_discovered` (with oracle/ and discovery/), `livermore_dev_discovered` (86 files) and global
   `oysterbay_t5` are identical. The fastrel discover JSON is byte-identical (`cmp`) to release.
   `gate.sh -b runs/b_` compare shows 0 deltas on every metric except runtime.
+- Rebased onto dff4fda: fastrel with main's sweep vs this one, `oysterbay_discovered` and global
+  `oysterbay_t5` are identical. Wall/user went 81.0/170 → 22.4/80 s and 84.5/322 → 38.3/139 s, both
+  runs back to back under the same load. 216 tests pass and clippy is clean.
 
 ## Fast loop
 
