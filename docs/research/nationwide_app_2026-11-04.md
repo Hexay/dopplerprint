@@ -56,6 +56,22 @@ harmonic as f0 (event 1 → 112.8 Hz, where the oracle had it).
 The remaining gap is the association penalty (`score = raw − penalty`): 11 z on the true flights against 0.5
 on Denver's pair, because the truth lies outside event 2's d/v bounds (f0 +7 %, CPA slant −62 % vs ADS-B).
 
+## No silence term in the nationwide region scoring (`GlobalParams::region_silence = false`)
+
+That gap was the silence term, not event 2: both Long Island spots paid ~11 z (busy NYC airspace, flights
+not heard), Denver 0.5. r50 is a Livermore-phone constant, so across regions the term is an airspace-density
+prior that favours quiet skies, where chance pairs are cheap. The regional locate (with or without `--near`)
+keeps it.
+
+| gate | silence on | off |
+|---|---|---|
+| Oyster Bay global, oracle ±5 s | 78.9 m, margin 17.5 | **60.7 m, margin 30.9** |
+| sim_t5 (two_props; single-event sims) | 1 m; ambiguous | unchanged |
+| nationwide discovered ±5 s | truth region #2 | **#1, 514 m**, margin 2.55 (ambiguous) |
+| nationwide discovered ±120 s | ambiguous | ambiguous (chance pairs z ~101 vs truth 97.5) |
+| CLI ±5 s (app events) | Denver, inconclusive | Oyster Bay, **592 m, right aircraft (N22NY)**; inconclusive: 1 pass matched, regional decoy −1.5 |
+| CLI ±2 min | needs `--near` | needs `--near` (truth 4th of 5 listed), 42 s |
+
 ## Next
 
 Why event 2's fit is biased (far pass, 2.2 km; harmonics [1, 2, 5, 6] look mislabelled), and whether the

@@ -11,6 +11,7 @@ use crate::geo::{Geodetic, geodetic_to_ecef};
 use crate::search::hypothesis::EventSpec;
 use crate::search::pipeline::{Candidate, SearchInput, SearchParams, search};
 use crate::search::Scorer;
+use crate::search::silence::SilenceMode;
 use crate::search::{Catalog, MemCatalog};
 
 pub struct GlobalInput<'a> {
@@ -117,6 +118,10 @@ fn score_region(
     let t = Instant::now();
     let r = prop.region;
     let mut p = sp.clone();
+    if !gp.region_silence {
+        p.assoc.silence.mode = SilenceMode::Flat;
+        p.assoc.silence_penalty = 0.0;
+    }
     p.assoc.t_start_prior = (
         (prop.clock_range.0 - gp.clock_tol_s).max(inp.prior.0),
         (prop.clock_range.1 + gp.clock_tol_s).min(inp.prior.1),

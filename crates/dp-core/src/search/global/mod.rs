@@ -59,6 +59,9 @@ pub struct GlobalParams {
     pub min_event_d_m: f64,
     pub max_event_d_ratio: f64,
     pub max_event_v_ratio: f64,
+    /// Silence term in the top_k regional searches. Off: across regions it acts as an airspace-density
+    /// prior (truth near NYC paid 11 z, a quiet-sky chance pair 0.5); nationwide_app_2026-11-04.md.
+    pub region_silence: bool,
 }
 
 impl Default for GlobalParams {
@@ -87,6 +90,7 @@ impl Default for GlobalParams {
             min_event_d_m: 300.0,
             max_event_d_ratio: 30.0,
             max_event_v_ratio: 5.0,
+            region_silence: false,
         }
     }
 }
