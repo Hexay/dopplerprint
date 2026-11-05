@@ -18,6 +18,9 @@ pub struct Args {
     /// Instead of searching, measure per-pixel SNR along each event's truth curve (pixel_snr.json).
     #[arg(long)]
     pub pixel_snr: bool,
+    /// Instead of searching, slide along each truth pass's along-track ridge and score the other flights there (ridge_probe.json).
+    #[arg(long)]
+    pub ridge_probe: bool,
 }
 
 pub fn run(a: Args) -> anyhow::Result<()> {
@@ -36,6 +39,11 @@ pub fn run(a: Args) -> anyhow::Result<()> {
     if a.pixel_snr {
         let n = dp_core::eval::pixel_snr::run(&cfg, &a.sim_dir, &out)?.len();
         println!("{n} events → {}", out.join("pixel_snr.json").display());
+        return Ok(());
+    }
+    if a.ridge_probe {
+        let n = dp_core::eval::ridge_probe::run(&cfg, &a.sim_dir, &out)?.len();
+        println!("{n} cases → {}", out.join("ridge_probe.json").display());
         return Ok(());
     }
     dp_core::eval::run(&cfg, &a.sim_dir, &out)?;

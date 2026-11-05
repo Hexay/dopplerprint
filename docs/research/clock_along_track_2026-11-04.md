@@ -46,6 +46,22 @@ against that baseline, 28 cases):
 It predicts detection from slant range only and never looks at the spectrogram. Next: score every audible
 unassociated flight on the spectrogram (similar_projects_2026-11-05.md idea 1).
 
+## Ridge probe: other flights on the spectrogram, naive form (negative)
+
+`dopplerprint eval --ridge-probe` (`eval/ridge_probe.rs`, run `runs/ridge_probe_v1`, 27 cases, oracle events):
+slide the observer along the truth flight's ground track by v·Δ with the clock shifted by Δ (Δ ±120 s, 10 s
+steps). Score the truth flight and every other flight within 8 km, with the clock locked (other flights:
+whole recording, f0 50–300 Hz).
+
+- Other flights' summed z peaks within 10 s of truth in **3/27** (chance ≈ 2/25 per case). Spans of 10–90 z
+  are noise from maximising over a wide f0 range. Adding them to the score would add noise, not information.
+- The truth flight alone peaks within 10 s on this straight line in 19/27, but the line isn't the real ridge.
+  In the search, a cross-track nudge plus the ±5 s clock sweep keeps it flat. N456CS_R38 (right flight,
+  8.6 km off): best z 22.95 against 21.66 at truth, a gap of 1.3 z.
+
+Any other-flight term needs per-flight f0 priors (ADS-B type/category), or a null per flight (the same
+curve at a far clock), before it can carry the ~1 z the ridge needs.
+
 ## Levers that add information
 
 - A second pass, or a faint one (the clips are 1–3 min).

@@ -17,6 +17,7 @@ pub mod metrics;
 pub mod nuisance;
 pub mod pixel_snr;
 pub mod report;
+pub mod ridge_probe;
 pub mod split;
 pub mod stats;
 
