@@ -80,7 +80,7 @@ impl Default for AssocParams {
             clock_tol_s: 8.0,
             t_start_prior: (f64::NEG_INFINITY, f64::INFINITY),
             max_hypotheses: 64,
-            silence_range_m: 3_000.0,
+            silence_range_m: 6_000.0,
             silence_penalty: 3.0,
             silence: SilenceParams::default(),
             unexplained_cost: None,

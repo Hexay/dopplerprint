@@ -43,7 +43,10 @@ against that baseline, 28 cases):
 | silence off (flat, penalty 0) | 1 better / 0 worse / 27 tied | −442 m [−1148, 48] | +0.01 [−0.07, 0.12] |
 | `silence_range_m` 3 → 6 km | 3 / 0 / 25 | **−427 m [−991, −19]** | +0.02 [−0.00, 0.05] |
 
-It predicts detection from slant range only and never looks at the spectrogram. Next: score every audible
+**Adopted: `silence_range_m` default 6 km.** Standard gate against 3 km at the same base: Livermore dev
+discovered neutral (reported answer −0.04 m [−0.78, 0.69], log +0.01 [−0.00, 0.02]); Oyster Bay −13 m, log
++0.21; global oysterbay_t5 unchanged (60.7 m, margin 30.9). It predicts detection from slant range only and
+never looks at the spectrogram. Next: score every audible
 unassociated flight on the spectrogram (similar_projects_2026-11-05.md idea 1).
 
 ## Ridge probe: other flights on the spectrogram, naive form (negative)
@@ -59,8 +62,11 @@ whole recording, f0 50–300 Hz).
   In the search, a cross-track nudge plus the ±5 s clock sweep keeps it flat. N456CS_R38 (right flight,
   8.6 km off): best z 22.95 against 21.66 at truth, a gap of 1.3 z.
 
-Any other-flight term needs per-flight f0 priors (ADS-B type/category), or a null per flight (the same
-curve at a far clock), before it can carry the ~1 z the ridge needs.
+Per flight, there is nothing for tighter f0 priors to recover. Of 99 other flights within 8 km, 6 peak within
+10 s of truth (chance ≈ 12); only one has a clear peak (N748SP_R36 a26381, +32.8 z over its median). The
+nearby traffic in these clips is inaudible, so spectrogram evidence from other flights (similar_projects
+idea 1) cannot break the Livermore ridge. Only absence (the silence term) and a better clock can. Idea 1
+is dropped for single-pass clips; it may still help long recordings with faint, undetected passes.
 
 ## Levers that add information
 

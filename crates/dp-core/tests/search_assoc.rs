@@ -191,12 +191,13 @@ fn reach_and_clock_window_bound_every_admission_and_pruning_beyond_them_is_exact
 #[test]
 fn soft_reach_exceeds_hard_reach_by_the_outer_bound() {
     let events = [event(100.0)];
-    let hard = cpa_reach_m(&events, &params(SoftGates::hard()), 141.0);
+    let at = |soft: SoftGates| AssocParams { silence_range_m: 3_000.0, ..params(soft) };
+    let hard = cpa_reach_m(&events, &at(SoftGates::hard()), 141.0);
     let s = SoftGates::default();
-    let soft = cpa_reach_m(&events, &params(s.clone()), 141.0);
+    let soft = cpa_reach_m(&events, &at(s.clone()), 141.0);
     assert!((hard - 3_000.0).abs() < 1e-3, "hard: max(d_hi, silence range)");
     assert!((soft - (2_000.0 + 141.0) * s.outer_log_d.exp()).abs() < 1e-3);
-    let exact = cpa_reach_m(&[event_band(100.0, 0.0)], &params(s), 141.0);
+    let exact = cpa_reach_m(&[event_band(100.0, 0.0)], &at(s), 141.0);
     assert!((exact - 3_000.0).abs() < 1e-3, "an exact event gets no slack or tail");
 }
 
