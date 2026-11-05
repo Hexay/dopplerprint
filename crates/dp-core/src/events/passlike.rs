@@ -66,11 +66,18 @@ pub fn pass_likeness(x: &PassFeatures) -> f64 {
 /// pairs on Livermore dev, docs/research/clock_along_track_2026-11-04.md); only the strongest is searched.
 pub const SAME_PASS_S: f64 = 10.0;
 
+/// An event whose d range spans more than this factor places nothing, yet hires a flight and drags the shared
+/// clock (Oyster Bay's d [1, 13159] m ground source at 3005 s: clock 45 s, answer 6 km off at ±120 s). Pass-like
+/// labelled events reach 66; the junk ones 5818 and 10201. `GlobalParams::max_event_d_ratio` is the stricter
+/// nationwide form.
+pub const MAX_EVENT_D_RATIO: f64 = 1000.0;
+
 /// Indices (CPA order) of the events to search: the `max_events` strongest by SNR among those with
-/// `pass_p ≥ MIN_PASS_P` and no stronger one within `SAME_PASS_S`, or the single most pass-like event when
-/// none qualifies.
+/// `pass_p ≥ MIN_PASS_P`, a d range within `MAX_EVENT_D_RATIO` and no stronger one within `SAME_PASS_S`, or the
+/// single most pass-like event when none qualifies.
 pub fn select(events: &[Event], max_events: usize) -> Vec<usize> {
-    let mut idx: Vec<usize> = (0..events.len()).filter(|&i| events[i].pass_p >= MIN_PASS_P).collect();
+    let qualifies = |e: &Event| e.pass_p >= MIN_PASS_P && e.fit.d_range.1 <= MAX_EVENT_D_RATIO * e.fit.d_range.0.max(1e-9);
+    let mut idx: Vec<usize> = (0..events.len()).filter(|&i| qualifies(&events[i])).collect();
     if idx.is_empty() {
         idx.extend((0..events.len()).max_by(|&a, &b| events[a].pass_p.total_cmp(&events[b].pass_p)));
     }

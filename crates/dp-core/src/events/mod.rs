@@ -28,7 +28,7 @@ use crate::audio::{Audio, FrontEnd, IfRefiner, LogSpectrogram};
 use crate::physics::cv::CvParams;
 
 pub use fit::{FitParams, fit_cv_with};
-pub use passlike::{MIN_PASS_P, PassFeatures, features as pass_features, pass_likeness, select};
+pub use passlike::{MAX_EVENT_D_RATIO, MIN_PASS_P, PassFeatures, features as pass_features, pass_likeness, select};
 
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct Ridge {

@@ -127,8 +127,14 @@ oysterbay_t5 60.7 → **49.6 m**; app scenario unchanged (above).
 Also tried, neutral, reverted: a brightness-only plane (z clipped at 0 below, as dopplertrack whitens): app
 scenario error −4 m [−37, 18], clock unchanged.
 
-Open: Oyster Bay regional discovered at ±120 s off-centre (`experiments/oysterbay_discovered_w120_off.toml`)
-is 6.1 km off with or without padding (oracle 61–74 m).
+Oyster Bay regional discovered at ±120 s off-centre (`experiments/oysterbay_discovered_w120_off.toml`) is
+6.1 km off with or without padding (oracle 61–74 m). The second searched event was a ground source with
+d [1, 13159] m. It hired flight a52fe1 and dragged the clock 45 s. `select` now skips events whose d range
+spans more than `MAX_EVENT_D_RATIO` (1000): pass-like labelled events reach 66, the junk ones 5818 and 10201.
+That gives Oyster ±120 s 5701 m (clock 45 → 42 s) and nothing else changes (Livermore app scenario, standard
+gate and global all identical). A minimum-d rule (≥ 300 m) did nothing: the event is vague, not near. What
+remains is faint pass 2 (ace391). With it, no candidate exists, so the eval drops it as the weakest; that is
+its known fit bias (nationwide_app §Event 2). Pass 1 alone slides along its track.
 
 ## Levers that add information
 

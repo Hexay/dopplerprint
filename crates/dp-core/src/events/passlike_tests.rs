@@ -52,3 +52,11 @@ fn select_keeps_one_event_per_pass() {
     ];
     assert_eq!(select(&ev, 4), vec![1, 2], "a second tone of the same pass is not a second pass");
 }
+
+#[test]
+fn select_skips_events_that_place_nothing() {
+    let mut ev = vec![event((110.0, 70.0, 900.0, 100.0), 60.0, 140.0, 20.0), event((95.0, 70.0, 900.0, 200.0), 160.0, 240.0, 30.0)];
+    ev[1].pass_p = 1.0;
+    ev[1].fit.d_range = (1.0, 13_159.0);
+    assert_eq!(select(&ev, 4), vec![0], "a d range over three decades places nothing");
+}
