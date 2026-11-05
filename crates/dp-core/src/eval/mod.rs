@@ -130,7 +130,7 @@ pub fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
     }
     let mut p = cfg.search.clone();
     let e = &cfg.eval;
-    p.assoc.t_start_prior = (c.t_start_true - e.time_prior_s, c.t_start_true + e.time_prior_s);
+    p.assoc.t_start_prior = start_prior(&c.id, c.t_start_true, e);
     p.flat_h_ell_m = c.truth_h_ell.unwrap_or_else(|| geoid_undulation(c.truth_lat, c.truth_lon));
     let region = displaced_region(c, e.region_offset_m, e.region_radius_m);
     let (base, weather) = atmosphere::sourced(p.atmosphere, c, e, &region);
@@ -208,9 +208,20 @@ pub fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
     }
 }
 
+fn case_hash(id: &str) -> u64 {
+    id.bytes().fold(0xcbf2_9ce4_8422_2325u64, |a, b| (a ^ b as u64).wrapping_mul(0x100_0000_01b3))
+}
+
+/// The start prior posed to the search for a case whose true start is `t_true` (see `time_prior_offset_frac`).
+pub(crate) fn start_prior(id: &str, t_true: f64, e: &crate::config::EvalParams) -> (f64, f64) {
+    let u = ((case_hash(id) >> 32) % 2001) as f64 / 1000.0 - 1.0;
+    let centre = t_true + u * e.time_prior_offset_frac * e.time_prior_s;
+    (centre - e.time_prior_s, centre + e.time_prior_s)
+}
+
 /// Deterministic per-case displacement so truth never sits at the region centre.
 fn displaced_region(c: &case::Posed, offset_m: f64, radius_m: f64) -> Region {
-    let h = c.id.bytes().fold(0xcbf2_9ce4_8422_2325u64, |a, b| (a ^ b as u64).wrapping_mul(0x100_0000_01b3));
+    let h = case_hash(&c.id);
     let bearing = (h % 3600) as f64 / 10.0;
     let (dn, de) = (offset_m * bearing.to_radians().cos(), offset_m * bearing.to_radians().sin());
     Region {

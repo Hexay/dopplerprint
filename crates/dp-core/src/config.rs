@@ -22,6 +22,9 @@ pub struct EvalParams {
     pub region_offset_m: f64,
     /// Recording-start prior half-width around the true start (s).
     pub time_prior_s: f64,
+    /// Start-prior centre displaced from the true start by a deterministic per-case fraction in
+    /// [−f, f] of `time_prior_s`. 0 centres the window on truth, which flatters estimators that pull to it.
+    pub time_prior_offset_frac: f64,
     /// Use truth event windows/CPA times instead of automatic discovery (isolates the search stage).
     /// `false`: search with discovered events, oracle alongside as baseline (see `eval::discovered`).
     pub oracle_events: bool,
@@ -80,6 +83,7 @@ impl Default for EvalParams {
             region_radius_m: 4_000.0,
             region_offset_m: 1_500.0,
             time_prior_s: 120.0,
+            time_prior_offset_frac: 0.0,
             oracle_events: true,
             discovery: Default::default(),
             oracle_f0_frac: 0.06,

@@ -1,0 +1,13 @@
+# livermore_dev_discovered_w120_r10k.toml with the start window off-centre: the true start lies anywhere in it
+# (per-case deterministic offset). Judge point-estimate changes here; see docs/research/clock_along_track_2026-11-04.md.
+[eval]
+cases = ["livermore"]
+split = "dev"
+data_dir = "/srv/agents/work/doppler_print/data"
+store_dir = "/srv/agents/work/doppler_print/data/adsb/store"
+time_prior_s = 120.0
+time_prior_offset_frac = 1.0
+region_radius_m = 10000.0
+oracle_d_range = [150.0, 8000.0]
+oracle_v_range = [20.0, 250.0]
+oracle_events = false

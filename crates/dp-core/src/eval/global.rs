@@ -72,7 +72,7 @@ fn try_run(cfg: &Config, c: &Posed) -> anyhow::Result<CaseResult> {
         scorer: &scorer,
         events: &events,
         source: &source,
-        prior: (t0 - e.time_prior_s, t0 + e.time_prior_s),
+        prior: super::start_prior(&c.id, t0, e),
         duration_s: c.audio.duration_s(),
         dem: c.dem.as_ref(),
         national: national.as_ref(),
