@@ -124,6 +124,12 @@ pub struct SearchInput<'a> {
 }
 
 pub fn search(inp: &SearchInput<'_>, p: &SearchParams) -> SearchResult {
+    // Padding only pays when the start is loose enough for the answer to slide along a track; with a start
+    // known to a few seconds it is noise (Oyster Bay ±5 s: 61 → 105 m at 20 s).
+    let (lo, hi) = p.assoc.t_start_prior;
+    let mut p = p.clone();
+    p.score.window_pad_s = p.score.window_pad_s.min(0.5 * (hi - lo)).max(0.0);
+    let p = &p;
     let mut level = coarse_cells(&inp.region, p.coarse_step_m);
     let mut all: Vec<Candidate> = Vec::new();
     let (mut hyps, mut cells) = (0usize, 0usize);

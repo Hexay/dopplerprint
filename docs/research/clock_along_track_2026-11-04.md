@@ -105,6 +105,31 @@ under-determined.
   Association already admits the true flight (assoc 24/26 either way): the gates are soft, so a d/v miss
   costs a little, not the flight. Wider bounds only let more wrong flights compete.
 
+## Score past the ridge (`ScoreParams::window_pad_s` = 20 s, capped at the prior half-width; adopted)
+
+dopplertrack scores brightness over its whole fit window; we scored only the detected ridge span. Padding
+each event's scored window lets the real (turning, accelerating) ADS-B track break the along-track/clock tie.
+App scenario (`livermore_dev_discovered_w120_r10k_off`) against no padding:
+
+| pad | \|clock err\| | error | reported answer | median (discovered) |
+|---|---|---|---|---|
+| 10 s | −17.1 s [−33, −4.6] | −929 m [−2075, 121] | −887 m | 3062 m |
+| **20 s** | **−24.8 s [−44, −8.5]** | **−1089 m [−2227, −35]** | **−1036 m [−2177, −2]** | **2880 m** (was 3485; right flight 19 → 21/28) |
+| 30 s | −19.9 s [−41, −0.7] | −840 m | −819 m | 3071 m |
+| 45 s | −19.9 s [−41, −0.7] | −839 m | −785 m | 3071 m |
+
+The gain is flat over 10–45 s, so 20 s is not a tuned peak. With a start known to a few seconds there is no
+ridge to break and padding is only noise (uncapped 20 s: Oyster Bay ±5 s +106 m, global oysterbay_t5
+60.7 → 105 m). So `search` caps it at the start prior's half-width. Capped, against no padding: standard
+Livermore (±2 s) reported +57 m [−3, 174], log −0.01; Oyster Bay (±5 s) +25 m, log +0.26; global
+oysterbay_t5 60.7 → **49.6 m**; app scenario unchanged (above).
+
+Also tried, neutral, reverted: a brightness-only plane (z clipped at 0 below, as dopplertrack whitens): app
+scenario error −4 m [−37, 18], clock unchanged.
+
+Open: Oyster Bay regional discovered at ±120 s off-centre (`experiments/oysterbay_discovered_w120_off.toml`)
+is 6.1 km off with or without padding (oracle 61–74 m).
+
 ## Levers that add information
 
 - A second pass, or a faint one (the clips are 1–3 min).

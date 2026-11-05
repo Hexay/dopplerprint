@@ -154,8 +154,8 @@ fn prepare(
     p: &ScoreParams,
 ) -> Prepared {
     let k_max = k_max as i64;
-    let f_a = spec.frame_of(t.window.0).ceil().max(0.0) as usize;
-    let f_b = (spec.frame_of(t.window.1).floor().max(0.0) as usize + 1).min(spec.n_t);
+    let f_a = spec.frame_of(t.window.0 - p.window_pad_s).ceil().max(0.0) as usize;
+    let f_b = (spec.frame_of(t.window.1 + p.window_pad_s).floor().max(0.0) as usize + 1).min(spec.n_t);
     let first = f_a as i64 - k_max;
     let n = ((f_b.saturating_sub(f_a)) as i64 + 2 * k_max).max(0) as usize;
     let ((offsets, drift), emit) = match defer_track {

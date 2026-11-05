@@ -38,6 +38,9 @@ pub struct ScoreParams {
     pub clock_sweep_s: f64,
     /// Per-frame z clipping before summing (limits loud transients).
     pub z_clip: f32,
+    /// Seconds added to each side of an event's scored window beyond the detected ridge: more of the real
+    /// (turning, accelerating) track breaks the along-track/clock tie (clock_along_track_2026-11-04.md).
+    pub window_pad_s: f64,
     /// f0 sweep step in log bins; sub-bin with linear interpolation, else quantisation biases position.
     pub f0_step_bins: f64,
     /// Nonzero linear f0 drifts β (1/s) swept per event besides β = 0 (`search::drift`); empty = off.
@@ -56,6 +59,7 @@ impl Default for ScoreParams {
             tol_penalty: 1.0,
             clock_sweep_s: 5.0,
             z_clip: 8.0,
+            window_pad_s: 20.0,
             f0_step_bins: 0.25,
             drift_grid: Vec::new(),
             drift_sigma_per_s: 1e-4,
