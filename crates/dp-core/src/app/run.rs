@@ -102,6 +102,7 @@ fn steps(req: &LocateRequest, ui: &dyn Ui, rep: &mut Report, started: Instant) -
     let mut p = search_params(&cfg, &prior, &area);
     let air = model_atmosphere(req, &cache, &area, dem.as_ref(), prior.nominal + 0.5 * rep.duration_s, p.atmosphere, ui);
     p.atmosphere = air.atmosphere;
+    p.assoc.allow_unexplained_discovered(&events.iter().map(EventSpec::from_event).collect::<Vec<_>>());
     rep.air = air.source.clone();
     ui.step("search", 0.5, &format!(
         "Matching {} pass{} against {} flights within {:.0} km of {}...",

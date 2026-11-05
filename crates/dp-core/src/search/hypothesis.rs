@@ -89,7 +89,19 @@ impl Default for AssocParams {
     }
 }
 
+/// `unexplained_cost` for discovered events (unexplained_silence_2026-11-03.md item 4). Oyster Bay at ±120 s:
+/// 5.7 km → 118 m, because a junk event no longer forces dropping the faint real pass.
+pub const DISCOVERED_UNEXPLAINED_COST: f64 = -6.0;
+
 impl AssocParams {
+    /// Lets discovered (non-exact) events stay unexplained at `DISCOVERED_UNEXPLAINED_COST` unless a cost is set.
+    /// Truth-label events never do: an exact label is a heard flight, so the oracle eval keeps no abstain null.
+    pub fn allow_unexplained_discovered(&mut self, events: &[EventSpec]) {
+        if self.unexplained_cost.is_none() && events.iter().any(|e| !e.is_exact()) {
+            self.unexplained_cost = Some(DISCOVERED_UNEXPLAINED_COST);
+        }
+    }
+
     /// Score of the all-unexplained null for `n_events`, when events may stay unexplained.
     pub fn null_score(&self, n_events: usize) -> Option<f64> {
         self.unexplained_cost.map(|l| -(n_events as f64) * l)

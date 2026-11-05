@@ -132,6 +132,7 @@ pub fn run_case(cfg: &Config, c: &case::Posed) -> CaseResult {
     let mut p = cfg.search.clone();
     let e = &cfg.eval;
     p.assoc.t_start_prior = start_prior(&c.id, c.t_start_true, e);
+    p.assoc.allow_unexplained_discovered(&c.events);
     p.flat_h_ell_m = c.truth_h_ell.unwrap_or_else(|| geoid_undulation(c.truth_lat, c.truth_lon));
     let region = displaced_region(c, e.region_offset_m, e.region_radius_m);
     let (base, weather) = atmosphere::sourced(p.atmosphere, c, e, &region);

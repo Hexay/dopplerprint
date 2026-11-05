@@ -136,6 +136,23 @@ gate and global all identical). A minimum-d rule (≥ 300 m) did nothing: the ev
 remains is faint pass 2 (ace391). With it, no candidate exists, so the eval drops it as the weakest; that is
 its known fit bias (nationwide_app §Event 2). Pass 1 alone slides along its track.
 
+## Discovered events may stay unexplained (λ_u = −6; adopted on the discovered path)
+
+Pass 2 still went unused at ±120 s because of how `search_dropping_weakest` recovers when no candidate
+exists. It drops the lowest-SNR event, and faint pass 2 (ace391, SNR 26) is weaker than junk event 10.
+Traced on Oyster: [10, 12, 31, 42] none → [10, 31, 42] none → [10, 31] none → [31] (pass 1 alone, 5.7 km).
+The real pair [31, 42] was never tried. The fix is unexplained_silence_2026-11-03.md's open recommendation:
+`AssocParams::allow_unexplained_discovered` sets `unexplained_cost` to −6 whenever an event is
+discovered (non-exact). Truth labels stay exact, so the oracle eval keeps no abstain null (28/28 answered).
+
+| gate | result |
+|---|---|
+| **Oyster Bay discovered ±120 s off-centre** | **5701 → 118 m**, clock error −41 s, both true flights |
+| CLI `--near`, start 60 s off | was found 5.7 km off (one pass, 70 km² region): **113 m, clock exact, N22NY + N93CQ**, 2.05 km² |
+| Oyster Bay discovered ±5 s | reported answer −360 m, log −1.87 |
+| Livermore app scenario | N913TC 3.4 → 9.2 km (wrong flight either way: two junk events); 26 unchanged |
+| standard Livermore, global oysterbay_t5 | unchanged |
+
 ## Levers that add information
 
 - A second pass, or a faint one (the clips are 1–3 min).
