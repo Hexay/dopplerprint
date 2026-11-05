@@ -28,6 +28,24 @@ without more information.
   (`eval/mod.rs` `t_start_prior`), so this would win the metric without helping a real user, whose clock
   error is unknown. Any estimator change here needs an eval with an off-centre prior first.
 
+## Off-centre window and the silence term (2026-11-05)
+
+`experiments/livermore_dev_discovered_w120_r10k_off.toml` (`time_prior_offset_frac = 1`: truth anywhere in
+the ±120 s window) at 2997c7d. Discovered median 4752 m, 3/28 within 1 km; oracle 3699 m, 9/28. That is
+close to the centred run, so the estimator did not lean on the centre. This is the baseline for clock and
+along-track work.
+
+The silence term's range model carries almost no along-track information (paired `dopplerprint compare`
+against that baseline, 28 cases):
+
+| variant | discovered error | reported-answer error, mean Δ | log score |
+|---|---|---|---|
+| silence off (flat, penalty 0) | 1 better / 0 worse / 27 tied | −442 m [−1148, 48] | +0.01 [−0.07, 0.12] |
+| `silence_range_m` 3 → 6 km | 3 / 0 / 25 | **−427 m [−991, −19]** | +0.02 [−0.00, 0.05] |
+
+It predicts detection from slant range only and never looks at the spectrogram. Next: score every audible
+unassociated flight on the spectrogram (similar_projects_2026-11-05.md idea 1).
+
 ## Levers that add information
 
 - A second pass, or a faint one (the clips are 1–3 min).
