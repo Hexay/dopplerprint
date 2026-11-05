@@ -81,6 +81,30 @@ N500MG 113 + 53 Hz (2:1), N61NG 149 + 148 Hz, N814SR 66 + 61 Hz. Searching both 
 | standard Livermore dev | 1 better / 0 worse (log +0.34 [0.00, 1.02]) |
 | Oyster Bay discovered, global oysterbay_t5 | unchanged |
 
+## Fitted d too small: manoeuvres, and two negative fixes
+
+On labelled discovered events, d error follows v error squared (N451EE v −0.50 / d −0.75, N231DT −0.51 /
+−0.85, N913TC −0.35 / −0.65). κ = v²/d stays right (N451EE fit 6.26, truth 6.32); v and d slide along it.
+The truth KML tracks (scratchpad `manoeuvre.py`, ±30 s around CPA) show manoeuvres on the bad fits:
+
+- N451EE: 82° climbing turn.
+- N2933A: 136° turn.
+- N3012N: circling.
+- N231DT: ground speed 46–76 m/s.
+- N413AK: ground speed 73–108 m/s.
+
+The good fits (N8085W, N784MB, N9393T, N795MM) were steady to 1–2 m/s and < 1° of heading. N60RS is an
+exception: ground speed 61–91 m/s, yet a good fit. The CV model is wrong for pattern traffic, not
+under-determined.
+
+- **Profile-likelihood v interval (reverted).** Stepping v and refitting the rest never widened the bad
+  passes' bounds: the cost rises past k = 3 within one 10 % step, so the data prefers the wrong curve. It
+  did widen spurious events to v 0–238 m/s.
+- **Wider floors `v_floor` 0.2 → 0.5, `d_floor` 1 → 3, κ unchanged (not adopted).** App scenario:
+  truth-cell rank +110 [4, 307], reported answer 2 better / 5 worse. Standard eval: neutral to worse.
+  Association already admits the true flight (assoc 24/26 either way): the gates are soft, so a d/v miss
+  costs a little, not the flight. Wider bounds only let more wrong flights compete.
+
 ## Levers that add information
 
 - A second pass, or a faint one (the clips are 1–3 min).
