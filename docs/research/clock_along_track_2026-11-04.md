@@ -68,6 +68,19 @@ nearby traffic in these clips is inaudible, so spectrogram evidence from other f
 idea 1) cannot break the Livermore ridge. Only absence (the silence term) and a better clock can. Idea 1
 is dropped for single-pass clips; it may still help long recordings with faint, undetected passes.
 
+## One searched event per pass (`events::SAME_PASS_S`, adopted)
+
+Discovered-vs-oracle losses at `select`/`assoc` had one shared cause. Searched events whose CPAs arrive
+within 10 s of each other are the same aircraft in all 4 Livermore dev pairs: N394FX 355 + 846 Hz,
+N500MG 113 + 53 Hz (2:1), N61NG 149 + 148 Hz, N814SR 66 + 61 Hz. Searching both forces a second flight.
+`select` now keeps only the strongest (SNR) of such events.
+
+| gate (vs 6 km silence base) | result |
+|---|---|
+| app scenario (10 km, off-centre ±120 s) | **log +1.03 [0.21, 2.05]**, truth-cell rank −598 [−1204, −128]; right flight now in all 4 changed cases (N394FX 7229 → 905 m, N500MG 8466 → 1362 m, N61NG 8490 → 8254 m, N814SR 1872 → 6872 m: was the wrong flight nearby, now the right one, 6.9 km along its track) |
+| standard Livermore dev | 1 better / 0 worse (log +0.34 [0.00, 1.02]) |
+| Oyster Bay discovered, global oysterbay_t5 | unchanged |
+
 ## Levers that add information
 
 - A second pass, or a faint one (the clips are 1–3 min).

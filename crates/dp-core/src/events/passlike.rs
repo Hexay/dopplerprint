@@ -62,14 +62,27 @@ pub fn pass_likeness(x: &PassFeatures) -> f64 {
     1.0 / (1.0 + (-z).exp())
 }
 
+/// Events whose CPAs arrive this close are one pass (unmerged tones or harmonics of one aircraft: all 4 such
+/// pairs on Livermore dev, docs/research/clock_along_track_2026-11-04.md); only the strongest is searched.
+pub const SAME_PASS_S: f64 = 10.0;
+
 /// Indices (CPA order) of the events to search: the `max_events` strongest by SNR among those with
-/// `pass_p ≥ MIN_PASS_P`, or the single most pass-like event when none qualifies.
+/// `pass_p ≥ MIN_PASS_P` and no stronger one within `SAME_PASS_S`, or the single most pass-like event when
+/// none qualifies.
 pub fn select(events: &[Event], max_events: usize) -> Vec<usize> {
     let mut idx: Vec<usize> = (0..events.len()).filter(|&i| events[i].pass_p >= MIN_PASS_P).collect();
     if idx.is_empty() {
         idx.extend((0..events.len()).max_by(|&a, &b| events[a].pass_p.total_cmp(&events[b].pass_p)));
     }
     idx.sort_by(|&a, &b| events[b].snr.total_cmp(&events[a].snr));
+    let t = |i: usize| events[i].fit.best.t_cpa_arrive;
+    let mut kept: Vec<usize> = Vec::new();
+    for i in idx {
+        if kept.iter().all(|&k| (t(k) - t(i)).abs() >= SAME_PASS_S) {
+            kept.push(i);
+        }
+    }
+    let mut idx = kept;
     idx.truncate(max_events.max(1));
     idx.sort_by(|&a, &b| events[a].fit.best.t_cpa_arrive.total_cmp(&events[b].fit.best.t_cpa_arrive));
     idx

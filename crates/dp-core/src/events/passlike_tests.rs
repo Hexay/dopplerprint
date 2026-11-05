@@ -42,3 +42,13 @@ fn select_gates_then_ranks_by_snr_in_cpa_order() {
     ev[1].pass_p = 0.2;
     assert_eq!(select(&ev, 4), vec![1], "nothing qualifies: the most pass-like event alone");
 }
+
+#[test]
+fn select_keeps_one_event_per_pass() {
+    let ev = vec![
+        event((110.0, 70.0, 900.0, 100.0), 60.0, 140.0, 20.0),
+        event((220.0, 70.0, 900.0, 103.0), 60.0, 140.0, 30.0),
+        event((95.0, 60.0, 1200.0, 200.0), 160.0, 240.0, 10.0),
+    ];
+    assert_eq!(select(&ev, 4), vec![1, 2], "a second tone of the same pass is not a second pass");
+}
