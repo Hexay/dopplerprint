@@ -153,6 +153,20 @@ discovered (non-exact). Truth labels stay exact, so the oracle eval keeps no abs
 | Livermore app scenario | N913TC 3.4 → 9.2 km (wrong flight either way: two junk events); 26 unchanged |
 | standard Livermore, global oysterbay_t5 | unchanged |
 
+## CPA-time band floor `t_floor_s` 3 → 6 / 10 s (neutral, not adopted)
+
+The band misses the labelled CPA on 7/29 passes, mostly at the 3 s floor. Widening it changes nothing at
+±120 s (app scenario and Oyster ±120 identical: the start prior swallows a 3–10 s band). At tight priors,
+against a195b13:
+
+| floor | standard Livermore: error, mean Δ | log, mean / median Δ | Oyster ±5 s log | global oysterbay_t5 |
+|---|---|---|---|---|
+| 6 s | −37 m [−173, 62] (3 / 2 / 23) | +0.06 [−0.02, 0.16] / −0.02 (4 better, 19 worse) | +0.86 | 49.6 m, margin 30.7 (unchanged) |
+| 10 s | −37 m [−174, 63] | +0.09 / −0.05 (4 / 19) | +1.28 | — |
+
+The clock gate is already a Student-t tail past the band (`search/hypothesis/soft.rs`), so the miss costs
+a little, not the flight. Don't retry without a tight-prior failure that traces to the band.
+
 ## Levers that add information
 
 - A second pass, or a faint one (the clips are 1–3 min).
