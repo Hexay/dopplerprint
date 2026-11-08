@@ -1,0 +1,12 @@
+# aerosonic_dev.toml at the app's default start uncertainty with discovered events, like
+# livermore_dev_discovered_w120_r10k_off.toml: ±120 s, truth anywhere in the window, 10 km region.
+[eval]
+cases = ["aerosonic"]
+data_dir = "/srv/agents/work/doppler_print/data"
+store_dir = "/srv/agents/work/doppler_print/data/adsb/store"
+time_prior_s = 120.0
+time_prior_offset_frac = 1.0
+region_radius_m = 10000.0
+oracle_d_range = [150.0, 8000.0]
+oracle_v_range = [20.0, 250.0]
+oracle_events = false

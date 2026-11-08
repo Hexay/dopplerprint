@@ -7,13 +7,19 @@ DG_CHECKPOINT_ASSETS = ["data-source.tar.gz", "data-adsb-derived.tar.gz", "data-
 DG_MULTIEVENT = "multi-event-fixtures-2026-11-03"
 DG_SIXEVENT_REPLAY = "six-event-cli-replay-2026-11-03"
 
-ADSBLOL_REPO = "adsblol/globe_history_2026"
 ADSBLOL_LICENSE = "ODbL 1.0 (adsb.lol globe_history); derived clips retain ODbL attribution/share-alike"
+
+
+def adsblol_repo(tag):
+    """adsb.lol publishes one release repo per year; tags are v<year>.MM.DD-..."""
+    return f"adsblol/globe_history_{tag[1:5]}"
+
 
 # Regions are clip boxes (west, south, east, north) for ADS-B; ~70 km half-width keeps silence-filter context.
 REGIONS = {
     "oysterbay": (-74.30, 40.30, -72.70, 41.40),
     "livermore": (-122.60, 37.10, -121.00, 38.30),
+    "adelaide": (138.235, -35.19, 138.95, -34.63),  # AeroSonicDB sites 0-2, +-25 km
 }
 # adsb.lol day tag -> regions clipped from it. Commented days are known gaps (budget); see MANIFEST.
 ADSB_DAYS = {
@@ -24,6 +30,14 @@ ADSB_DAYS = {
     "v2026.05.13-planes-readsb-prod-0": ["livermore"],
     # "v2026.05.12-planes-readsb-prod-0": ["livermore"],  # 2 passages, ~3.2 GB
     # "v2026.05.09-planes-readsb-prod-0": ["livermore"],  # 3 passages, ~3.2 GB
+    # AeroSonicDB local dates; 04-14 (UTC) holds the 04-15 clips recorded before 09:30 ACST.
+    # adsb.lol 2023 has no feeder near Adelaide: these clips are empty (prod-1/staging-0 too, checked 05-09),
+    # so they stay off until another ADS-B source (OpenSky) fills them. ~1.1 GB each.
+    # "v2023.04.06-planes-readsb-prod-0": ["adelaide"],
+    # "v2023.04.14-planes-readsb-prod-0": ["adelaide"],
+    # "v2023.04.15-planes-readsb-prod-0": ["adelaide"],
+    # "v2023.04.24-planes-readsb-prod-0": ["adelaide"],
+    # "v2023.05.09-planes-readsb-prod-0": ["adelaide"],
 }
 
 COPERNICUS_URL = ("https://copernicus-dem-30m.s3.amazonaws.com/{name}/{name}.tif")
@@ -35,7 +49,15 @@ DEM_TILES = {
     "livermore": [(37, -122), (37, -123)],
     "nasa_cub": [(38, -78)],
     "nasa_edge": [(36, -77)],
+    "aerosonic": [(-35, 138), (-36, 138)],
 }
+
+ZENODO_AEROSONIC = "8371595"
+AEROSONIC_LICENSE = "CC BY-NC 4.0 (AeroSonicDB YPAD-0523 v1.1.1, Zenodo 8371595, Blake Downward); non-commercial"
+AEROSONIC_TZ = "Australia/Adelaide"  # sample_meta date/time are local wall clock; build() gates on the CPA
+AEROSONIC_DATES = ["2023-04-06", "2023-04-15", "2023-04-24", "2023-05-09"]  # local dates with an ADS-B day
+AEROSONIC_ENGINES = {"Piston", "Turboprop", "Turboshaft"}
+AEROSONIC_LOCATIONS = {"0", "1", "2"}
 
 ZENODO_PATHAK = "23424278"
 PATHAK_LICENSE = "CC BY 4.0 (Zenodo record 23424278, Praveen Pathak); flight tracks from public ADS-B services"

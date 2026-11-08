@@ -34,7 +34,7 @@ def fetch(tags=None):
     for tag in tags or S.ADSB_DAYS:
         if all(clip_path(tag, r).exists() for r in S.ADSB_DAYS[tag]):
             continue
-        gh_release_download(S.ADSBLOL_REPO, tag, RAW / tag, ["*.tar.a?"])
+        gh_release_download(S.adsblol_repo(tag), tag, RAW / tag, ["*.tar.a?", "*.tar"])
 
 
 def clip(tags=None):
@@ -101,9 +101,10 @@ def _schema():
 def clip_day(tag, regions):
     import pyarrow as pa
     import pyarrow.parquet as pq
-    parts = sorted((RAW / tag).glob("*.tar.a?"))
-    if len(parts) < 2:
-        raise FileNotFoundError(f"{tag}: split archive incomplete; run the fetch stage")
+    split = sorted((RAW / tag).glob("*.tar.a?"))
+    parts = split or sorted((RAW / tag).glob("*.tar"))
+    if len(split) == 1 or not parts:
+        raise FileNotFoundError(f"{tag}: archive incomplete; run the fetch stage")
     schema = _schema()
     bufs = {r: [] for r in regions}
     writers, stats = {}, {r: dict(aircraft=0, rows=0) for r in regions}
@@ -145,9 +146,12 @@ def clip_day(tag, regions):
         flush(r)
         if r in writers:
             writers[r].close()
+        else:  # no aircraft in the box (sparse feeder coverage): an empty clip still marks the day as done
+            tmp[r].parent.mkdir(parents=True, exist_ok=True)
+            pq.write_table(schema.empty_table(), tmp[r])
         tmp[r].rename(clip_path(tag, r))
         write_json(clip_path(tag, r).with_suffix(".json"), dict(
-            source=f"https://github.com/{S.ADSBLOL_REPO}/releases/tag/{tag}", license=S.ADSBLOL_LICENSE,
+            source=f"https://github.com/{S.adsblol_repo(tag)}/releases/tag/{tag}", license=S.ADSBLOL_LICENSE,
             bbox_wsen=S.REGIONS[r], trace_files_scanned=files, **stats[r], columns=COLUMNS,
             note="All types retained; one neighbour outside the bbox kept per in-box run."))
     log(tag, "done", stats)

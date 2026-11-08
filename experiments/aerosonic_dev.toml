@@ -1,0 +1,15 @@
+# AeroSonicDB Adelaide clips (data/cases/aerosonic_*) with oysterbay_dg_parity settings: ~100 km² region,
+# oracle events from truth.json (ADS-B CPA + discovered f0), start known to ±5 s.
+[eval]
+cases = ["aerosonic"]
+data_dir = "/srv/agents/work/doppler_print/data"
+store_dir = "/srv/agents/work/doppler_print/data/adsb/store"
+region_radius_m = 5600.0
+region_offset_m = 450.0
+time_prior_s = 5.0
+oracle_events = true
+
+[search]
+coarse_step_m = 200
+min_step_m = 25
+keep_top = 200

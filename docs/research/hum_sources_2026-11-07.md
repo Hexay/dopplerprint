@@ -34,7 +34,7 @@ Nothing found meets all six criteria today. The two closest:
 
 | # | Source | Loc | Time | ADS-B | Props | Hum | Ref | Licence | Usable |
 |---|---|---|---|---|---|---|---|---|---|
-| 1 | **AeroSonicDB YPAD-0523 v1.1.1** ([Zenodo 8371595](https://zenodo.org/records/8371595), [arXiv 2311.06368](https://arxiv.org/abs/2311.06368)) | 3 fixed sites; coords are "a road or public space nearby" (privacy), so ≤ ~200 m [I] | filename to the second, ADS-B-triggered; local time (hours run 06–23) [I] | adsb.lol from 2023-02-16 [V] covers locs 1/2; loc 0 Dec 2022 needs OpenSky. Hex id in metadata [V] | 155 prop clips of 625 (114 turboprop, 37 piston) [V] | loc 2: 100 Hz line in 21/34 silences and 4/16 aircraft clips [V]; locs 0/1 none [V] | none public for 2023 (above) | CC BY-NC 4.0 | **3–4** loc-2 props with hum (DA42, SF34, R44 heli; plus a B38M jet) |
+| 1 | **AeroSonicDB YPAD-0523 v1.1.1** ([Zenodo 8371595](https://zenodo.org/records/8371595), [arXiv 2311.06368](https://arxiv.org/abs/2311.06368)) | 3 fixed sites; coords are "a road or public space nearby" (privacy), so ≤ ~200 m [I] | filename to the second, ADS-B-triggered; local time (hours run 06–23) [I] | **adsb.lol 2023 has no feeder near Adelaide [V 2026-11-08: 0 aircraft in a ±25 km box on 04-06/14/15/24, 05-09; nearest ~390 km]**: needs OpenSky. Hex id in metadata [V] | 155 prop clips of 625 (114 turboprop, 37 piston) [V] | loc 2: 100 Hz line in 21/34 silences and 4/16 aircraft clips [V]; locs 0/1 none [V] | none public for 2023 (above) | CC BY-NC 4.0 | **3–4** loc-2 props with hum (DA42, SF34, R44 heli; plus a B38M jet) |
 | 2 | **xeno-canto via GBIF** ([bird dataset](https://www.gbif.org/dataset/b1047888-ae52-4179-9dd5-5448ea342a24)) | lat/lon, 4 dp [V] | date + HH:MM, local; some recordists round to :00/:30 [V] | 2023+ selected [V] | 114 GB/Nordic/US-West records mention aircraft in `behavior`/`fieldNotes` [V]; prop vs jet unknown | 1 real grid hum in 37 screened; 0 of the aircraft-tagged GB clips with planes [V] | GB: NESO 1 s ✔; Nordic: Fingrid ✔; AZ: WECC rebuild | mostly CC BY-NC-SA | **0 now**; ENF itself verified on one clip |
 | 3 | Hear-and-Avoid, TU Delft ([DOI 10.34894/ARULTD](https://doi.org/10.34894/ARULTD)) | array, site not on landing page | overflight labels, no wall-clock time listed | 2020, pre-adsb.lol | GA props ✔ | not screened | CE: none | CC0 | 0 as listed [V metadata] |
 | 4 | AeroSonicDB 3K v2.0 ([Zenodo 12775560](https://zenodo.org/records/12775560)) | same Adelaide sites | ADS-B-triggered, trimmed to the event | likely 2023–24 [I] | >3000 events | unknown; 16 kHz | NEM 4 s only from 2025-09 | CC BY-NC-SA, **access by request** | unknown |
@@ -157,3 +157,41 @@ Be clear about the result: no public source gives a prop pass + hum + reference 
 Not worth pursuing: Freesound (no recording times), Macaulay (behind Anubis, no times on GBIF),
 SONYC/DCASE/ESC-50/TAU (locations blurred, times missing or hour-level), and Hear-and-Avoid (2020, no
 wall-clock times).
+
+## Airfield screen: xeno-canto GB near GA airfields (2026-11-08) [V]
+
+Tooling: `tools/corpus/neso.py` (NESO 1 s, cached in `data/enf/gb/`, `match()` = ±1 h lag sweep),
+`tools/corpus/xenocanto.py` (GBIF + OurAirports), `tools/hum_scout.py select download screen report`.
+Results: `humsrc/xc_gb_meta/results.{csv,md}` under the scratch dir above.
+
+- **Selection.** 21 222 GB recordings (2023+, coords). 17 053 lie ≤ 8 km from an OurAirports
+  small/medium airfield, because GB has ~1000 farm strips, so distance alone barely filters. 393 were rejected
+  on notes. 1360 kept (20–600 s, ≤ 40 per recordist), ordered "unprocessed" first (62), then nearest.
+- **Budget.** The 3 GB cap bought only **242 clips** (4.6 h), because most are 48 kHz WAV (~12 MB each).
+  Putting MP3s first would roughly triple the count.
+- **Hum.** 55/242 have hum. **40 are GB grid** (f₀ within 0.5 Hz of 50). 15 are equipment: nine at 60 Hz
+  and six 37.5 Hz lines (West Heslerton ×3, Pound Green ×2, Smithy Fen). The detector labels the 37.5 Hz
+  lines `nominal 50` through the 0.75 ratio, so ingest must check f₀, not only `nominal`.
+- **ENF.** 17/40 match NESO (rms < 15 mHz and < 0.3 × median). Only **1 is unique** over ±1 h (next
+  minimum ≥ 120 s away is ≥ 1.5× worse): **XC824881**, Knott End-on-Sea, 2023-08-24 01:06 BST, lag
+  **+16 s**, 2.5 mHz vs 57 median. In 4/17 the best lag falls within ±300 s of the listed time. Clips of
+  20–60 s with 3–10 valid frames are ambiguous over ±1 h, so restrict the sweep to ±5 min when the listed
+  time is trusted.
+- **Aircraft.** 24/242 have a pass-like event (`pass_p` ≥ 0.5). **4 have GB-grid hum and a pass-like
+  event**, but none is a prize:
+
+| XC | Site (airfield, km) | Local | ENF | Verdict |
+|---|---|---|---|---|
+| XC1137317 | West Heslerton (Moor Farm strip, 0.7) | 2026-05-25 06:29 | +197 s, 6.5 mHz, not unique (7.4 at +717) | spectrogram: steady 100–320 Hz broadband, no visible Doppler |
+| XC1154485 | Panfield, Essex (Rayne Hall strip, 1.3) | 2026-07-07 05:30 | no match (29 mHz) | flat ~100/280 Hz bands at 0–23 s, no sweep; possibly a vehicle |
+| XC1040318 | West Heslerton (0.7) | 2025-06-11 05:22 | no match (36 mHz) | broadband low band, no visible pass |
+| XC1105256 | Great Massingham (1.4) | 2026-05-03 00:00 | no match | notes say "unsure of exact time"; low bird calls |
+
+So hum alone is common near these sites (40/242 is about 6× the 1/37 rate from `q=aircraft`). Still no
+clip has hum, a unique ENF lock and a real prop pass together. Next steps, cheapest first:
+
+1. Screen the MP3s.
+2. Weight selection toward active GA airfields: ICAO-coded (`EG..`) idents rather than all
+   `GB-nnnn` farm strips.
+3. Check adsb.lol for GA traffic over West Heslerton and Panfield on the listed mornings before spending
+   more on audio.
